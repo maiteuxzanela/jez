@@ -2,8 +2,16 @@
  * ==========================================================================
  * JEZ Ateliê & Gestão — Estilos do Painel Administrativo Mobile (Cris & Lumi)
  * Paleta Oficial: #23192d, #FD0A54, #F57576, #FEBF97, #F5ECB7
+ * Tema dos Cards: Marrom Quente / Aubergine (#2d2038) com pesponto #FEBF97
  * ==========================================================================
  */
+
+:root {
+  --admin-card-bg: #2d2038;
+  --admin-card-border: 1.5px dashed rgba(254, 191, 151, 0.45);
+  --admin-card-text: var(--color-bg-light);
+  --admin-input-bg: #23192d;
+}
 
 .admin-body {
   background-color: #f7f3ea;
@@ -37,6 +45,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.admin-brand {
+  display: flex;
+  flex-direction: column;
 }
 
 .admin-logo {
@@ -120,6 +133,7 @@
   font-weight: 600;
   position: relative;
   transition: var(--transition-fast);
+  cursor: pointer;
 }
 
 .nav-tab.active {
@@ -209,6 +223,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  cursor: pointer;
 }
 
 .btn-refresh-data:hover {
@@ -233,7 +248,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   4. Cartões Executivos (KPIs)
+   4. Cartões Executivos (KPIs) — Marrom Quente da Marca
    -------------------------------------------------------------------------- */
 .kpi-grid {
   display: grid;
@@ -249,15 +264,16 @@
 }
 
 .kpi-card {
-  background: var(--color-white);
-  border: 1.5px solid var(--color-border-light);
+  background: var(--admin-card-bg);
+  border: var(--admin-card-border);
   border-radius: var(--radius-sm);
   padding: 16px 14px;
-  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.08);
+  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.25);
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  color: var(--admin-card-text);
 }
 
 .kpi-card::before {
@@ -283,7 +299,7 @@
 .kpi-label {
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--color-muted-text);
+  color: var(--color-accent);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -297,21 +313,21 @@
   justify-content: center;
 }
 
-.icon-green { background: rgba(22, 163, 74, 0.12); color: #16a34a; }
-.icon-blue { background: rgba(37, 99, 235, 0.12); color: #2563eb; }
-.icon-orange { background: rgba(234, 88, 12, 0.12); color: #ea580c; }
+.icon-green { background: rgba(22, 163, 74, 0.2); color: #4ade80; }
+.icon-blue { background: rgba(37, 99, 235, 0.2); color: #60a5fa; }
+.icon-orange { background: rgba(234, 88, 12, 0.2); color: #fb923c; }
 
 .kpi-value {
   font-family: var(--font-display);
   font-size: 1.6rem;
   font-weight: 800;
-  color: var(--color-dark);
+  color: var(--color-bg-light);
   line-height: 1.1;
 }
 
 .kpi-subtext {
   font-size: 0.75rem;
-  color: var(--color-muted-text);
+  color: rgba(245, 236, 183, 0.75);
   margin-top: 4px;
 }
 
@@ -337,12 +353,13 @@
   gap: 6px;
   box-shadow: 2px 2px 0px var(--color-dark);
   transition: var(--transition-fast);
+  cursor: pointer;
 }
 
 .btn-quick-action.secondary {
-  background: var(--color-dark);
+  background: var(--admin-card-bg);
   color: var(--color-bg-light);
-  border-color: var(--color-dark);
+  border: var(--admin-card-border);
 }
 
 .btn-quick-action:hover {
@@ -352,11 +369,12 @@
 
 /* Bloco de Pedidos Recentes */
 .dashboard-block {
-  background: var(--color-white);
-  border: 1.5px solid var(--color-border-light);
+  background: var(--admin-card-bg);
+  border: var(--admin-card-border);
   border-radius: var(--radius-sm);
   padding: 16px 14px;
-  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.06);
+  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.25);
+  color: var(--color-bg-light);
 }
 
 .block-header {
@@ -365,18 +383,19 @@
   align-items: center;
   margin-bottom: 12px;
   padding-bottom: 8px;
-  border-bottom: 1px dashed rgba(35, 25, 45, 0.15);
+  border-bottom: 1px dashed rgba(254, 191, 151, 0.25);
 }
 
 .block-header h3 {
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 700;
+  color: var(--color-bg-light);
 }
 
 .link-see-all {
   font-size: 0.78rem;
-  color: var(--color-primary);
+  color: var(--color-accent);
   font-weight: 700;
   background: none;
   border: none;
@@ -394,35 +413,36 @@
    -------------------------------------------------------------------------- */
 .orders-filter-bar {
   display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  margin-bottom: 16px;
-  scrollbar-width: none;
-}
-
-.orders-filter-bar::-webkit-scrollbar {
-  display: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
 }
 
 .order-filter-btn {
+  flex: 0 0 auto;
   white-space: nowrap;
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 4px;
-  border: 1.5px solid rgba(35, 25, 45, 0.2);
-  background: var(--color-white);
-  color: var(--color-dark);
-  font-size: 0.76rem;
+  border: 1.5px dashed rgba(254, 191, 151, 0.35);
+  background: var(--admin-card-bg);
+  color: var(--color-bg-light);
+  font-size: 0.78rem;
   font-weight: 700;
-  box-shadow: 1.5px 1.5px 0px rgba(35, 25, 45, 0.08);
+  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.2);
   transition: var(--transition-fast);
+  cursor: pointer;
+}
+
+.order-filter-btn:hover {
+  background: #382845;
+  border-color: var(--color-accent);
 }
 
 .order-filter-btn.active {
-  background: var(--color-dark);
-  color: var(--color-bg-light);
-  border-color: var(--color-dark);
-  box-shadow: 2px 2px 0px var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-white);
+  border: 1.5px solid var(--color-primary);
+  box-shadow: 2px 2px 0px var(--color-dark);
 }
 
 .orders-list-container {
@@ -432,14 +452,15 @@
 }
 
 .order-card {
-  background: var(--color-white);
-  border: 1.5px solid var(--color-border-light);
+  background: var(--admin-card-bg);
+  border: var(--admin-card-border);
   border-radius: var(--radius-sm);
-  padding: 14px 12px;
-  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.08);
+  padding: 16px 14px;
+  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.25);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  color: var(--color-bg-light);
 }
 
 .order-card-header {
@@ -451,14 +472,15 @@
 
 .order-id-badge {
   font-family: var(--font-logo);
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 800;
-  color: var(--color-dark);
+  color: var(--color-bg-light);
 }
 
 .order-date {
   font-size: 0.74rem;
-  color: var(--color-muted-text);
+  color: rgba(245, 236, 183, 0.75);
+  margin-top: 2px;
 }
 
 /* Status das Peças & Pedidos com Pesponto Têxtil */
@@ -466,7 +488,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: 3px;
   font-size: 0.7rem;
   font-weight: 800;
@@ -506,29 +528,39 @@
   border-color: #16a34a;
 }
 
+.status-tag.status-suspended,
+.status-tag.status-suspensa {
+  background: rgba(254, 191, 151, 0.15);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
 .order-items-summary {
-  background: rgba(245, 236, 183, 0.35);
+  background: rgba(35, 25, 45, 0.55);
+  border: 1px dashed rgba(254, 191, 151, 0.25);
   border-radius: 4px;
-  padding: 8px 10px;
-  font-size: 0.8rem;
+  padding: 10px 12px;
+  font-size: 0.82rem;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  color: var(--color-bg-light);
 }
 
 .order-total-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   font-weight: 800;
-  color: var(--color-dark);
-  padding-top: 4px;
+  color: var(--color-bg-light);
+  padding-top: 6px;
+  border-top: 1px dashed rgba(254, 191, 151, 0.25);
 }
 
 .order-total-highlight {
-  color: var(--color-primary);
-  font-size: 1rem;
+  color: var(--color-accent);
+  font-size: 1.05rem;
 }
 
 /* Controle de Status Ágil (em 2 toques) */
@@ -537,7 +569,7 @@
   flex-direction: column;
   gap: 8px;
   padding-top: 8px;
-  border-top: 1px dashed rgba(35, 25, 45, 0.12);
+  border-top: 1px dashed rgba(254, 191, 151, 0.25);
 }
 
 .status-action-row {
@@ -547,21 +579,24 @@
 }
 
 .btn-status-change {
-  background: #fdfbf7;
-  border: 1px solid rgba(35, 25, 45, 0.2);
-  padding: 6px 10px;
+  background: #23192d;
+  border: 1px dashed rgba(254, 191, 151, 0.4);
+  padding: 6px 12px;
   border-radius: 3px;
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--color-dark);
+  color: var(--color-bg-light);
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  cursor: pointer;
+  transition: var(--transition-fast);
 }
 
 .btn-status-change:hover {
-  background: var(--color-dark);
-  color: var(--color-bg-light);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
 }
 
 /* Campo de Rastreio dos Correios */
@@ -573,12 +608,19 @@
 
 .tracking-input {
   flex: 1;
-  padding: 6px 10px;
-  border: 1px solid rgba(35, 25, 45, 0.2);
+  padding: 8px 10px;
+  background: var(--admin-input-bg);
+  color: var(--color-bg-light);
+  border: 1.5px solid rgba(254, 191, 151, 0.35);
   border-radius: 3px;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-family: monospace;
   text-transform: uppercase;
+}
+
+.tracking-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
 }
 
 .btn-save-tracking {
@@ -588,6 +630,8 @@
   border-radius: 3px;
   font-size: 0.76rem;
   font-weight: 700;
+  border: none;
+  cursor: pointer;
 }
 
 .tracking-info-live {
@@ -595,13 +639,13 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #6b21a8;
+  color: #d8b4fe;
   font-weight: 600;
 }
 
 .tracking-info-live a {
   text-decoration: underline;
-  color: #6b21a8;
+  color: var(--color-accent);
   font-weight: 800;
 }
 
@@ -609,14 +653,15 @@
    6. Formulário de Nova Peça (Ergonomia Artesanal)
    -------------------------------------------------------------------------- */
 .craft-form {
-  background: var(--color-white);
-  border: 1.5px solid var(--color-border-light);
+  background: var(--admin-card-bg);
+  border: var(--admin-card-border);
   border-radius: var(--radius-sm);
-  padding: 16px 14px;
-  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.08);
+  padding: 18px 16px;
+  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.25);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  color: var(--color-bg-light);
 }
 
 .form-group {
@@ -628,7 +673,7 @@
 .form-label {
   font-size: 0.84rem;
   font-weight: 700;
-  color: var(--color-dark);
+  color: var(--color-bg-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -636,8 +681,9 @@
 
 .label-badge {
   font-size: 0.65rem;
-  background: rgba(253, 10, 84, 0.12);
+  background: rgba(253, 10, 84, 0.2);
   color: var(--color-primary);
+  border: 1px dashed var(--color-primary);
   padding: 2px 6px;
   border-radius: 2px;
   font-weight: 700;
@@ -646,18 +692,22 @@
 .craft-input, .craft-select, .craft-textarea {
   width: 100%;
   padding: 10px 12px;
-  border: 1.5px solid rgba(35, 25, 45, 0.2);
+  border: 1.5px solid rgba(254, 191, 151, 0.35);
   border-radius: var(--radius-xs);
   font-size: 0.9rem;
   font-family: inherit;
-  background: #fff;
-  color: var(--color-dark);
+  background: var(--admin-input-bg);
+  color: var(--color-bg-light);
+}
+
+.craft-input::placeholder, .craft-textarea::placeholder {
+  color: rgba(245, 236, 183, 0.45);
 }
 
 .craft-input:focus, .craft-select:focus, .craft-textarea:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(253, 10, 84, 0.12);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(254, 191, 151, 0.2);
 }
 
 .form-row-2 {
@@ -666,21 +716,19 @@
   gap: 10px;
 }
 
-/* Upload de Foto com Preview */
+/* Upload de Foto com Preview & Reenquadramento */
 .photo-upload-zone {
-  border: 2px dashed rgba(35, 25, 45, 0.3);
+  border: 2px dashed rgba(254, 191, 151, 0.4);
   border-radius: var(--radius-sm);
-  background: #fdfbf7;
-  padding: 20px 14px;
+  background: rgba(35, 25, 45, 0.6);
+  padding: 16px 12px;
   text-align: center;
-  cursor: pointer;
   position: relative;
   transition: var(--transition-fast);
 }
 
 .photo-upload-zone:hover {
-  border-color: var(--color-primary);
-  background: rgba(254, 191, 151, 0.15);
+  border-color: var(--color-accent);
 }
 
 .file-input-hidden {
@@ -695,54 +743,186 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  color: var(--color-dark);
+  color: var(--color-bg-light);
+  cursor: pointer;
+  padding: 20px 10px;
 }
 
 .upload-prompt svg {
-  color: var(--color-secondary);
+  color: var(--color-accent);
 }
 
 .upload-prompt span {
   font-weight: 700;
   font-size: 0.88rem;
+  color: var(--color-bg-light);
 }
 
 .upload-prompt small {
   font-size: 0.72rem;
-  color: var(--color-muted-text);
+  color: rgba(245, 236, 183, 0.75);
 }
 
-.upload-preview-container {
+/* Área Interativa de Enquadramento & Zoom (1:1) */
+.crop-workspace {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.crop-frame-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.crop-frame-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-accent);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.crop-frame-tip {
+  font-size: 0.72rem;
+  color: rgba(245, 236, 183, 0.75);
+}
+
+.crop-viewport {
+  width: 240px;
+  height: 240px;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+  border: 2px dashed var(--color-accent);
+  background: #191020;
+  cursor: grab;
+  touch-action: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.crop-viewport:active {
+  cursor: grabbing;
+}
+
+.crop-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.crop-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 1px solid rgba(254, 191, 151, 0.2);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+.crop-grid-overlay::before,
+.crop-grid-overlay::after {
+  content: '';
+  position: absolute;
+}
+
+.crop-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 280px;
+}
+
+.zoom-control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(35, 25, 45, 0.8);
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px dashed rgba(254, 191, 151, 0.3);
+}
+
+.zoom-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.btn-zoom-step {
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  background: var(--admin-card-bg);
+  border: 1px solid rgba(254, 191, 151, 0.4);
+  color: var(--color-bg-light);
+  font-size: 0.9rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.btn-zoom-step:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.crop-range-slider {
+  flex: 1;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.zoom-val-display {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-bg-light);
+  min-width: 36px;
+  text-align: right;
+}
+
+.crop-actions-row {
+  display: flex;
+  justify-content: center;
   gap: 8px;
 }
 
-.upload-preview-container img {
-  width: 140px;
-  height: 140px;
-  object-fit: cover;
-  border-radius: var(--radius-xs);
-  border: 2px solid var(--color-dark);
-  box-shadow: 3px 3px 0px var(--color-primary);
+.btn-crop-secondary {
+  background: rgba(254, 191, 151, 0.15);
+  border: 1px dashed var(--color-accent);
+  color: var(--color-bg-light);
+  padding: 5px 12px;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
 }
 
-.btn-remove-photo {
-  font-size: 0.76rem;
-  color: var(--color-primary);
-  font-weight: 700;
-  text-decoration: underline;
-  background: none;
-  border: none;
+.btn-crop-secondary:hover {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
 }
 
 /* Interruptor de Modalidade */
 .modality-box {
-  background: rgba(245, 236, 183, 0.35);
+  background: rgba(35, 25, 45, 0.6);
   border-radius: var(--radius-sm);
   padding: 12px;
-  border: 1px dashed rgba(35, 25, 45, 0.2);
+  border: 1px dashed rgba(254, 191, 151, 0.3);
 }
 
 .modality-toggle-group {
@@ -752,8 +932,8 @@
 }
 
 .modality-option {
-  background: #fff;
-  border: 1.5px solid rgba(35, 25, 45, 0.2);
+  background: var(--admin-input-bg);
+  border: 1.5px dashed rgba(254, 191, 151, 0.35);
   border-radius: var(--radius-xs);
   padding: 10px;
   cursor: pointer;
@@ -765,7 +945,7 @@
 
 .modality-option.active {
   border-color: var(--color-primary);
-  background: rgba(253, 10, 84, 0.06);
+  background: rgba(253, 10, 84, 0.15);
   box-shadow: 2px 2px 0px var(--color-primary);
 }
 
@@ -776,23 +956,23 @@
 .option-content strong {
   display: block;
   font-size: 0.84rem;
-  color: var(--color-dark);
+  color: var(--color-bg-light);
 }
 
 .option-content span {
   font-size: 0.72rem;
-  color: var(--color-muted-text);
+  color: rgba(245, 236, 183, 0.75);
 }
 
 .order-leadtime-field {
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px dashed rgba(35, 25, 45, 0.15);
+  border-top: 1px dashed rgba(254, 191, 151, 0.25);
 }
 
 .field-hint {
   font-size: 0.72rem;
-  color: var(--color-muted-text);
+  color: rgba(245, 236, 183, 0.75);
   margin-top: 3px;
 }
 
@@ -821,8 +1001,35 @@
 }
 
 /* --------------------------------------------------------------------------
-   7. Acervo & Lista de Peças Ativas
+   7. Acervo & Lista de Peças Ativas (Marrom Quente da Marca)
    -------------------------------------------------------------------------- */
+.catalog-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.catalog-filter-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1.5px dashed rgba(254, 191, 151, 0.35);
+  background: var(--admin-card-bg);
+  color: var(--color-bg-light);
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.catalog-filter-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
 .catalog-summary-bar {
   display: flex;
   gap: 10px;
@@ -833,90 +1040,298 @@
 .total-pieces-count {
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--color-dark);
+  color: var(--color-bg-light);
   white-space: nowrap;
-  background: var(--color-white);
+  background: var(--admin-card-bg);
   padding: 8px 12px;
   border-radius: 4px;
-  border: 1px solid var(--color-border-light);
+  border: var(--admin-card-border);
 }
 
 .catalog-cards-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 
-@media (min-width: 550px) {
+@media (min-width: 600px) {
   .catalog-cards-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 .admin-product-card {
-  background: var(--color-white);
-  border: 1.5px solid var(--color-border-light);
+  background: var(--admin-card-bg);
+  border: var(--admin-card-border);
   border-radius: var(--radius-sm);
-  padding: 10px;
+  padding: 12px;
   display: flex;
-  gap: 10px;
-  align-items: center;
-  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.06);
+  gap: 12px;
+  align-items: flex-start;
+  box-shadow: 2px 2px 0px rgba(35, 25, 45, 0.25);
+  color: var(--color-bg-light);
+  position: relative;
+}
+
+.admin-product-card.card-suspended {
+  border-color: rgba(254, 191, 151, 0.25);
+  background: #251b2e;
+  opacity: 0.88;
 }
 
 .admin-product-thumb {
-  width: 64px;
-  height: 64px;
+  width: 76px;
+  height: 76px;
   border-radius: var(--radius-xs);
   object-fit: cover;
-  border: 1px solid rgba(35, 25, 45, 0.15);
+  border: 1.5px solid var(--color-accent);
   flex-shrink: 0;
+  background: #1a1222;
 }
 
 .admin-product-details {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .admin-product-name {
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  color: var(--color-dark);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--color-bg-light);
+  line-height: 1.3;
 }
 
 .admin-product-price {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 800;
-  color: var(--color-primary);
+  color: var(--color-accent);
 }
 
-.btn-toggle-availability {
+.admin-product-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.btn-status-badge {
   padding: 4px 8px;
   border-radius: 3px;
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
-  border: 1px solid rgba(35, 25, 45, 0.2);
-  align-self: flex-start;
-  margin-top: 4px;
+  border-style: dashed;
+  border-width: 1.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.btn-toggle-availability.ready {
+.btn-status-badge.ready {
   background: #dcfce7;
   color: #166534;
   border-color: #16a34a;
 }
 
-.btn-toggle-availability.order {
+.btn-status-badge.order {
   background: #ffedd5;
   color: #9a3412;
   border-color: #ea580c;
+}
+
+.btn-status-badge.suspended {
+  background: rgba(254, 191, 151, 0.15);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.btn-action-edit {
+  background: rgba(254, 191, 151, 0.15);
+  border: 1px dashed var(--color-accent);
+  color: var(--color-bg-light);
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-action-edit:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.btn-action-delete {
+  background: none;
+  border: 1px dashed rgba(220, 38, 38, 0.5);
+  color: #f87171;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-action-delete:hover {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+/* --------------------------------------------------------------------------
+   8. Modal de Edição de Peça (Mobile & Desktop)
+   -------------------------------------------------------------------------- */
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 10, 20, 0.78);
+  backdrop-filter: blur(4px);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+
+.admin-modal-card {
+  background: var(--admin-card-bg);
+  border: var(--admin-card-border);
+  border-radius: var(--radius-sm);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  color: var(--color-bg-light);
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px dashed rgba(254, 191, 151, 0.3);
+  position: sticky;
+  top: 0;
+  background: var(--admin-card-bg);
+  z-index: 10;
+}
+
+.admin-modal-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-bg-light);
+}
+
+.btn-close-modal {
+  background: none;
+  border: 1px dashed rgba(254, 191, 151, 0.4);
+  color: var(--color-bg-light);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-close-modal:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.admin-modal-form {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.edit-status-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-radio-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-xs);
+  border: 1.5px dashed rgba(254, 191, 151, 0.35);
+  background: var(--admin-input-bg);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.status-radio-option.active {
+  border-color: var(--color-primary);
+  background: rgba(253, 10, 84, 0.15);
+}
+
+.status-radio-option input {
+  margin-top: 3px;
+}
+
+.status-option-body strong {
+  display: block;
+  font-size: 0.84rem;
+  color: var(--color-bg-light);
+}
+
+.status-option-body span {
+  font-size: 0.72rem;
+  color: rgba(245, 236, 183, 0.75);
+}
+
+.modal-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(254, 191, 151, 0.25);
+  margin-top: 6px;
+}
+
+.btn-cancel-modal {
+  background: rgba(35, 25, 45, 0.8);
+  border: 1px dashed rgba(254, 191, 151, 0.4);
+  color: var(--color-bg-light);
+  padding: 10px 16px;
+  border-radius: var(--radius-xs);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-save-modal {
+  background: var(--color-primary);
+  border: 1.5px solid var(--color-dark);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: var(--radius-xs);
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px var(--color-dark);
+}
+
+.btn-save-modal:hover {
+  transform: translateY(-1px);
 }
 
 /* Toast de Feedback do Painel */
@@ -931,9 +1346,9 @@
   border-radius: var(--radius-full);
   font-size: 0.84rem;
   font-weight: 700;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
   border: 1.5px solid var(--color-accent);
-  z-index: 200;
+  z-index: 400;
   opacity: 0;
   pointer-events: none;
   transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);

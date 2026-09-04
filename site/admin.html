@@ -135,7 +135,7 @@
       <div class="dashboard-block">
         <div class="block-header">
           <h3>Últimos Pedidos Recebidos</h3>
-          <button class="link-see-all" id="btn-see-all-orders">Ver Todos ↗</button>
+          <button class="link-see-all" id="btn-see-all-orders">Ver Todos</button>
         </div>
         <div class="recent-orders-list" id="dashboard-recent-orders">
           <!-- Injetado via admin.js -->
@@ -152,7 +152,7 @@
         <p>Acompanhe e avance o status dos pedidos dos seus clientes com até 2 toques:</p>
       </div>
 
-      <!-- Filtros por Status com Cores Oficiais -->
+      <!-- Filtros por Status com Cores Oficiais (Flex Wrap Responsivo Anti-Overlap) -->
       <div class="orders-filter-bar" id="orders-filter-bar">
         <button class="order-filter-btn active" data-status="all">Todos (<span id="count-all">0</span>)</button>
         <button class="order-filter-btn filter-yellow" data-status="aguardando-pagamento">Aguardando Pagamento (<span id="count-yellow">0</span>)</button>
@@ -169,7 +169,7 @@
     </section>
 
     <!-- ====================================================================
-         SEÇÃO 3: CADASTRO ÁGIL DE NOVA PEÇA
+         SEÇÃO 3: CADASTRO ÁGIL DE NOVA PEÇA COM ENQUADRAMENTO E ZOOM
          ==================================================================== -->
     <section class="admin-section" id="section-new-product">
       <div class="section-title-wrap">
@@ -178,22 +178,48 @@
       </div>
 
       <form class="craft-form" id="form-new-product">
-        <!-- 1. Upload de Foto com Preview Instantâneo -->
+        <!-- 1. Upload de Foto com Preview & Enquadramento 1:1 -->
         <div class="form-group">
           <label class="form-label" for="product-photo-input">
-            Foto da Peça Artesanal
+            Foto da Peça Artesanal (Moldura 1:1 Boutique)
             <span class="label-badge">Obrigatório</span>
           </label>
+          
           <div class="photo-upload-zone" id="photo-upload-zone">
             <input type="file" id="product-photo-input" accept="image/*" class="file-input-hidden">
+            
             <div class="upload-prompt" id="upload-prompt">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
               <span>Toque para escolher da galeria ou tirar foto</span>
-              <small>Formatos aceitos: JPG, PNG, WEBP</small>
+              <small>Você poderá reenquadrar e dar zoom para caber na moldura quadrada</small>
             </div>
-            <div class="upload-preview-container" id="upload-preview-container" style="display: none;">
-              <img src="" alt="Preview da peça" id="photo-preview-img">
-              <button type="button" class="btn-remove-photo" id="btn-remove-photo" title="Remover e escolher outra foto">Trocar Foto</button>
+
+            <!-- Área de Enquadramento Interativo -->
+            <div class="crop-workspace" id="crop-workspace" style="display: none;">
+              <div class="crop-frame-header">
+                <span class="crop-frame-title">Moldura Quadrada 1:1</span>
+                <span class="crop-frame-tip">Arraste a foto ou ajuste o zoom abaixo</span>
+              </div>
+
+              <div class="crop-viewport" id="crop-viewport">
+                <img src="" alt="Enquadramento da peca" id="crop-source-img" class="crop-image">
+                <div class="crop-grid-overlay"></div>
+              </div>
+
+              <div class="crop-controls">
+                <div class="zoom-control-row">
+                  <span class="zoom-label">Zoom:</span>
+                  <button type="button" class="btn-zoom-step" id="btn-zoom-out" title="Reduzir zoom">-</button>
+                  <input type="range" id="crop-zoom-slider" min="1" max="3" step="0.02" value="1" class="crop-range-slider">
+                  <button type="button" class="btn-zoom-step" id="btn-zoom-in" title="Aumentar zoom">+</button>
+                  <span class="zoom-val-display" id="zoom-val-display">100%</span>
+                </div>
+
+                <div class="crop-actions-row">
+                  <button type="button" class="btn-crop-secondary" id="btn-reset-crop">Centralizar</button>
+                  <button type="button" class="btn-crop-secondary" id="btn-change-crop-photo">Trocar Foto</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -280,12 +306,20 @@
     </section>
 
     <!-- ====================================================================
-         SEÇÃO 4: ACERVO & CATÁLOGO ATIVO
+         SEÇÃO 4: ACERVO & CATÁLOGO ATIVO (COM EDIÇÃO E SUSPENSÃO)
          ==================================================================== -->
     <section class="admin-section" id="section-catalog">
       <div class="section-title-wrap">
         <h2>Acervo de Peças Cadastradas</h2>
-        <p>Visualize as peças ativas na sua boutique e alterne a disponibilidade rapidamente:</p>
+        <p>Edite, alterne status (Pronta Entrega, Encomenda, Suspensa) ou remova peças do acervo:</p>
+      </div>
+
+      <!-- Filtros por Status do Acervo -->
+      <div class="catalog-filter-bar" id="catalog-filter-bar">
+        <button class="catalog-filter-btn active" data-filter="all">Todas (<span id="cat-count-all">0</span>)</button>
+        <button class="catalog-filter-btn" data-filter="ready">Pronta Entrega (<span id="cat-count-ready">0</span>)</button>
+        <button class="catalog-filter-btn" data-filter="order">Sob Encomenda (<span id="cat-count-order">0</span>)</button>
+        <button class="catalog-filter-btn" data-filter="suspended">Suspensas (<span id="cat-count-suspended">0</span>)</button>
       </div>
 
       <div class="catalog-summary-bar">
@@ -299,6 +333,136 @@
     </section>
 
   </main>
+
+  <!-- ====================================================================
+       MODAL DE EDIÇÃO DE PEÇA ARTESANAL
+       ==================================================================== -->
+  <div class="admin-modal-backdrop" id="modal-edit-backdrop" style="display: none;">
+    <div class="admin-modal-card" id="modal-edit-card">
+      <div class="admin-modal-header">
+        <h3 class="admin-modal-title">Editar Peça do Acervo</h3>
+        <button type="button" class="btn-close-modal" id="btn-close-edit-modal" aria-label="Fechar edição">x</button>
+      </div>
+
+      <form id="form-edit-product" class="admin-modal-form">
+        <input type="hidden" id="edit-piece-id">
+
+        <!-- Foto e Reenquadramento no Modal -->
+        <div class="form-group">
+          <label class="form-label">Foto da Peça (Moldura 1:1)</label>
+          <div class="photo-upload-zone" style="padding: 10px;">
+            <div class="crop-workspace" id="edit-crop-workspace">
+              <div class="crop-viewport" id="edit-crop-viewport" style="width: 200px; height: 200px;">
+                <img src="" alt="Enquadramento da peca" id="edit-crop-source-img" class="crop-image">
+                <div class="crop-grid-overlay"></div>
+              </div>
+
+              <div class="crop-controls" style="max-width: 240px;">
+                <div class="zoom-control-row">
+                  <span class="zoom-label">Zoom:</span>
+                  <button type="button" class="btn-zoom-step" id="btn-edit-zoom-out">-</button>
+                  <input type="range" id="edit-crop-zoom-slider" min="1" max="3" step="0.02" value="1" class="crop-range-slider">
+                  <button type="button" class="btn-zoom-step" id="btn-edit-zoom-in">+</button>
+                  <span class="zoom-val-display" id="edit-zoom-val-display">100%</span>
+                </div>
+
+                <div class="crop-actions-row">
+                  <button type="button" class="btn-crop-secondary" id="btn-edit-reset-crop">Centralizar</button>
+                  <label class="btn-crop-secondary" for="edit-photo-input" style="cursor: pointer;">
+                    Trocar Foto
+                    <input type="file" id="edit-photo-input" accept="image/*" style="display: none;">
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Nome e Preço -->
+        <div class="form-group">
+          <label class="form-label" for="edit-product-name">Nome da Peça</label>
+          <input type="text" id="edit-product-name" class="craft-input" required>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label" for="edit-product-category">Categoria</label>
+            <select id="edit-product-category" class="craft-select" required>
+              <option value="bolsas">Bolsas & Bags</option>
+              <option value="vestuario">Vestuário Autoral</option>
+              <option value="acessorios">Acessórios</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-product-price">Valor de Venda (R$)</label>
+            <input type="number" id="edit-product-price" class="craft-input" step="0.01" min="1" required>
+          </div>
+        </div>
+
+        <!-- Status da Peça com opção "Suspensa" -->
+        <div class="form-group">
+          <label class="form-label">Status no Acervo</label>
+          <div class="edit-status-options">
+            <label class="status-radio-option" id="label-status-ready">
+              <input type="radio" name="edit-status" value="ready">
+              <div class="status-option-body">
+                <strong>Pronta Entrega</strong>
+                <span>Exibida na loja • envio imediato</span>
+              </div>
+            </label>
+
+            <label class="status-radio-option" id="label-status-order">
+              <input type="radio" name="edit-status" value="order">
+              <div class="status-option-body">
+                <strong>Sob Encomenda</strong>
+                <span>Exibida na loja • confeccionada sob pedido</span>
+              </div>
+            </label>
+
+            <label class="status-radio-option" id="label-status-suspended">
+              <input type="radio" name="edit-status" value="suspended">
+              <div class="status-option-body">
+                <strong>Suspensa (Oculta)</strong>
+                <span>Oculta da loja online • não aparece para clientes</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Prazo de Produção na Encomenda -->
+        <div class="form-group" id="edit-leadtime-wrap" style="display: none;">
+          <label class="form-label" for="edit-product-leadtime">Prazo de Produção (Dias Úteis)</label>
+          <input type="number" id="edit-product-leadtime" class="craft-input" min="1" max="60" value="7">
+        </div>
+
+        <!-- Medidas e Materiais -->
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label" for="edit-product-dimensions">Medidas / Dimensões</label>
+            <input type="text" id="edit-product-dimensions" class="craft-input">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-product-materials">Fios & Materiais</label>
+            <input type="text" id="edit-product-materials" class="craft-input">
+          </div>
+        </div>
+
+        <!-- Descrição -->
+        <div class="form-group">
+          <label class="form-label" for="edit-product-desc">História & Detalhes da Peça</label>
+          <textarea id="edit-product-desc" class="craft-textarea" rows="3"></textarea>
+        </div>
+
+        <!-- Ações do Modal -->
+        <div class="modal-form-actions">
+          <button type="button" class="btn-cancel-modal" id="btn-cancel-edit">Cancelar</button>
+          <button type="submit" class="btn-save-modal" id="btn-save-edit">Salvar Alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Toast Notification do Painel -->
   <div class="admin-toast" id="admin-toast"></div>

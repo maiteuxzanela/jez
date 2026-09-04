@@ -3,16 +3,19 @@
  * JEZ Ateliê & Gestão — Lógica do Painel Administrativo Mobile
  * Especialista: Cris (Sênior Back-Office & Merchant Experience Engineer)
  * Aprovado por: Alex (CTO)
+ * Diretrizes: Rigorosamente ZERO EMOJIS, paleta oficial da JEZ, enquadramento 1:1
  * ==========================================================================
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
-  // 1. Estado Inicial & Pedidos de Demonstração
+  // 1. Chaves de Armazenamento Local
   // --------------------------------------------------------------------------
   const STORAGE_ORDERS_KEY = 'jez_orders';
   const STORAGE_CUSTOM_PRODUCTS_KEY = 'jez_custom_products';
+  const STORAGE_CATALOG_KEY = 'jez_catalog';
 
+  // Pedidos Iniciais de Demonstração
   const defaultSampleOrders = [
     {
       id: 'JEZ-8042',
@@ -75,7 +78,144 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   ];
 
-  // Carrega ou inicializa os pedidos
+  // Catálogo Padrão Completo da Loja
+  const defaultInitialCatalog = [
+    {
+      id: 'bolsa-punk',
+      name: 'Bolsa Punk Slouchy com Correntes',
+      category: 'bolsas',
+      categoryLabel: 'Bolsas & Bags',
+      price: 169.90,
+      image: 'assets/products/bolsa_punk.jpg',
+      status: 'order',
+      isReady: false,
+      leadTimeDays: 7,
+      dimensions: '32cm (L) × 24cm (A) × 8cm (P)',
+      materials: 'Fio de algodão preto e off-white com correntes de metal antioxidante',
+      description: 'Bolsa autoral slouchy em crochê com pesponto contrastante e correntes metálicas removíveis. Visual grunge sofisticado.'
+    },
+    {
+      id: 'tote-cherry',
+      name: 'Tote Bag Cherry com Laço',
+      category: 'bolsas',
+      categoryLabel: 'Bolsas & Bags',
+      price: 149.90,
+      image: 'assets/products/tote_cherry.jpg',
+      status: 'ready',
+      isReady: true,
+      stockQty: 3,
+      leadTimeDays: 0,
+      dimensions: '30cm (L) × 26cm (A) × 6cm (P)',
+      materials: 'Fio 100% algodão premium cereja com bordado manual em relevo',
+      description: 'Tote charmosa com aplicação de cerejas em relevo artesanal e laço delicado. Perfeita para carregar livros, planner e celular.'
+    },
+    {
+      id: 'shoulder-coracao',
+      name: 'Shoulder Bag Coração Granny Square',
+      category: 'bolsas',
+      categoryLabel: 'Bolsas & Bags',
+      price: 139.90,
+      image: 'assets/products/shoulder_coracao.jpg',
+      status: 'ready',
+      isReady: true,
+      stockQty: 2,
+      leadTimeDays: 0,
+      dimensions: '20cm (L) × 18cm (A) × 5cm (P)',
+      materials: 'Fios de algodão cru e terracota, alça de corrente metálica vintage',
+      description: 'Mini bolsa tiracolo estruturada com motivo clássico de coração vazado e bordas onduladas delicadas.'
+    },
+    {
+      id: 'bolsa-xadrez',
+      name: 'Bolsa Xadrez Checkerboard',
+      category: 'bolsas',
+      categoryLabel: 'Bolsas & Bags',
+      price: 159.90,
+      image: 'assets/products/bolsa_xadrez.jpg',
+      status: 'order',
+      isReady: false,
+      leadTimeDays: 5,
+      dimensions: '28cm (L) × 22cm (A) × 7cm (P)',
+      materials: 'Fio encorpado em padrão xadrez bicolor preto e creme',
+      description: 'Padronagem quadriculada moderna com textura firme e alça reforçada tecida à mão.'
+    },
+    {
+      id: 'blusa-teia',
+      name: 'Blusa Teia de Aranha Cropped',
+      category: 'vestuario',
+      categoryLabel: 'Vestuário Autoral',
+      price: 189.90,
+      image: 'assets/products/blusa_teia.jpg',
+      status: 'order',
+      isReady: false,
+      leadTimeDays: 8,
+      dimensions: 'Tamanho único ajustável (Veste P ao G)',
+      materials: 'Fio de viscose e algodão preto com toque acetinado',
+      description: 'Peça icônica com trama aberta imitando teia de aranha. Manga longa sino e caimento fluido rebelde.'
+    },
+    {
+      id: 'top-bandana',
+      name: 'Top Amarração Frontal + Bandana',
+      category: 'vestuario',
+      categoryLabel: 'Vestuário Autoral',
+      price: 129.90,
+      image: 'assets/products/top_bandana.jpg',
+      status: 'ready',
+      isReady: true,
+      stockQty: 2,
+      leadTimeDays: 0,
+      dimensions: 'Tamanho único regulável por cordões (Busto 38 a 44)',
+      materials: 'Fio de algodão mercerizado coral e pêssego',
+      description: 'Conjunto boho-chic composto por top triangular com amarração ajustável nas costas e bandana combinando.'
+    },
+    {
+      id: 'cardiga-manteiga',
+      name: 'Cardigã Cropped Shrug Manteiga',
+      category: 'vestuario',
+      categoryLabel: 'Vestuário Autoral',
+      price: 179.90,
+      image: 'assets/products/cardiga_manteiga.jpg',
+      status: 'order',
+      isReady: false,
+      leadTimeDays: 10,
+      dimensions: 'Modelagem ampla oversized (Comprimento 38cm, Mangas 58cm)',
+      materials: 'Fio de lã mista ultra-macia amarelo manteiga',
+      description: 'Bolero tipo shrug aconchegante com mangas bufantes e punhos canelados tecidos com pontos fofos.'
+    },
+    {
+      id: 'chaveiro-baphomet',
+      name: 'Chaveiro Amigurumi Baphomet Cute',
+      category: 'acessorios',
+      categoryLabel: 'Acessórios & Miudezas',
+      price: 42.00,
+      image: 'assets/products/chaveiro_baphomet.jpg',
+      status: 'ready',
+      isReady: true,
+      stockQty: 4,
+      leadTimeDays: 0,
+      dimensions: '8cm de altura × 6cm de envergadura',
+      materials: 'Fio de algodão preto e rosa, enchimento antialérgico, argola metálica',
+      description: 'Amigurumi fofinho estilo goth-pastel com olhinhos brilhantes de segurança e detalhes bordados.'
+    },
+    {
+      id: 'porta-airpods',
+      name: 'Porta-AirPods / Fones em Crochê',
+      category: 'acessorios',
+      categoryLabel: 'Acessórios & Miudezas',
+      price: 38.00,
+      image: 'assets/products/porta_airpods.jpg',
+      status: 'ready',
+      isReady: true,
+      stockQty: 5,
+      leadTimeDays: 0,
+      dimensions: '6.5cm (L) × 5.5cm (A) × 3cm (P)',
+      materials: 'Fio de algodão azul e amarelo, botão vintage e mosquetão metálico',
+      description: 'Case protetora fofa em crochê para fones de ouvido sem fio. Protege o estojo de arranhões e vem com gancho para pendurar na bolsa ou no cinto.'
+    }
+  ];
+
+  // --------------------------------------------------------------------------
+  // 2. Funções de Carregamento e Persistência
+  // --------------------------------------------------------------------------
   const loadOrders = () => {
     const raw = localStorage.getItem(STORAGE_ORDERS_KEY);
     if (!raw) {
@@ -95,22 +235,45 @@ document.addEventListener('DOMContentLoaded', () => {
     renderOrders();
   };
 
-  const loadCustomProducts = () => {
-    const raw = localStorage.getItem(STORAGE_CUSTOM_PRODUCTS_KEY);
-    return raw ? JSON.parse(raw) : [];
+  const loadCatalog = () => {
+    const raw = localStorage.getItem(STORAGE_CATALOG_KEY);
+    if (!raw) {
+      // Mescla catálogo inicial com eventuais itens customizados pré-existentes
+      const customRaw = localStorage.getItem(STORAGE_CUSTOM_PRODUCTS_KEY);
+      const customList = customRaw ? JSON.parse(customRaw) : [];
+      const combined = [...defaultInitialCatalog];
+      customList.forEach(c => {
+        if (!combined.some(item => item.id === c.id)) {
+          combined.push(c);
+        }
+      });
+      localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(combined));
+      return combined;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return defaultInitialCatalog;
+    }
   };
 
-  const saveCustomProducts = (productsList) => {
-    localStorage.setItem(STORAGE_CUSTOM_PRODUCTS_KEY, JSON.stringify(productsList));
+  const saveCatalog = (catalogList) => {
+    localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalogList));
+    // Sincroniza também jez_custom_products para compatibilidade reversa
+    const customOnly = catalogList.filter(p => p.id.startsWith('custom-'));
+    localStorage.setItem(STORAGE_CUSTOM_PRODUCTS_KEY, JSON.stringify(customOnly));
     renderCatalog();
+    updateDashboard();
   };
 
   let orders = loadOrders();
-  let currentFilter = 'all';
+  let catalog = loadCatalog();
+  let currentOrderFilter = 'all';
+  let currentCatalogFilter = 'all';
 
   // Formatador de Moeda
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   };
 
   // Formatador de Data Amigável
@@ -119,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
 
-  // Toast amigável da Jéssica
+  // Toast de feedback
   const showToast = (message) => {
     const toast = document.getElementById('admin-toast');
     toast.textContent = message;
@@ -130,7 +293,197 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // --------------------------------------------------------------------------
-  // 2. Navegação em Abas Mobile-First
+  // 3. Motor de Enquadramento 1:1 e Redimensionamento de Fotos
+  // --------------------------------------------------------------------------
+  const setupPhotoCropper = (elements) => {
+    const { viewportEl, imgEl, zoomSlider, btnZoomIn, btnZoomOut, btnReset, zoomValEl } = elements;
+    let zoom = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let baseScale = 1;
+    let naturalWidth = 1;
+    let naturalHeight = 1;
+
+    const updateTransform = () => {
+      const totalScale = zoom * baseScale;
+      imgEl.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px)) scale(${totalScale})`;
+      if (zoomSlider) zoomSlider.value = zoom;
+      if (zoomValEl) zoomValEl.textContent = `${Math.round(zoom * 100)}%`;
+    };
+
+    const constrainOffsets = () => {
+      const vpW = viewportEl.clientWidth || 240;
+      const vpH = viewportEl.clientHeight || 240;
+      const totalScale = zoom * baseScale;
+      const renderedW = naturalWidth * totalScale;
+      const renderedH = naturalHeight * totalScale;
+      const maxOffsetX = Math.max(0, (renderedW - vpW) / 2);
+      const maxOffsetY = Math.max(0, (renderedH - vpH) / 2);
+      offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, offsetX));
+      offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, offsetY));
+    };
+
+    const reset = () => {
+      zoom = 1;
+      offsetX = 0;
+      offsetY = 0;
+      const vpW = viewportEl.clientWidth || 240;
+      const vpH = viewportEl.clientHeight || 240;
+      if (naturalWidth && naturalHeight) {
+        baseScale = Math.max(vpW / naturalWidth, vpH / naturalHeight);
+      }
+      updateTransform();
+    };
+
+    const onPointerDown = (clientX, clientY) => {
+      isDragging = true;
+      startX = clientX - offsetX;
+      startY = clientY - offsetY;
+    };
+
+    const onPointerMove = (clientX, clientY) => {
+      if (!isDragging) return;
+      offsetX = clientX - startX;
+      offsetY = clientY - startY;
+      constrainOffsets();
+      updateTransform();
+    };
+
+    const onPointerUp = () => {
+      isDragging = false;
+    };
+
+    // Eventos de Mouse
+    viewportEl.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      onPointerDown(e.clientX, e.clientY);
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (isDragging) onPointerMove(e.clientX, e.clientY);
+    });
+    window.addEventListener('mouseup', onPointerUp);
+
+    // Eventos de Touch
+    viewportEl.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: true });
+    window.addEventListener('touchmove', (e) => {
+      if (isDragging && e.touches.length === 1) {
+        onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: true });
+    window.addEventListener('touchend', onPointerUp);
+
+    // Controles de Zoom
+    if (zoomSlider) {
+      zoomSlider.addEventListener('input', (e) => {
+        zoom = parseFloat(e.target.value);
+        constrainOffsets();
+        updateTransform();
+      });
+    }
+
+    if (btnZoomIn) {
+      btnZoomIn.addEventListener('click', () => {
+        zoom = Math.min(3, +(zoom + 0.15).toFixed(2));
+        constrainOffsets();
+        updateTransform();
+      });
+    }
+
+    if (btnZoomOut) {
+      btnZoomOut.addEventListener('click', () => {
+        zoom = Math.max(1, +(zoom - 0.15).toFixed(2));
+        constrainOffsets();
+        updateTransform();
+      });
+    }
+
+    if (btnReset) {
+      btnReset.addEventListener('click', reset);
+    }
+
+    const loadImage = (src) => {
+      return new Promise((resolve) => {
+        imgEl.onload = () => {
+          naturalWidth = imgEl.naturalWidth || 400;
+          naturalHeight = imgEl.naturalHeight || 400;
+          const vpW = viewportEl.clientWidth || 240;
+          const vpH = viewportEl.clientHeight || 240;
+          baseScale = Math.max(vpW / naturalWidth, vpH / naturalHeight);
+          reset();
+          resolve();
+        };
+        imgEl.src = src;
+      });
+    };
+
+    const getCroppedDataUrl = (targetSize = 600) => {
+      if (!naturalWidth || !naturalHeight || !imgEl.src) return imgEl.src;
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = targetSize;
+        canvas.height = targetSize;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return imgEl.src;
+
+        const vpW = viewportEl.clientWidth || 240;
+        const vpH = viewportEl.clientHeight || 240;
+        const totalScale = zoom * baseScale;
+        
+        const srcCropW = vpW / totalScale;
+        const srcCropH = vpH / totalScale;
+        const srcCenterX = naturalWidth / 2 - (offsetX / totalScale);
+        const srcCenterY = naturalHeight / 2 - (offsetY / totalScale);
+        const srcX = Math.max(0, Math.min(naturalWidth - srcCropW, srcCenterX - srcCropW / 2));
+        const srcY = Math.max(0, Math.min(naturalHeight - srcCropH, srcCenterY - srcCropH / 2));
+
+        ctx.fillStyle = '#23192d';
+        ctx.fillRect(0, 0, targetSize, targetSize);
+        ctx.drawImage(imgEl, srcX, srcY, srcCropW, srcCropH, 0, 0, targetSize, targetSize);
+        return canvas.toDataURL('image/jpeg', 0.88);
+      } catch {
+        return imgEl.src;
+      }
+    };
+
+    return {
+      loadImage,
+      reset,
+      getCroppedDataUrl,
+      hasImage: () => Boolean(imgEl.src && imgEl.src.length > 0)
+    };
+  };
+
+  // Inicializa o recortador do Formulário de Nova Peça
+  const newPieceCropper = setupPhotoCropper({
+    viewportEl: document.getElementById('crop-viewport'),
+    imgEl: document.getElementById('crop-source-img'),
+    zoomSlider: document.getElementById('crop-zoom-slider'),
+    btnZoomIn: document.getElementById('btn-zoom-in'),
+    btnZoomOut: document.getElementById('btn-zoom-out'),
+    btnReset: document.getElementById('btn-reset-crop'),
+    zoomValEl: document.getElementById('zoom-val-display')
+  });
+
+  // Inicializa o recortador do Modal de Edição
+  const editPieceCropper = setupPhotoCropper({
+    viewportEl: document.getElementById('edit-crop-viewport'),
+    imgEl: document.getElementById('edit-crop-source-img'),
+    zoomSlider: document.getElementById('edit-crop-zoom-slider'),
+    btnZoomIn: document.getElementById('btn-edit-zoom-in'),
+    btnZoomOut: document.getElementById('btn-edit-zoom-out'),
+    btnReset: document.getElementById('btn-edit-reset-crop'),
+    zoomValEl: document.getElementById('edit-zoom-val-display')
+  });
+
+  // --------------------------------------------------------------------------
+  // 4. Navegação em Abas Mobile-First
   // --------------------------------------------------------------------------
   const tabs = document.querySelectorAll('.nav-tab');
   const sections = document.querySelectorAll('.admin-section');
@@ -155,16 +508,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-see-all-orders').addEventListener('click', () => switchTab('orders'));
   document.getElementById('btn-refresh-data').addEventListener('click', () => {
     orders = loadOrders();
+    catalog = loadCatalog();
     updateDashboard();
     renderOrders();
+    renderCatalog();
     showToast('Dados do ateliê atualizados!');
   });
 
   // --------------------------------------------------------------------------
-  // 3. Métricas Executivas do Dashboard (Visão Geral)
+  // 5. Métricas Executivas do Dashboard (Visão Geral)
   // --------------------------------------------------------------------------
   const updateDashboard = () => {
     orders = loadOrders();
+    catalog = loadCatalog();
 
     // Faturamento (pedidos que já foram pagos/produção/enviados/concluídos)
     const paidOrders = orders.filter(o => o.status !== 'aguardando-pagamento' && o.status !== 'cancelado');
@@ -197,39 +553,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const latestThree = orders.slice(0, 3);
 
     if (latestThree.length === 0) {
-      recentContainer.innerHTML = '<p style="font-size: 0.85rem; color: #888; text-align: center; padding: 12px;">Nenhum pedido registrado ainda.</p>';
+      recentContainer.innerHTML = '<p style="font-size: 0.85rem; color: rgba(245, 236, 183, 0.7); text-align: center; padding: 12px;">Nenhum pedido registrado ainda.</p>';
       return;
     }
 
     latestThree.forEach(order => {
       const itemRow = document.createElement('div');
       itemRow.className = 'recent-order-item';
-      itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: rgba(245, 236, 183, 0.3); border-radius: 4px; font-size: 0.82rem;';
+      itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(35, 25, 45, 0.6); border: 1px dashed rgba(254, 191, 151, 0.25); border-radius: 4px; font-size: 0.82rem;';
       
       const statusMeta = getStatusMeta(order.status);
       itemRow.innerHTML = `
         <div>
-          <strong style="color: var(--color-dark);">${order.id}</strong>
-          <span style="color: #666; font-size: 0.74rem; margin-left: 6px;">${order.customer.split(' ')[0]}</span>
+          <strong style="color: var(--color-bg-light);">${order.id}</strong>
+          <span style="color: rgba(245, 236, 183, 0.75); font-size: 0.74rem; margin-left: 6px;">${order.customer.split(' ')[0]}</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="status-tag status-${order.status}" style="font-size: 0.65rem; padding: 2px 6px;">${statusMeta.label}</span>
-          <strong style="color: var(--color-primary);">${formatCurrency(order.total)}</strong>
+          <strong style="color: var(--color-accent);">${formatCurrency(order.total)}</strong>
         </div>
       `;
       recentContainer.appendChild(itemRow);
     });
   };
 
-  // Metadados de Status das Peças & Pedidos
+  // Metadados de Status dos Pedidos
   const getStatusMeta = (status) => {
     switch (status) {
       case 'aguardando-pagamento':
-        return { label: 'Aguardando Pagamento', nextLabel: 'Confirmar Pagamento', nextStatus: 'preparar-envio' };
+        return { label: 'Aguardando Pagamento', nextLabel: 'Confirmar Pix (Preparar Envio)', nextStatus: 'preparar-envio' };
       case 'em-producao':
-        return { label: 'Em Produção', nextLabel: 'Concluir Confecção', nextStatus: 'preparar-envio' };
+        return { label: 'Em Produção', nextLabel: 'Peça Concluída (Preparar Envio)', nextStatus: 'preparar-envio' };
       case 'preparar-envio':
-        return { label: 'Preparar Envio', nextLabel: 'Marcar como Enviado', nextStatus: 'enviado' };
+        return { label: 'Preparar Envio', nextLabel: 'Postar e Enviar', nextStatus: 'enviado' };
       case 'enviado':
         return { label: 'Enviado', nextLabel: 'Marcar como Entregue', nextStatus: 'concluido' };
       case 'concluido':
@@ -240,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // --------------------------------------------------------------------------
-  // 4. Gestão Visual de Pedidos (Kanban / Lista de Status)
+  // 6. Gestão Visual de Pedidos (Com Contenção Mobile Flex-Wrap)
   // --------------------------------------------------------------------------
   const renderOrders = () => {
     orders = loadOrders();
@@ -264,11 +620,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('count-purple').textContent = counts.enviado;
     document.getElementById('count-green').textContent = counts.concluido;
 
-    const filtered = currentFilter === 'all' ? orders : orders.filter(o => o.status === currentFilter);
+    const filtered = currentOrderFilter === 'all' ? orders : orders.filter(o => o.status === currentOrderFilter);
 
     if (filtered.length === 0) {
       container.innerHTML = `
-        <div style="text-align: center; padding: 40px 20px; color: var(--color-muted-text); background: var(--color-white); border-radius: var(--radius-sm); border: 1.5px dashed rgba(35, 25, 45, 0.2);">
+        <div style="text-align: center; padding: 40px 20px; color: rgba(245, 236, 183, 0.75); background: var(--admin-card-bg); border-radius: var(--radius-sm); border: var(--admin-card-border);">
           <p style="font-size: 0.95rem; font-weight: 700;">Nenhum pedido encontrado nesta categoria.</p>
         </div>
       `;
@@ -301,7 +657,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="order-items-summary">
           ${itemsHtml}
           ${order.shipping > 0 ? `
-            <div style="display: flex; justify-content: space-between; color: #666; font-size: 0.74rem; border-top: 1px dashed rgba(35,25,45,0.15); padding-top: 4px; margin-top: 2px;">
+            <div style="display: flex; justify-content: space-between; color: rgba(245, 236, 183, 0.75); font-size: 0.74rem; border-top: 1px dashed rgba(254, 191, 151, 0.25); padding-top: 4px; margin-top: 2px;">
               <span>Frete Correios:</span>
               <span>${formatCurrency(order.shipping)}</span>
             </div>
@@ -312,14 +668,14 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         </div>
 
-        <!-- Se estiver enviado, exibe o código de rastreamento com link dos Correios -->
+        <!-- Código de rastreamento com link dos Correios -->
         ${order.status === 'enviado' ? `
-          <div style="background: rgba(124, 58, 237, 0.08); border-radius: 4px; padding: 8px 10px; border: 1px dashed #7c3aed;">
+          <div style="background: rgba(124, 58, 237, 0.15); border-radius: 4px; padding: 8px 10px; border: 1px dashed #7c3aed;">
             <div class="tracking-info-live">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon></svg>
               <span>Código: <strong>${order.trackingCode || 'Pendente'}</strong></span>
               ${order.trackingCode ? `
-                <a href="https://rastreamento.correios.com.br/app/index.php?codigo=${order.trackingCode}" target="_blank" rel="noopener" style="margin-left: auto;">Rastrear nos Correios ↗</a>
+                <a href="https://rastreamento.correios.com.br/app/index.php?codigo=${order.trackingCode}" target="_blank" rel="noopener" style="margin-left: auto;">Rastrear nos Correios ></a>
               ` : ''}
             </div>
           </div>
@@ -345,7 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ${order.status === 'preparar-envio' ? `
               <div style="width: 100%;">
-                <label style="font-size: 0.74rem; font-weight: 700; color: var(--color-dark); margin-bottom: 4px; display: block;">
+                <label style="font-size: 0.74rem; font-weight: 700; color: var(--color-bg-light); margin-bottom: 4px; display: block;">
                   Código de Rastreio dos Correios:
                 </label>
                 <div class="tracking-input-box">
@@ -359,13 +715,13 @@ document.addEventListener('DOMContentLoaded', () => {
               <button class="btn-status-change" data-id="${order.id}" data-newstatus="concluido" style="background: #16a34a; color: #fff; border-color: #16a34a;">
                 Marcar como Entregue ao Cliente
               </button>
-              <button class="btn-copy-msg" data-id="${order.id}" data-tracking="${order.trackingCode}" style="background: #f3e8ff; border: 1px solid #7c3aed; color: #6b21a8; padding: 6px 10px; border-radius: 3px; font-size: 0.72rem; font-weight: 700;">
+              <button class="btn-copy-msg" data-id="${order.id}" data-tracking="${order.trackingCode}" style="background: rgba(254, 191, 151, 0.15); border: 1px dashed var(--color-accent); color: var(--color-bg-light); padding: 6px 10px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; cursor: pointer;">
                 Copiar Msg WhatsApp
               </button>
             ` : ''}
 
             ${order.status === 'concluido' ? `
-              <span style="font-size: 0.75rem; color: #166534; font-weight: 700; display: flex; align-items: center; gap: 4px;">
+              <span style="font-size: 0.75rem; color: #4ade80; font-weight: 700; display: flex; align-items: center; gap: 4px;">
                 Pedido concluído com sucesso e entregue ao cliente.
               </span>
             ` : ''}
@@ -425,43 +781,36 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', (e) => {
       document.querySelectorAll('.order-filter-btn').forEach(b => b.classList.remove('active'));
       e.currentTarget.classList.add('active');
-      currentFilter = e.currentTarget.getAttribute('data-status');
+      currentOrderFilter = e.currentTarget.getAttribute('data-status');
       renderOrders();
     });
   });
 
   // --------------------------------------------------------------------------
-  // 5. Cadastro Ágil de Nova Peça
+  // 7. Cadastro de Nova Peça com Reenquadramento e Zoom
   // --------------------------------------------------------------------------
   const photoInput = document.getElementById('product-photo-input');
   const uploadPrompt = document.getElementById('upload-prompt');
-  const previewContainer = document.getElementById('upload-preview-container');
-  const previewImg = document.getElementById('photo-preview-img');
-  const btnRemovePhoto = document.getElementById('btn-remove-photo');
-  let currentPhotoBase64 = '';
+  const cropWorkspace = document.getElementById('crop-workspace');
+  const btnChangeCropPhoto = document.getElementById('btn-change-crop-photo');
 
-  // Processamento do upload da foto com compressão simples
+  // Ao selecionar foto
   photoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      currentPhotoBase64 = event.target.result;
-      previewImg.src = currentPhotoBase64;
+    reader.onload = async (event) => {
+      await newPieceCropper.loadImage(event.target.result);
       uploadPrompt.style.display = 'none';
-      previewContainer.style.display = 'flex';
+      cropWorkspace.style.display = 'flex';
+      showToast('Foto carregada! Ajuste o enquadramento se desejar.');
     };
     reader.readAsDataURL(file);
   });
 
-  btnRemovePhoto.addEventListener('click', (e) => {
-    e.stopPropagation();
-    photoInput.value = '';
-    currentPhotoBase64 = '';
-    previewImg.src = '';
-    previewContainer.style.display = 'none';
-    uploadPrompt.style.display = 'flex';
+  btnChangeCropPhoto.addEventListener('click', () => {
+    photoInput.click();
   });
 
   // Alternância Pronta Entrega vs Sob Encomenda
@@ -497,8 +846,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const materials = document.getElementById('product-materials-input').value.trim() || 'Fio 100% algodão premium artesanal';
     const description = document.getElementById('product-desc-input').value.trim() || 'Peça autoral tecida com amor e acabamento único pela Jéssica Regina.';
 
-    // Se não subiu foto, usa uma imagem padrão estética da marca
-    const photoToUse = currentPhotoBase64 || 'assets/products/tote_cherry.jpg';
+    // Foto recortada e enquadrada em 1:1
+    let photoToUse = 'assets/products/tote_cherry.jpg';
+    if (newPieceCropper.hasImage()) {
+      photoToUse = newPieceCropper.getCroppedDataUrl(600);
+    }
 
     const categoryLabels = {
       bolsas: 'Bolsas & Bags',
@@ -513,6 +865,7 @@ document.addEventListener('DOMContentLoaded', () => {
       categoryLabel: categoryLabels[category] || 'Peças Autorais',
       price,
       image: photoToUse,
+      status: modality, // 'ready' ou 'order'
       isReady: modality === 'ready',
       stockQty: modality === 'ready' ? 1 : 0,
       leadTimeDays: leadTimeDays,
@@ -521,69 +874,104 @@ document.addEventListener('DOMContentLoaded', () => {
       description
     };
 
-    const customProducts = loadCustomProducts();
-    customProducts.push(newPiece);
-    saveCustomProducts(customProducts);
+    catalog = loadCatalog();
+    catalog.push(newPiece);
+    saveCatalog(catalog);
 
     // Limpa formulário
     formNewProduct.reset();
-    btnRemovePhoto.click();
+    photoInput.value = '';
+    cropWorkspace.style.display = 'none';
+    uploadPrompt.style.display = 'flex';
     modalityOptions[0].click();
 
-    showToast(`Peça "${name}" publicada com sucesso na vitrine da loja!`);
+    showToast(`Peça "${name}" cadastrada com sucesso!`);
     
     // Transiciona para a aba do acervo
     setTimeout(() => {
       switchTab('catalog');
-    }, 600);
+    }, 500);
   });
 
   // --------------------------------------------------------------------------
-  // 6. Acervo & Catálogo de Peças da Jéssica
+  // 8. Gestão do Acervo (Edição, Exclusão & Status "Suspensa")
   // --------------------------------------------------------------------------
-  const defaultCatalog = [
-    { id: 'bolsa-punk', name: 'Bolsa Punk Slouchy com Correntes', price: 169.90, image: 'assets/products/bolsa_punk.jpg', isReady: false },
-    { id: 'tote-cherry', name: 'Tote Bag Cherry com Laço', price: 149.90, image: 'assets/products/tote_cherry.jpg', isReady: true },
-    { id: 'shoulder-coracao', name: 'Shoulder Bag Coração Granny Square', price: 139.90, image: 'assets/products/shoulder_coracao.jpg', isReady: true },
-    { id: 'bolsa-xadrez', name: 'Bolsa Xadrez Checkerboard', price: 159.90, image: 'assets/products/bolsa_xadrez.jpg', isReady: false },
-    { id: 'blusa-teia', name: 'Blusa Teia de Aranha Cropped', price: 189.90, image: 'assets/products/blusa_teia.jpg', isReady: false },
-    { id: 'top-bandana', name: 'Top Amarração Frontal + Bandana', price: 129.90, image: 'assets/products/top_bandana.jpg', isReady: true },
-    { id: 'cardiga-manteiga', name: 'Cardigã Cropped Shrug Manteiga', price: 179.90, image: 'assets/products/cardiga_manteiga.jpg', isReady: false },
-    { id: 'chaveiro-baphomet', name: 'Chaveiro Amigurumi Baphomet Cute', price: 42.00, image: 'assets/products/chaveiro_baphomet.jpg', isReady: true },
-    { id: 'porta-airpods', name: 'Porta-AirPods em Crochê', price: 38.00, image: 'assets/products/porta_airpods.jpg', isReady: true }
-  ];
-
   const renderCatalog = (query = '') => {
-    const custom = loadCustomProducts();
-    const allPieces = [...defaultCatalog, ...custom];
+    catalog = loadCatalog();
     const grid = document.getElementById('admin-catalog-grid');
     grid.innerHTML = '';
 
-    const filtered = query
-      ? allPieces.filter(p => p.name.toLowerCase().includes(query.toLowerCase()))
-      : allPieces;
+    // Contadores por status
+    const countAll = catalog.length;
+    const countReady = catalog.filter(p => p.status === 'ready' || (p.status !== 'order' && p.status !== 'suspended' && p.isReady)).length;
+    const countOrder = catalog.filter(p => p.status === 'order' || (p.status !== 'ready' && p.status !== 'suspended' && !p.isReady)).length;
+    const countSuspended = catalog.filter(p => p.status === 'suspended').length;
 
-    document.getElementById('total-pieces-count').textContent = `${allPieces.length} peça(s) no total`;
+    document.getElementById('cat-count-all').textContent = countAll;
+    document.getElementById('cat-count-ready').textContent = countReady;
+    document.getElementById('cat-count-order').textContent = countOrder;
+    document.getElementById('cat-count-suspended').textContent = countSuspended;
+    document.getElementById('total-pieces-count').textContent = `${countAll} peça(s) no total`;
+
+    // Filtra por status e busca textual
+    let filtered = catalog;
+    if (currentCatalogFilter === 'ready') {
+      filtered = filtered.filter(p => p.status === 'ready' || (p.status !== 'order' && p.status !== 'suspended' && p.isReady));
+    } else if (currentCatalogFilter === 'order') {
+      filtered = filtered.filter(p => p.status === 'order' || (p.status !== 'ready' && p.status !== 'suspended' && !p.isReady));
+    } else if (currentCatalogFilter === 'suspended') {
+      filtered = filtered.filter(p => p.status === 'suspended');
+    }
+
+    if (query) {
+      filtered = filtered.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
+    }
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: rgba(245, 236, 183, 0.75); background: var(--admin-card-bg); border-radius: var(--radius-sm); border: var(--admin-card-border);">
+          <p style="font-weight: 700;">Nenhuma peça encontrada neste filtro.</p>
+        </div>
+      `;
+      return;
+    }
 
     filtered.forEach(piece => {
       const card = document.createElement('div');
-      card.className = 'admin-product-card';
-      const isCustom = piece.id.startsWith('custom-');
+      const isSuspended = piece.status === 'suspended';
+      card.className = `admin-product-card ${isSuspended ? 'card-suspended' : ''}`;
+
+      let statusBadgeHtml = '';
+      let toggleActionHtml = '';
+
+      if (isSuspended) {
+        statusBadgeHtml = `<span class="btn-status-badge suspended" title="Oculta da loja online">Suspensa (Oculta)</span>`;
+        toggleActionHtml = `<button class="btn-action-edit" data-action="reactivate" data-id="${piece.id}">Reativar na Loja</button>`;
+      } else if (piece.status === 'order' || (!piece.isReady && piece.status !== 'ready')) {
+        statusBadgeHtml = `<span class="btn-status-badge order" title="Produzida sob encomenda">Sob Encomenda</span>`;
+        toggleActionHtml = `<button class="btn-action-edit" data-action="suspend" data-id="${piece.id}">Suspender</button>`;
+      } else {
+        statusBadgeHtml = `<span class="btn-status-badge ready" title="Pronta para postagem">Pronta Entrega</span>`;
+        toggleActionHtml = `<button class="btn-action-edit" data-action="suspend" data-id="${piece.id}">Suspender</button>`;
+      }
 
       card.innerHTML = `
         <img src="${piece.image}" alt="${piece.name}" class="admin-product-thumb">
         <div class="admin-product-details">
           <span class="admin-product-name" title="${piece.name}">${piece.name}</span>
           <span class="admin-product-price">${formatCurrency(piece.price)}</span>
-          <div style="display: flex; gap: 6px; align-items: center; margin-top: 4px;">
-            <button class="btn-toggle-availability ${piece.isReady ? 'ready' : 'order'}" data-id="${piece.id}">
-              ${piece.isReady ? 'Pronta Entrega' : 'Sob Encomenda'}
-            </button>
-            ${isCustom ? `
-              <button class="btn-delete-piece" data-id="${piece.id}" style="font-size: 0.68rem; color: #dc2626; background: none; border: none; cursor: pointer; text-decoration: underline; margin-left: auto;">
-                Excluir
-              </button>
+          
+          <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+            ${statusBadgeHtml}
+            ${piece.status === 'order' && piece.leadTimeDays ? `
+              <span style="font-size: 0.68rem; color: rgba(245, 236, 183, 0.7);">${piece.leadTimeDays} dias úteis</span>
             ` : ''}
+          </div>
+
+          <div class="admin-product-actions">
+            <button class="btn-action-edit" data-action="edit" data-id="${piece.id}">Editar</button>
+            ${toggleActionHtml}
+            <button class="btn-action-delete" data-action="delete" data-id="${piece.id}">Excluir</button>
           </div>
         </div>
       `;
@@ -591,62 +979,208 @@ document.addEventListener('DOMContentLoaded', () => {
       grid.appendChild(card);
     });
 
-    // Alterna disponibilidade
-    grid.querySelectorAll('.btn-toggle-availability').forEach(btn => {
+    // Registra eventos das ações do card
+    grid.querySelectorAll('button[data-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        const action = e.currentTarget.getAttribute('data-action');
         const id = e.currentTarget.getAttribute('data-id');
-        togglePieceAvailability(id);
-      });
-    });
 
-    // Exclusão de peças customizadas
-    grid.querySelectorAll('.btn-delete-piece').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.currentTarget.getAttribute('data-id');
-        deleteCustomPiece(id);
+        if (action === 'edit') {
+          openEditModal(id);
+        } else if (action === 'suspend') {
+          setPieceStatus(id, 'suspended');
+        } else if (action === 'reactivate') {
+          setPieceStatus(id, 'ready');
+        } else if (action === 'delete') {
+          deletePiece(id);
+        }
       });
     });
   };
 
-  const togglePieceAvailability = (id) => {
-    let custom = loadCustomProducts();
-    let updated = false;
-
-    // Se for custom
-    custom = custom.map(p => {
+  // Alterna status rápido da peça
+  const setPieceStatus = (id, newStatus) => {
+    catalog = loadCatalog().map(p => {
       if (p.id === id) {
-        updated = true;
-        return { ...p, isReady: !p.isReady };
+        return {
+          ...p,
+          status: newStatus,
+          isReady: newStatus === 'ready'
+        };
       }
       return p;
     });
-
-    if (updated) {
-      saveCustomProducts(custom);
-    } else {
-      // Se for item padrão, podemos salvar como override
-      const defaultItem = defaultCatalog.find(p => p.id === id);
-      if (defaultItem) {
-        defaultItem.isReady = !defaultItem.isReady;
-        renderCatalog();
-      }
-    }
-
-    showToast('Disponibilidade da peça atualizada!');
+    saveCatalog(catalog);
+    const statusLabels = {
+      ready: 'Pronta Entrega',
+      order: 'Sob Encomenda',
+      suspended: 'Suspensa (Oculta da loja)'
+    };
+    showToast(`Status alterado para ${statusLabels[newStatus] || newStatus}!`);
   };
 
-  const deleteCustomPiece = (id) => {
-    if (!confirm('Deseja realmente remover esta peça artesanal do acervo?')) return;
-    let custom = loadCustomProducts().filter(p => p.id !== id);
-    saveCustomProducts(custom);
+  // Exclusão de Peça
+  const deletePiece = (id) => {
+    const piece = catalog.find(p => p.id === id);
+    const name = piece ? piece.name : 'esta peça';
+    if (!confirm(`Deseja realmente excluir "${name}" do acervo?\nEssa ação removerá a peça da vitrine.`)) return;
+
+    catalog = loadCatalog().filter(p => p.id !== id);
+    saveCatalog(catalog);
     showToast('Peça removida do acervo.');
   };
+
+  // Filtros de status do acervo
+  document.querySelectorAll('.catalog-filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.catalog-filter-btn').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      currentCatalogFilter = e.currentTarget.getAttribute('data-filter');
+      renderCatalog(document.getElementById('catalog-search-input').value.trim());
+    });
+  });
 
   document.getElementById('catalog-search-input').addEventListener('input', (e) => {
     renderCatalog(e.target.value.trim());
   });
 
-  // Inicialização Inicial
+  // --------------------------------------------------------------------------
+  // 9. Modal de Edição de Peça
+  // --------------------------------------------------------------------------
+  const modalEditBackdrop = document.getElementById('modal-edit-backdrop');
+  const btnCloseEditModal = document.getElementById('btn-close-edit-modal');
+  const btnCancelEdit = document.getElementById('btn-cancel-edit');
+  const formEditProduct = document.getElementById('form-edit-product');
+  const editPhotoInput = document.getElementById('edit-photo-input');
+  const editLeadtimeWrap = document.getElementById('edit-leadtime-wrap');
+
+  const openEditModal = async (pieceId) => {
+    catalog = loadCatalog();
+    const piece = catalog.find(p => p.id === pieceId);
+    if (!piece) return;
+
+    document.getElementById('edit-piece-id').value = piece.id;
+    document.getElementById('edit-product-name').value = piece.name || '';
+    document.getElementById('edit-product-category').value = piece.category || 'bolsas';
+    document.getElementById('edit-product-price').value = piece.price || 0;
+    document.getElementById('edit-product-dimensions').value = piece.dimensions || '';
+    document.getElementById('edit-product-materials').value = piece.materials || '';
+    document.getElementById('edit-product-desc').value = piece.description || '';
+
+    // Status: ready, order, suspended
+    const status = piece.status || (piece.isReady ? 'ready' : 'order');
+    const radio = document.querySelector(`input[name="edit-status"][value="${status}"]`);
+    if (radio) radio.checked = true;
+
+    document.querySelectorAll('.status-radio-option').forEach(opt => {
+      const r = opt.querySelector('input[type="radio"]');
+      opt.classList.toggle('active', r.value === status);
+    });
+
+    if (status === 'order') {
+      editLeadtimeWrap.style.display = 'block';
+      document.getElementById('edit-product-leadtime').value = piece.leadTimeDays || 7;
+    } else {
+      editLeadtimeWrap.style.display = 'none';
+    }
+
+    // Carrega foto no recortador do modal
+    await editPieceCropper.loadImage(piece.image);
+
+    modalEditBackdrop.style.display = 'flex';
+  };
+
+  const closeEditModal = () => {
+    modalEditBackdrop.style.display = 'none';
+  };
+
+  btnCloseEditModal.addEventListener('click', closeEditModal);
+  btnCancelEdit.addEventListener('click', closeEditModal);
+  modalEditBackdrop.addEventListener('click', (e) => {
+    if (e.target === modalEditBackdrop) closeEditModal();
+  });
+
+  // Alterne status no modal
+  document.querySelectorAll('.status-radio-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.status-radio-option').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      const radio = opt.querySelector('input[type="radio"]');
+      radio.checked = true;
+
+      if (radio.value === 'order') {
+        editLeadtimeWrap.style.display = 'block';
+      } else {
+        editLeadtimeWrap.style.display = 'none';
+      }
+    });
+  });
+
+  // Trocar foto na edição
+  editPhotoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      await editPieceCropper.loadImage(event.target.result);
+      showToast('Nova foto carregada! Ajuste o zoom e enquadramento.');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Salvar alterações da edição
+  formEditProduct.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const id = document.getElementById('edit-piece-id').value;
+    const name = document.getElementById('edit-product-name').value.trim();
+    const category = document.getElementById('edit-product-category').value;
+    const price = parseFloat(document.getElementById('edit-product-price').value);
+    const statusRadio = document.querySelector('input[name="edit-status"]:checked');
+    const status = statusRadio ? statusRadio.value : 'ready';
+    const leadTimeDays = status === 'order' ? parseInt(document.getElementById('edit-product-leadtime').value) || 7 : 0;
+    const dimensions = document.getElementById('edit-product-dimensions').value.trim();
+    const materials = document.getElementById('edit-product-materials').value.trim();
+    const description = document.getElementById('edit-product-desc').value.trim();
+
+    // Obtém a foto recortada 1:1
+    const croppedImage = editPieceCropper.getCroppedDataUrl(600);
+
+    const categoryLabels = {
+      bolsas: 'Bolsas & Bags',
+      vestuario: 'Vestuário Autoral',
+      acessorios: 'Acessórios'
+    };
+
+    catalog = loadCatalog().map(p => {
+      if (p.id === id) {
+        return {
+          ...p,
+          name,
+          category,
+          categoryLabel: categoryLabels[category] || p.categoryLabel,
+          price,
+          status,
+          isReady: status === 'ready',
+          leadTimeDays,
+          dimensions,
+          materials,
+          description,
+          image: croppedImage || p.image
+        };
+      }
+      return p;
+    });
+
+    saveCatalog(catalog);
+    closeEditModal();
+    showToast(`Peça "${name}" atualizada com sucesso!`);
+  });
+
+  // --------------------------------------------------------------------------
+  // 10. Inicialização Inicial
+  // --------------------------------------------------------------------------
   updateDashboard();
   renderOrders();
   renderCatalog();

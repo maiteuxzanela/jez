@@ -116,6 +116,15 @@ assert(adminHtmlContent.includes('status-aguardando-pagamento') || adminCssConte
 assert(adminJsContent.includes('https://rastreamento.correios.com.br/app/index.php?codigo='), 'Geração automática de link de rastreio dos Correios implementada');
 assert(htmlContent.includes('admin.html'), 'Vitrine (index.html) possui link de acesso direto ao painel do ateliê no rodapé');
 
+// 10. Validação dos Ajustes de Usabilidade e Estética do Painel (Lumi & Cris)
+console.log('\n🎨 10. Validando Ajustes de Usabilidade e Estética do Painel:');
+assert(adminCssContent.includes('--admin-card-bg: #2d2038') || adminCssContent.includes('background: #2d2038'), 'Cards do painel possuem fundo marrom quente (#2d2038) combinando com o botão Ver Loja');
+assert(adminCssContent.includes('.orders-filter-bar') && adminCssContent.includes('flex-wrap: wrap'), 'Barra de filtros de pedidos utiliza flex-wrap para evitar texto encavalado no mobile');
+assert(adminHtmlContent.includes('crop-viewport') && adminHtmlContent.includes('crop-zoom-slider'), 'Ferramenta interativa de enquadramento e zoom 1:1 de fotos está implementada');
+assert(adminHtmlContent.includes('modal-edit-backdrop'), 'Modal de edição de peças do acervo está presente');
+assert(adminHtmlContent.includes('suspended') && adminJsContent.includes('suspended'), 'Suporte nativo ao status "Suspensa" configurado no painel administrativo');
+assert(appContent.includes("p.status !== 'suspended'"), 'Vitrine da loja (app.js) filtra e oculta automaticamente peças suspensas');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

@@ -130,11 +130,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   ];
 
-  // Carrega peças padrão + peças cadastradas pela Jéssica no painel
+  // Carrega peças padrão + peças cadastradas e geridas pela Jéssica no painel
   const getProducts = () => {
     try {
-      const custom = JSON.parse(localStorage.getItem('jez_custom_products') || '[]');
-      return [...defaultProducts, ...custom];
+      const catalogRaw = localStorage.getItem('jez_catalog');
+      let pieces = [];
+      if (catalogRaw) {
+        pieces = JSON.parse(catalogRaw);
+      } else {
+        const custom = JSON.parse(localStorage.getItem('jez_custom_products') || '[]');
+        pieces = [...defaultProducts, ...custom];
+      }
+      // Filtra estritamente peças que NÃO estejam suspensas nem excluídas
+      return pieces
+        .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
+        .map(p => ({
+          ...p,
+          isReady: p.status ? p.status === 'ready' : (p.isReady !== undefined ? p.isReady : true)
+        }));
     } catch {
       return defaultProducts;
     }
@@ -209,6 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Renderização do Catálogo de Produtos
   // --------------------------------------------------------------------------
   const renderCatalog = () => {
+    products = getProducts();
     productsGrid.innerHTML = '';
 
     const filtered = products.filter(p => {
@@ -615,6 +629,17 @@ document.addEventListener('DOMContentLoaded', () => {
     openDrawer,
     closeDrawer
   };
+
+  // Sincronização em tempo real caso a artesã edite peças em outra aba
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'jez_catalog' || e.key === 'jez_custom_products') {
+      renderCatalog();
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    renderCatalog();
+  });
 
   // Inicialização
   renderCatalog();
