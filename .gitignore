@@ -3,6 +3,7 @@
 
 # Excecoes permitidas no repositorio:
 !/.gitignore
+!/index.html
 !/site/
 !/site/**
 
