@@ -1,0 +1,590 @@
+/**
+ * ==========================================================================
+ * JEZ Collection — Script Principal (Lógica de Vitrine, Carrinho & Frete)
+ * Especialistas: Sam (E-Commerce) & Lumi (UI/UX)
+ * Supervisionado por: Alex (CTO)
+ * ==========================================================================
+ */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // --------------------------------------------------------------------------
+  // 1. Catálogo Real de Peças Artesanais (Acervo Instagram @_jezcollection)
+  // --------------------------------------------------------------------------
+  const products = [
+    {
+      id: 'bolsa-punk',
+      name: 'Bolsa Punk Slouchy com Correntes',
+      category: 'bolsas',
+      categoryLabel: 'Bolsas & Bags',
+      price: 169.90,
+      image: 'assets/products/bolsa_punk.jpg',
+      isReady: false,
+      leadTimeDays: 7,
+      dimensions: '28cm (L) × 22cm (A) × 8cm (P)',
+      materials: 'Fio de malha premium preto fosco e correntes duplas prateadas em aço',
+      description: 'Bolsa autoral com modelagem triangular slouchy e estética rocker/alt. Fechamento seguro com botão de pressão e alça de corrente metálica encorpada.'
+    },
+    {
+      id: 'tote-cherry',
+      name: 'Tote Bag Cherry com Laço',
+      category: 'bolsas',
+      categoryLabel: 'Bolsas & Bags',
+      price: 149.90,
+      image: 'assets/products/tote_cherry.jpg',
+      isReady: true,
+      stockQty: 2,
+      dimensions: '34cm (L) × 30cm (A) × 10cm (P)',
+      materials: 'Fio 100% algodão cru, cerejas em relevo de crochê e fita de cetim rubi',
+      description: 'A clássica e queridinha Tote Bag de cerejas com laço delicado. Amplo espaço interno para o dia a dia, acabamento estruturado e toque macio.'
+    },
+    {
+      id: 'shoulder-coracao',
+      name: 'Shoulder Bag Coração Granny Square',
+      category: 'bolsas',
+      categoryLabel: 'Bolsas & Bags',
+      price: 139.90,
+      image: 'assets/products/shoulder_coracao.jpg',
+      isReady: true,
+      stockQty: 1,
+      dimensions: '24cm (L) × 20cm (A) × 6cm (P)',
+      materials: 'Fio de algodão creme e vermelho carmim, alça entrelaçada com elos dourados',
+      description: 'Composta por granny squares autorais com corações centrais e pingentes pendurados na alça. Perfeita para passeios e ocasiões especiais.'
+    },
+    {
+      id: 'bolsa-xadrez',
+      name: 'Bolsa Xadrez Checkerboard',
+      category: 'bolsas',
+      categoryLabel: 'Bolsas & Bags',
+      price: 159.90,
+      image: 'assets/products/bolsa_xadrez.jpg',
+      isReady: false,
+      leadTimeDays: 5,
+      dimensions: '36cm (L) × 32cm (A) × 8cm (P)',
+      materials: 'Fio de algodão premium estruturado em padrão xadrez quadriculado P&B',
+      description: 'A estética streetwear contemporânea encontra a arte do crochê. Alças reforçadas e padrão quadriculado perfeito feito à mão ponto a ponto.'
+    },
+    {
+      id: 'blusa-teia',
+      name: 'Blusa Teia de Aranha Cropped',
+      category: 'vestuario',
+      categoryLabel: 'Vestuário Autoral',
+      price: 189.90,
+      image: 'assets/products/blusa_teia.jpg',
+      isReady: false,
+      leadTimeDays: 8,
+      dimensions: 'Modelagem cropped com manga longa ampla (veste do 36 ao 42)',
+      materials: 'Fio de algodão leve off-white em ponto teia aberto com acabamento rendado',
+      description: 'Peça icônica do ateliê! Trama vazada em padrão de teia de aranha que cria um visual gótico e alternativo marcante. Ideal para sobreposições estilosas.'
+    },
+    {
+      id: 'top-bandana',
+      name: 'Top Amarração Frontal + Bandana',
+      category: 'vestuario',
+      categoryLabel: 'Vestuário Autoral',
+      price: 145.00,
+      image: 'assets/products/top_bandana.jpg',
+      isReady: true,
+      stockQty: 2,
+      dimensions: 'Top regulável por cordão frontal + Bandana triangular de cabelo',
+      materials: 'Fio de algodão mercerizado macio em tom rosa pastel com ponteiras de franja',
+      description: 'Conjunto completo composto por top cropped de amarração frontal e bandana combinando. Visual artesanal fresco e romântico para dias de sol e festivais.'
+    },
+    {
+      id: 'cardiga-manteiga',
+      name: 'Cardigã Cropped Manteiga (Shrug)',
+      category: 'vestuario',
+      categoryLabel: 'Vestuário Autoral',
+      price: 179.90,
+      image: 'assets/products/cardiga_manteiga.jpg',
+      isReady: false,
+      leadTimeDays: 10,
+      dimensions: 'Modelagem cropped soltinha com manga 3/4 (tamanho único M)',
+      materials: 'Fio macio no tom manteiga suave (#F5ECB7) com pontos rendados florais',
+      description: 'Bolero delicado em tom suave e aconchegante. A terceira peça perfeita para valorizar qualquer look casual com a textura nobre do crochê.'
+    },
+    {
+      id: 'chaveiro-baphomet',
+      name: 'Chaveiro Amigurumi Baphomet Cute',
+      category: 'acessorios',
+      categoryLabel: 'Acessórios & Miudezas',
+      price: 49.90,
+      image: 'assets/products/chaveiro_baphomet.jpg',
+      isReady: true,
+      stockQty: 4,
+      dimensions: '10cm de altura (sem contar a argola)',
+      materials: 'Fio 100% algodão preto, enchimento siliconado antialérgico e chifres bordados',
+      description: 'O contraste perfeito entre o místico e o adorável! Amigurumi com detalhes minuciosos em vermelho e pentagrama na testa. Argola de chaveiro inclusa.'
+    },
+    {
+      id: 'porta-airpods',
+      name: 'Porta-AirPods / Fones em Crochê',
+      category: 'acessorios',
+      categoryLabel: 'Acessórios & Miudezas',
+      price: 39.90,
+      image: 'assets/products/porta_airpods.jpg',
+      isReady: true,
+      stockQty: 5,
+      dimensions: '6.5cm (L) × 5.5cm (A) × 3cm (P)',
+      materials: 'Fio de algodão azul e amarelo, botão vintage e mosquetão metálico',
+      description: 'Case protetora fofa em crochê para fones de ouvido sem fio. Protege o estojo de arranhões e vem com gancho para pendurar na bolsa ou no cinto.'
+    }
+  ];
+
+  // --------------------------------------------------------------------------
+  // 2. Estado Global da Loja
+  // --------------------------------------------------------------------------
+  let cart = JSON.parse(localStorage.getItem('jez_cart')) || [];
+  let currentFilter = 'todas';
+  let shippingCost = 0;
+  let shippingMethod = '';
+
+  // --------------------------------------------------------------------------
+  // 3. Seletores DOM
+  // --------------------------------------------------------------------------
+  const productsGrid = document.getElementById('products-grid');
+  const filterPills = document.querySelectorAll('.filter-pill');
+  const cartButton = document.getElementById('cart-button');
+  const cartBadge = document.getElementById('cart-badge');
+  const cartDrawerBackdrop = document.getElementById('cart-drawer-backdrop');
+  const btnCloseDrawer = document.getElementById('btn-close-drawer');
+  const cartItemsContainer = document.getElementById('cart-items-container');
+  const cartEmptyState = document.getElementById('cart-empty-state');
+  const cartSubtotalEl = document.getElementById('cart-subtotal');
+  const cartShippingEl = document.getElementById('cart-shipping');
+  const cartTotalEl = document.getElementById('cart-total');
+  const btnCalcShipping = document.getElementById('btn-calc-shipping');
+  const cepInput = document.getElementById('cep-input');
+  const shippingResult = document.getElementById('shipping-result');
+  const btnCheckout = document.getElementById('btn-checkout');
+  const toastContainer = document.getElementById('toast-container');
+  const productModalBackdrop = document.getElementById('product-modal-backdrop');
+  const btnCloseModal = document.getElementById('btn-close-modal');
+
+  // Elementos do Modal Rápido
+  const modalImg = document.getElementById('modal-img');
+  const modalCategory = document.getElementById('modal-category');
+  const modalTitle = document.getElementById('modal-title');
+  const modalPrice = document.getElementById('modal-price');
+  const modalBadge = document.getElementById('modal-badge');
+  const modalDesc = document.getElementById('modal-desc');
+  const modalDimensions = document.getElementById('modal-dimensions');
+  const modalMaterials = document.getElementById('modal-materials');
+  const modalBtnAddCart = document.getElementById('modal-btn-add-cart');
+  const modalBtnWhatsapp = document.getElementById('modal-btn-whatsapp');
+
+  // --------------------------------------------------------------------------
+  // 4. Funções de Formatação e Utilitários
+  // --------------------------------------------------------------------------
+  const formatCurrency = (val) => {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  const showToast = (message) => {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> <span>${message}</span>`;
+    toastContainer.appendChild(toast);
+    
+    // Animação de entrada
+    requestAnimationFrame(() => toast.classList.add('show'));
+
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 350);
+    }, 2800);
+  };
+
+  // --------------------------------------------------------------------------
+  // 5. Renderização do Catálogo de Produtos
+  // --------------------------------------------------------------------------
+  const renderCatalog = () => {
+    productsGrid.innerHTML = '';
+
+    const filtered = products.filter(p => {
+      if (currentFilter === 'todas') return true;
+      if (currentFilter === 'pronta-entrega') return p.isReady;
+      return p.category === currentFilter;
+    });
+
+    if (filtered.length === 0) {
+      productsGrid.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: var(--color-muted-text); padding: 40px 0;">Nenhuma peça encontrada nesta categoria no momento.</p>`;
+      return;
+    }
+
+    filtered.forEach(p => {
+      const card = document.createElement('article');
+      card.className = 'product-card';
+      card.id = `card-${p.id}`;
+
+      const badgeHtml = p.isReady
+        ? `<span class="product-badge badge-ready">Pronta Entrega</span>`
+        : `<span class="product-badge badge-order">Sob Encomenda (${p.leadTimeDays}d)</span>`;
+
+      card.innerHTML = `
+        <div class="product-image-wrap" onclick="window.jezApp.openQuickView('${p.id}')">
+          <img src="${p.image}" alt="${p.name}" loading="lazy" width="400" height="400">
+          ${badgeHtml}
+          <button class="quick-view-overlay-btn" title="Visualizar detalhes" aria-label="Visualizar ${p.name}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+        <div class="product-info">
+          <span class="product-category">${p.categoryLabel}</span>
+          <h3 class="product-name" onclick="window.jezApp.openQuickView('${p.id}')">${p.name}</h3>
+          <p class="product-meta">${p.materials}</p>
+          <div class="product-footer">
+            <div class="product-price">${formatCurrency(p.price)}</div>
+            <button class="btn-add-cart" id="btn-add-${p.id}" onclick="window.jezApp.addToCart('${p.id}')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+              Comprar
+            </button>
+          </div>
+        </div>
+      `;
+      productsGrid.appendChild(card);
+    });
+  };
+
+  // --------------------------------------------------------------------------
+  // 6. Gerenciamento do Carrinho (Cart Drawer)
+  // --------------------------------------------------------------------------
+  const saveCart = () => {
+    localStorage.setItem('jez_cart', JSON.stringify(cart));
+  };
+
+  const updateCartUI = () => {
+    // Total de itens
+    const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+    cartBadge.textContent = totalItems;
+    cartBadge.style.display = totalItems > 0 ? 'flex' : 'none';
+
+    // Subtotal
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    cartSubtotalEl.textContent = formatCurrency(subtotal);
+
+    // Frete e Total
+    const total = subtotal + shippingCost;
+    cartShippingEl.textContent = shippingCost > 0 ? formatCurrency(shippingCost) : (shippingMethod ? 'Grátis' : 'Calcule o frete');
+    cartTotalEl.textContent = formatCurrency(total);
+
+    // Renderização dos Itens
+    if (cart.length === 0) {
+      cartItemsContainer.style.display = 'none';
+      cartEmptyState.style.display = 'block';
+      btnCheckout.disabled = true;
+      btnCheckout.style.opacity = '0.5';
+      btnCheckout.style.cursor = 'not-allowed';
+      return;
+    }
+
+    cartItemsContainer.style.display = 'flex';
+    cartEmptyState.style.display = 'none';
+    btnCheckout.disabled = false;
+    btnCheckout.style.opacity = '1';
+    btnCheckout.style.cursor = 'pointer';
+
+    cartItemsContainer.innerHTML = '';
+    cart.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'cart-item';
+      const badgeText = item.isReady ? 'Pronta Entrega' : `Produção: ${item.leadTimeDays}d úteis`;
+
+      el.innerHTML = `
+        <img src="${item.image}" alt="${item.name}" class="cart-item-img">
+        <div class="cart-item-details">
+          <h4 class="cart-item-title">${item.name}</h4>
+          <span class="cart-item-badge">${badgeText}</span>
+          <span class="cart-item-price">${formatCurrency(item.price)}</span>
+        </div>
+        <div class="cart-item-controls">
+          <button class="btn-remove-item" onclick="window.jezApp.removeFromCart('${item.id}')" title="Remover item" aria-label="Remover ${item.name}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+          <div class="qty-stepper">
+            <button class="qty-btn" onclick="window.jezApp.changeQuantity('${item.id}', -1)" aria-label="Diminuir quantidade">−</button>
+            <span class="qty-display">${item.quantity}</span>
+            <button class="qty-btn" onclick="window.jezApp.changeQuantity('${item.id}', 1)" aria-label="Aumentar quantidade">+</button>
+          </div>
+        </div>
+      `;
+      cartItemsContainer.appendChild(el);
+    });
+  };
+
+  const addToCart = (productId) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+
+    const existingIndex = cart.findIndex(item => item.id === productId);
+    if (existingIndex > -1) {
+      cart[existingIndex].quantity += 1;
+    } else {
+      cart.push({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+        isReady: product.isReady,
+        leadTimeDays: product.leadTimeDays || 0,
+        quantity: 1
+      });
+    }
+
+    saveCart();
+    updateCartUI();
+    showToast(`"${product.name}" adicionado à sacola!`);
+    openDrawer();
+  };
+
+  const changeQuantity = (productId, delta) => {
+    const index = cart.findIndex(item => item.id === productId);
+    if (index === -1) return;
+
+    cart[index].quantity += delta;
+    if (cart[index].quantity <= 0) {
+      cart.splice(index, 1);
+    }
+
+    saveCart();
+    updateCartUI();
+  };
+
+  const removeFromCart = (productId) => {
+    cart = cart.filter(item => item.id !== productId);
+    saveCart();
+    updateCartUI();
+    showToast('Peça removida da sacola.');
+  };
+
+  const openDrawer = () => {
+    cartDrawerBackdrop.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeDrawer = () => {
+    cartDrawerBackdrop.classList.remove('active');
+    document.body.style.overflow = '';
+  };
+
+  // --------------------------------------------------------------------------
+  // 7. Cálculo de Frete Dinâmico (Origem Montes Claros - MG)
+  // --------------------------------------------------------------------------
+  const handleCalculateShipping = () => {
+    const rawCep = cepInput.value.replace(/\D/g, '');
+    if (rawCep.length !== 8) {
+      shippingResult.style.display = 'block';
+      shippingResult.style.color = 'var(--color-primary)';
+      shippingResult.innerHTML = `
+        <span class="shipping-alert-msg">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          Informe um CEP válido com 8 dígitos.
+        </span>
+      `;
+      return;
+    }
+
+    btnCalcShipping.textContent = 'Calculando...';
+    btnCalcShipping.disabled = true;
+
+    setTimeout(() => {
+      // Simulação realista considerando origem em Montes Claros - MG (39400-000)
+      const prefix = parseInt(rawCep.substring(0, 2), 10);
+      let pacCost = 24.90;
+      let pacDays = 5;
+      let sedexCost = 42.90;
+      let sedexDays = 2;
+
+      // Se for de Minas Gerais (CEPs 30 a 39)
+      if (prefix >= 30 && prefix <= 39) {
+        pacCost = 16.50;
+        pacDays = 3;
+        sedexCost = 27.90;
+        sedexDays = 1;
+      } else if (prefix >= 1 && prefix <= 29) {
+        // Região Sudeste (SP, RJ, ES)
+        pacCost = 22.00;
+        pacDays = 4;
+        sedexCost = 36.50;
+        sedexDays = 2;
+      } else {
+        // Demais regiões do Brasil
+        pacCost = 32.00;
+        pacDays = 7;
+        sedexCost = 54.00;
+        sedexDays = 3;
+      }
+
+      shippingCost = pacCost;
+      shippingMethod = 'PAC';
+
+      shippingResult.style.display = 'block';
+      shippingResult.style.color = 'var(--color-badge-ready)';
+      shippingResult.innerHTML = `
+        <div class="shipping-option">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+          <strong>PAC:</strong> ${formatCurrency(pacCost)} (${pacDays} a ${pacDays + 2} dias úteis)
+        </div>
+        <div class="shipping-option">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+          <strong>SEDEX:</strong> ${formatCurrency(sedexCost)} (${sedexDays} a ${sedexDays + 1} dias úteis)
+        </div>
+      `;
+
+      btnCalcShipping.textContent = 'Calcular';
+      btnCalcShipping.disabled = false;
+      updateCartUI();
+    }, 500);
+  };
+
+  // Máscara de CEP automática
+  cepInput.addEventListener('input', (e) => {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 8) value = value.slice(0, 8);
+    if (value.length > 5) {
+      value = value.replace(/^(\d{5})(\d)/, '$1-$2');
+    }
+    e.target.value = value;
+  });
+
+  // --------------------------------------------------------------------------
+  // 8. Modal de Detalhes Rápido (Quick View)
+  // --------------------------------------------------------------------------
+  let currentModalProductId = null;
+
+  const openQuickView = (productId) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+
+    currentModalProductId = productId;
+    modalImg.src = product.image;
+    modalImg.alt = product.name;
+    modalCategory.textContent = product.categoryLabel;
+    modalTitle.textContent = product.name;
+    modalPrice.textContent = formatCurrency(product.price);
+    modalDesc.textContent = product.description;
+    modalDimensions.textContent = product.dimensions;
+    modalMaterials.textContent = product.materials;
+
+    if (product.isReady) {
+      modalBadge.className = 'product-badge badge-ready';
+      modalBadge.textContent = 'Pronta Entrega';
+    } else {
+      modalBadge.className = 'product-badge badge-order';
+      modalBadge.textContent = `Feito sob Encomenda (${product.leadTimeDays} dias úteis)`;
+    }
+
+    // Botão de WhatsApp direcionado para a peça
+    const phone = '5538999999999'; // Número placeholder da loja em Montes Claros (DDD 38)
+    const msg = encodeURIComponent(`Olá Jéssica! Tenho uma dúvida sobre a peça "${product.name}" que vi no site da JËZ collection.`);
+    modalBtnWhatsapp.href = `https://wa.me/${phone}?text=${msg}`;
+
+    productModalBackdrop.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeModal = () => {
+    productModalBackdrop.classList.remove('active');
+    document.body.style.overflow = '';
+    currentModalProductId = null;
+  };
+
+  // --------------------------------------------------------------------------
+  // 9. Checkout & Finalização
+  // --------------------------------------------------------------------------
+  btnCheckout.addEventListener('click', () => {
+    if (cart.length === 0) return;
+
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const total = subtotal + shippingCost;
+    
+    // Resumo dos itens para envio via WhatsApp ou Gateway
+    let itemsText = cart.map(i => `• ${i.quantity}x ${i.name} (${formatCurrency(i.price * i.quantity)})`).join('\n');
+    let message = `Olá Jéssica! Gostaria de finalizar meu pedido na JËZ Collection:\n\n${itemsText}\n\n`;
+    if (shippingCost > 0) {
+      message += `Frete estimado: ${formatCurrency(shippingCost)}\n`;
+    }
+    message += `*Total: ${formatCurrency(total)}*\n\nComo posso efetuar o pagamento via Pix?`;
+
+    const phone = '5538999999999';
+    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    
+    // Abre a confirmação e direcionamento
+    showToast('Redirecionando para o fechamento do pedido via WhatsApp / Pix...');
+    setTimeout(() => {
+      window.open(whatsappUrl, '_blank');
+    }, 700);
+  });
+
+  // --------------------------------------------------------------------------
+  // 10. Event Listeners Globais
+  // --------------------------------------------------------------------------
+  // Filtros de Categoria
+  filterPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      filterPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      currentFilter = pill.dataset.filter;
+      renderCatalog();
+    });
+  });
+
+  // Cart Drawer
+  cartButton.addEventListener('click', openDrawer);
+  btnCloseDrawer.addEventListener('click', closeDrawer);
+  cartDrawerBackdrop.addEventListener('click', (e) => {
+    if (e.target === cartDrawerBackdrop) closeDrawer();
+  });
+
+  // Modal Rápido
+  btnCloseModal.addEventListener('click', closeModal);
+  productModalBackdrop.addEventListener('click', (e) => {
+    if (e.target === productModalBackdrop) closeModal();
+  });
+
+  modalBtnAddCart.addEventListener('click', () => {
+    if (currentModalProductId) {
+      addToCart(currentModalProductId);
+      closeModal();
+    }
+  });
+
+  // Tecla ESC para fechar modais
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeDrawer();
+      closeModal();
+    }
+  });
+
+  // Frete
+  btnCalcShipping.addEventListener('click', handleCalculateShipping);
+  cepInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') handleCalculateShipping();
+  });
+
+  // Header com efeito de rolagem
+  window.addEventListener('scroll', () => {
+    const header = document.querySelector('.site-header');
+    if (window.scrollY > 20) {
+      header.classList.add('scrolled');
+    } else {
+      header.classList.remove('scrolled');
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // 11. Exposição Pública para Event Handlers em HTML Inline
+  // --------------------------------------------------------------------------
+  window.jezApp = {
+    addToCart,
+    changeQuantity,
+    removeFromCart,
+    openQuickView,
+    openDrawer,
+    closeDrawer
+  };
+
+  // Inicialização
+  renderCatalog();
+  updateCartUI();
+});

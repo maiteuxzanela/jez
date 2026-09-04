@@ -1,0 +1,17 @@
+# Ignorar tudo por padrao no repositorio (mantem documentos e notas privadas estritamente locais)
+/*
+
+# Excecoes permitidas no repositorio:
+!/.gitignore
+!/site/
+!/site/**
+
+# Arquivos de sistema e temporarios
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
