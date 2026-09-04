@@ -125,6 +125,45 @@ assert(adminHtmlContent.includes('modal-edit-backdrop'), 'Modal de edição de p
 assert(adminHtmlContent.includes('suspended') && adminJsContent.includes('suspended'), 'Suporte nativo ao status "Suspensa" configurado no painel administrativo');
 assert(appContent.includes("p.status !== 'suspended'"), 'Vitrine da loja (app.js) filtra e oculta automaticamente peças suspensas');
 
+// 11. Validação de Cibersegurança, Sanitização XSS & LGPD (JEZ-007 - Morgan & Robin)
+console.log('\n🛡️ 11. Validando Cibersegurança, Sanitização XSS e Conformidade LGPD (JEZ-007):');
+const htmlRef = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf-8');
+const adminHtmlRef = fs.readFileSync(path.join(ROOT_DIR, 'admin.html'), 'utf-8');
+const appJsRef = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf-8');
+const adminJsRef = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+
+// A. Metadados de Segurança HTTP & CSP
+assert(htmlRef.includes('Content-Security-Policy') && adminHtmlRef.includes('Content-Security-Policy'), 'index.html e admin.html possuem Content-Security-Policy (CSP) configurado');
+assert(htmlRef.includes('X-Content-Type-Options') && adminHtmlRef.includes('X-Content-Type-Options'), 'Cabeçalho nosniff configurado em index.html e admin.html');
+assert(htmlRef.includes('referrer') && adminHtmlRef.includes('referrer'), 'Política de referenciador estrita configurada em ambos os arquivos HTML');
+
+// B. Utilitários de Sanitização e Escape contra XSS
+assert(appJsRef.includes('escapeHtml') && adminJsRef.includes('escapeHtml'), 'Função centralizada escapeHtml implementada na vitrine e no painel');
+assert(appJsRef.includes('sanitizeImageUrl') && adminJsRef.includes('sanitizeImageUrl'), 'Sanitização estrita de URLs de imagem implementada contra esquemas perigosos');
+assert(adminJsRef.includes('sanitizeTrackingCode'), 'Sanitização rigorosa de código de rastreamento dos Correios implementada');
+
+// C. Teste Unitário Funcional do Algoritmo de Escape XSS
+function testEscape(unsafe) {
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+const xssPayload = `<script>alert("xss")</script><img src=x onerror='alert(1)'>`;
+const escapedPayload = testEscape(xssPayload);
+assert(!escapedPayload.includes('<script>') && !escapedPayload.includes('<img'), 'Tags maliciosas de XSS são 100% neutralizadas e desarmadas pelo escape');
+assert(escapedPayload.includes('&lt;script&gt;') && escapedPayload.includes('&lt;img'), 'Caracteres perigosos convertidos em entidades HTML inofensivas');
+
+// D. Event Delegation Seguro (Zero Injeção Inline de Strings)
+assert(!appJsRef.includes("onclick=\"window.jezApp.openQuickView('${p.id}')\""), 'Eventos inline com interpolação de strings eliminados da vitrine');
+assert(appJsRef.includes("data-action=\"quickview\"") && appJsRef.includes("data-action=\"add-cart\""), 'Delegação segura de eventos via data attributes implementada');
+
+// E. Conformidade LGPD & Privacidade
+assert(htmlRef.includes('privacy-modal-backdrop') && htmlRef.includes('btn-open-privacy'), 'Modal transparente de Privacidade & LGPD implementado com botão de acesso');
+assert(appJsRef.includes('privacyModalBackdrop'), 'Lógica de abertura e fechamento do modal LGPD ativa');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

@@ -197,16 +197,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalBtnWhatsapp = document.getElementById('modal-btn-whatsapp');
 
   // --------------------------------------------------------------------------
-  // 4. Funções de Formatação e Utilitários
+  // 4. Funções de Formatação, Sanitização & Segurança (Morgan - Cibersegurança)
   // --------------------------------------------------------------------------
+  const escapeHtml = (str) => {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  const sanitizeImageUrl = (url) => {
+    if (!url || typeof url !== 'string') return 'assets/products/tote_cherry.jpg';
+    const trimmed = url.trim();
+    if (trimmed.startsWith('assets/') || trimmed.startsWith('data:image/') || trimmed.startsWith('https://') || trimmed.startsWith('./assets/')) {
+      return trimmed;
+    }
+    return 'assets/products/tote_cherry.jpg';
+  };
+
   const formatCurrency = (val) => {
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const num = Number(val) || 0;
+    return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
   const showToast = (message) => {
     const toast = document.createElement('div');
     toast.className = 'toast';
-    toast.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> <span>${message}</span>`;
+    toast.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> <span>${escapeHtml(message)}</span>`;
     toastContainer.appendChild(toast);
     
     // Animação de entrada
@@ -219,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // --------------------------------------------------------------------------
-  // 5. Renderização do Catálogo de Produtos
+  // 5. Renderização do Catálogo de Produtos (Blindado contra XSS)
   // --------------------------------------------------------------------------
   const renderCatalog = () => {
     products = getProducts();
@@ -239,28 +259,35 @@ document.addEventListener('DOMContentLoaded', () => {
     filtered.forEach(p => {
       const card = document.createElement('article');
       card.className = 'product-card';
-      card.id = `card-${p.id}`;
+      card.id = `card-${escapeHtml(p.id)}`;
+
+      const safeId = escapeHtml(p.id);
+      const safeName = escapeHtml(p.name);
+      const safeCategory = escapeHtml(p.categoryLabel || 'Peça Autoral');
+      const safeMaterials = escapeHtml(p.materials || '');
+      const safeImage = sanitizeImageUrl(p.image);
+      const safeLeadTime = parseInt(p.leadTimeDays, 10) || 7;
 
       const badgeHtml = p.isReady
         ? `<span class="product-badge badge-ready">Pronta Entrega</span>`
-        : `<span class="product-badge badge-order">Sob Encomenda (${p.leadTimeDays}d)</span>`;
+        : `<span class="product-badge badge-order">Sob Encomenda (${safeLeadTime}d)</span>`;
 
       card.innerHTML = `
-        <div class="product-image-wrap" onclick="window.jezApp.openQuickView('${p.id}')">
-          <img src="${p.image}" alt="${p.name}" loading="lazy" width="400" height="400">
+        <div class="product-image-wrap" data-action="quickview" data-id="${safeId}">
+          <img src="${safeImage}" alt="${safeName}" loading="lazy" width="400" height="400">
           ${badgeHtml}
-          <button class="quick-view-overlay-btn" title="Visualizar detalhes" aria-label="Visualizar ${p.name}">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <button type="button" class="quick-view-overlay-btn" title="Visualizar detalhes" aria-label="Visualizar ${safeName}" data-action="quickview" data-id="${safeId}">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
           </button>
         </div>
         <div class="product-info">
-          <span class="product-category">${p.categoryLabel}</span>
-          <h3 class="product-name" onclick="window.jezApp.openQuickView('${p.id}')">${p.name}</h3>
-          <p class="product-meta">${p.materials}</p>
+          <span class="product-category">${safeCategory}</span>
+          <h3 class="product-name" data-action="quickview" data-id="${safeId}">${safeName}</h3>
+          <p class="product-meta">${safeMaterials}</p>
           <div class="product-footer">
             <div class="product-price">${formatCurrency(p.price)}</div>
-            <button class="btn-add-cart" id="btn-add-${p.id}" onclick="window.jezApp.addToCart('${p.id}')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+            <button type="button" class="btn-add-cart" id="btn-add-${safeId}" data-action="add-cart" data-id="${safeId}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
               Comprar
             </button>
           </div>
@@ -312,23 +339,28 @@ document.addEventListener('DOMContentLoaded', () => {
     cart.forEach(item => {
       const el = document.createElement('div');
       el.className = 'cart-item';
-      const badgeText = item.isReady ? 'Pronta Entrega' : `Produção: ${item.leadTimeDays}d úteis`;
+      const safeId = escapeHtml(item.id);
+      const safeName = escapeHtml(item.name);
+      const safeImage = sanitizeImageUrl(item.image);
+      const safeLeadTime = parseInt(item.leadTimeDays, 10) || 7;
+      const safeBadge = item.isReady ? 'Pronta Entrega' : `Produção: ${safeLeadTime}d úteis`;
+      const safeQty = Math.max(1, parseInt(item.quantity, 10) || 1);
 
       el.innerHTML = `
-        <img src="${item.image}" alt="${item.name}" class="cart-item-img">
+        <img src="${safeImage}" alt="${safeName}" class="cart-item-img">
         <div class="cart-item-details">
-          <h4 class="cart-item-title">${item.name}</h4>
-          <span class="cart-item-badge">${badgeText}</span>
+          <h4 class="cart-item-title">${safeName}</h4>
+          <span class="cart-item-badge">${escapeHtml(safeBadge)}</span>
           <span class="cart-item-price">${formatCurrency(item.price)}</span>
         </div>
         <div class="cart-item-controls">
-          <button class="btn-remove-item" onclick="window.jezApp.removeFromCart('${item.id}')" title="Remover item" aria-label="Remover ${item.name}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          <button type="button" class="btn-remove-item" data-action="remove-cart" data-id="${safeId}" title="Remover item" aria-label="Remover ${safeName}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </button>
           <div class="qty-stepper">
-            <button class="qty-btn" onclick="window.jezApp.changeQuantity('${item.id}', -1)" aria-label="Diminuir quantidade">−</button>
-            <span class="qty-display">${item.quantity}</span>
-            <button class="qty-btn" onclick="window.jezApp.changeQuantity('${item.id}', 1)" aria-label="Aumentar quantidade">+</button>
+            <button type="button" class="qty-btn" data-action="change-qty" data-id="${safeId}" data-delta="-1" aria-label="Diminuir quantidade">−</button>
+            <span class="qty-display">${safeQty}</span>
+            <button type="button" class="qty-btn" data-action="change-qty" data-id="${safeId}" data-delta="1" aria-label="Aumentar quantidade">+</button>
           </div>
         </div>
       `;
@@ -594,11 +626,68 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Delegação Segura de Eventos do Catálogo (Anti-Injeção Inline)
+  productsGrid.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-action]');
+    if (!trigger) return;
+    const action = trigger.getAttribute('data-action');
+    const productId = trigger.getAttribute('data-id');
+    if (action === 'quickview' && productId) {
+      openQuickView(productId);
+    } else if (action === 'add-cart' && productId) {
+      addToCart(productId);
+    }
+  });
+
+  // Delegação Segura de Eventos do Carrinho
+  cartItemsContainer.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-action]');
+    if (!trigger) return;
+    const action = trigger.getAttribute('data-action');
+    const id = trigger.getAttribute('data-id');
+    if (action === 'remove-cart' && id) {
+      removeFromCart(id);
+    } else if (action === 'change-qty' && id) {
+      const delta = parseInt(trigger.getAttribute('data-delta'), 10) || 0;
+      changeQuantity(id, delta);
+    }
+  });
+
+  // Modal de Privacidade & LGPD (Morgan - Cibersegurança)
+  const btnOpenPrivacy = document.getElementById('btn-open-privacy');
+  const privacyModalBackdrop = document.getElementById('privacy-modal-backdrop');
+  const btnClosePrivacy = document.getElementById('btn-close-privacy');
+  const btnPrivacyConfirm = document.getElementById('btn-privacy-confirm');
+
+  const openPrivacyModal = () => {
+    if (privacyModalBackdrop) {
+      privacyModalBackdrop.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+  };
+
+  const closePrivacyModal = () => {
+    if (privacyModalBackdrop) {
+      privacyModalBackdrop.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+  };
+
+  if (btnOpenPrivacy) btnOpenPrivacy.addEventListener('click', openPrivacyModal);
+  if (btnClosePrivacy) btnClosePrivacy.addEventListener('click', closePrivacyModal);
+  if (btnPrivacyConfirm) btnPrivacyConfirm.addEventListener('click', closePrivacyModal);
+  if (privacyModalBackdrop) {
+    privacyModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === privacyModalBackdrop) closePrivacyModal();
+    });
+  }
+
   // Tecla ESC para fechar modais
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeDrawer();
       closeModal();
+      closePrivacyModal();
     }
   });
 

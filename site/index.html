@@ -18,6 +18,11 @@
   <meta property="og:url" content="https://www.instagram.com/_jezcollection/">
   <meta name="theme-color" content="#23192d">
 
+  <!-- Metadados de Segurança & Privacidade (Morgan - Cibersegurança & LGPD) -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self';">
+
   <!-- Google Fonts: Bodoni Moda, Playfair Display & Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -301,8 +306,10 @@
             <span>Pagamento Instantâneo via Pix</span>
           </li>
           <li>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-            <span>Em conformidade com a LGPD</span>
+            <button type="button" class="footer-privacy-btn" id="btn-open-privacy" aria-haspopup="dialog" aria-controls="privacy-modal-backdrop">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+              <span>Privacidade & LGPD</span>
+            </button>
           </li>
         </ul>
       </div>
@@ -317,6 +324,47 @@
       </a>
     </div>
   </footer>
+
+  <!-- ====================================================================
+       MODAL DE PRIVACIDADE & CONFORMIDADE LGPD (Morgan - Cibersegurança)
+       ==================================================================== -->
+  <div class="privacy-modal-backdrop" id="privacy-modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="privacy-modal-title">
+    <div class="privacy-modal-card">
+      <div class="privacy-modal-header">
+        <div class="privacy-header-title-wrap">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          <h3 id="privacy-modal-title" class="privacy-modal-title">Privacidade & Proteção de Dados (LGPD)</h3>
+        </div>
+        <button type="button" class="btn-close-privacy" id="btn-close-privacy" aria-label="Fechar modal de privacidade">x</button>
+      </div>
+      <div class="privacy-modal-body">
+        <p class="privacy-intro">Na <strong>JËZ collection</strong>, o respeito à sua privacidade e a segurança dos seus dados são princípios tão fundamentais quanto o afeto e a dedicação artesanal com cada peça tecida pela Jéssica.</p>
+        
+        <div class="privacy-topic">
+          <h4>1. Coleta Mínima Necessária</h4>
+          <p>Coletamos estritamente os dados necessários para o cálculo do frete, postagem nos Correios e contato sobre a produção da sua encomenda (nome, telefone para WhatsApp, CEP e endereço de entrega).</p>
+        </div>
+
+        <div class="privacy-topic">
+          <h4>2. Segurança Financeira & Pagamentos</h4>
+          <p>A loja <strong>não armazena nem processa dados de cartão de crédito</strong>. As transações via Pix são instantâneas, ponto a ponto, intermediadas diretamente pelo aplicativo do seu banco com total criptografia e segurança.</p>
+        </div>
+
+        <div class="privacy-topic">
+          <h4>3. Armazenamento Local (Zero Rastreadores Invasivos)</h4>
+          <p>Utilizamos apenas o armazenamento local do seu navegador (<em>localStorage</em>) para salvar os itens da sua sacola de compras e suas preferências visuais. Não compartilhamos dados com terceiros nem operamos redes de rastreamento invasivo.</p>
+        </div>
+
+        <div class="privacy-topic">
+          <h4>4. Seus Direitos como Titular</h4>
+          <p>Conforme a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), você pode solicitar a qualquer momento a confirmação, correção ou exclusão dos seus dados de contato através do nosso WhatsApp oficial ou Instagram @_jezcollection.</p>
+        </div>
+      </div>
+      <div class="privacy-modal-footer">
+        <button type="button" class="btn-privacy-confirm" id="btn-privacy-confirm">Entendido</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Script Lógico -->
   <script src="app.js"></script>

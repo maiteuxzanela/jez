@@ -271,9 +271,41 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentOrderFilter = 'all';
   let currentCatalogFilter = 'all';
 
+  // --------------------------------------------------------------------------
+  // 2.1 Utilitários de Segurança & Sanitização (Morgan - Cibersegurança)
+  // --------------------------------------------------------------------------
+  const escapeHtml = (unsafe) => {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  const sanitizeText = (str, maxLength = 500) => {
+    if (!str || typeof str !== 'string') return '';
+    return str.trim().slice(0, maxLength);
+  };
+
+  const sanitizeImageUrl = (url) => {
+    if (!url || typeof url !== 'string') return 'assets/products/tote_cherry.jpg';
+    const trimmed = url.trim();
+    if (trimmed.startsWith('assets/') || trimmed.startsWith('data:image/') || trimmed.startsWith('https://') || trimmed.startsWith('./assets/')) {
+      return trimmed;
+    }
+    return 'assets/products/tote_cherry.jpg';
+  };
+
+  const sanitizeTrackingCode = (code) => {
+    if (!code || typeof code !== 'string') return '';
+    return code.trim().toUpperCase().replace(/[^A-Z0-9\- ]/g, '').slice(0, 30);
+  };
+
   // Formatador de Moeda
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(val) || 0);
   };
 
   // Formatador de Data Amigável
@@ -577,13 +609,17 @@ document.addEventListener('DOMContentLoaded', () => {
       itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(35, 25, 45, 0.6); border: 1px dashed rgba(254, 191, 151, 0.25); border-radius: 4px; font-size: 0.82rem;';
       
       const statusMeta = getStatusMeta(order.status);
+      const safeId = escapeHtml(order.id);
+      const safeCustomer = escapeHtml((order.customer || '').split(' ')[0]);
+      const safeStatus = escapeHtml(order.status);
+
       itemRow.innerHTML = `
         <div>
-          <strong style="color: var(--color-bg-light);">${order.id}</strong>
-          <span style="color: rgba(245, 236, 183, 0.75); font-size: 0.74rem; margin-left: 6px;">${order.customer.split(' ')[0]}</span>
+          <strong style="color: var(--color-bg-light);">${safeId}</strong>
+          <span style="color: rgba(245, 236, 183, 0.75); font-size: 0.74rem; margin-left: 6px;">${safeCustomer}</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="status-tag status-${order.status}" style="font-size: 0.65rem; padding: 2px 6px;">${statusMeta.label}</span>
+          <span class="status-tag status-${safeStatus}" style="font-size: 0.65rem; padding: 2px 6px;">${statusMeta.label}</span>
           <strong style="color: var(--color-accent);">${formatCurrency(order.total)}</strong>
         </div>
       `;
@@ -652,18 +688,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const itemsHtml = order.items.map(i => `
         <div style="display: flex; justify-content: space-between;">
-          <span>• ${i.quantity}x ${i.name}</span>
-          <span style="font-weight: 700;">${formatCurrency(i.price * i.quantity)}</span>
+          <span>• ${escapeHtml(i.quantity)}x ${escapeHtml(i.name)}</span>
+          <span style="font-weight: 700;">${formatCurrency((Number(i.price) || 0) * (Number(i.quantity) || 1))}</span>
         </div>
       `).join('');
+
+      const safeOrderId = escapeHtml(order.id);
+      const safeCustomer = escapeHtml(order.customer);
+      const safeStatus = escapeHtml(order.status);
+      const safeTracking = sanitizeTrackingCode(order.trackingCode);
 
       card.innerHTML = `
         <div class="order-card-header">
           <div>
-            <span class="order-id-badge">${order.id}</span>
-            <div class="order-date">${formatDate(order.date)} • ${order.customer}</div>
+            <span class="order-id-badge">${safeOrderId}</span>
+            <div class="order-date">${formatDate(order.date)} • ${safeCustomer}</div>
           </div>
-          <span class="status-tag status-${order.status}">
+          <span class="status-tag status-${safeStatus}">
             ${statusMeta.label}
           </span>
         </div>
@@ -686,10 +727,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ${order.status === 'enviado' ? `
           <div style="background: rgba(124, 58, 237, 0.15); border-radius: 4px; padding: 8px 10px; border: 1px dashed #7c3aed;">
             <div class="tracking-info-live">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon></svg>
-              <span>Código: <strong>${order.trackingCode || 'Pendente'}</strong></span>
-              ${order.trackingCode ? `
-                <a href="https://rastreamento.correios.com.br/app/index.php?codigo=${order.trackingCode}" target="_blank" rel="noopener" style="margin-left: auto;">Rastrear nos Correios ></a>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon></svg>
+              <span>Código: <strong>${safeTracking || 'Pendente'}</strong></span>
+              ${safeTracking ? `
+                <a href="https://rastreamento.correios.com.br/app/index.php?codigo=${encodeURIComponent(safeTracking)}" target="_blank" rel="noopener" style="margin-left: auto;">Rastrear nos Correios ></a>
               ` : ''}
             </div>
           </div>
@@ -719,17 +760,17 @@ document.addEventListener('DOMContentLoaded', () => {
                   Código de Rastreio dos Correios:
                 </label>
                 <div class="tracking-input-box">
-                  <input type="text" placeholder="Ex: QB123456789BR" class="tracking-input" id="tracking-input-${order.id}" value="${order.trackingCode || ''}">
-                  <button class="btn-save-tracking" data-id="${order.id}">Postar & Enviar</button>
+                  <input type="text" placeholder="Ex: QB123456789BR" class="tracking-input" id="tracking-input-${safeOrderId}" value="${escapeHtml(order.trackingCode || '')}">
+                  <button type="button" class="btn-save-tracking" data-id="${safeOrderId}">Postar & Enviar</button>
                 </div>
               </div>
             ` : ''}
 
             ${order.status === 'enviado' ? `
-              <button class="btn-status-change" data-id="${order.id}" data-newstatus="concluido" style="background: #16a34a; color: #fff; border-color: #16a34a;">
+              <button type="button" class="btn-status-change" data-id="${safeOrderId}" data-newstatus="concluido" style="background: #16a34a; color: #fff; border-color: #16a34a;">
                 Marcar como Entregue ao Cliente
               </button>
-              <button class="btn-copy-msg" data-id="${order.id}" data-tracking="${order.trackingCode}" style="background: rgba(254, 191, 151, 0.15); border: 1px dashed var(--color-accent); color: var(--color-bg-light); padding: 6px 10px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; cursor: pointer;">
+              <button type="button" class="btn-copy-msg" data-id="${safeOrderId}" data-tracking="${escapeHtml(order.trackingCode)}" style="background: rgba(254, 191, 151, 0.15); border: 1px dashed var(--color-accent); color: var(--color-bg-light); padding: 6px 10px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; cursor: pointer;">
                 Copiar Msg WhatsApp
               </button>
             ` : ''}
@@ -760,7 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.addEventListener('click', (e) => {
         const orderId = e.currentTarget.getAttribute('data-id');
         const input = document.getElementById(`tracking-input-${orderId}`);
-        const code = (input ? input.value.trim().toUpperCase() : '');
+        const code = sanitizeTrackingCode(input ? input.value : '');
         updateOrderStatus(orderId, 'enviado', code);
       });
     });
@@ -768,8 +809,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Registra cópia de mensagem do WhatsApp
     container.querySelectorAll('.btn-copy-msg').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const code = e.currentTarget.getAttribute('data-tracking');
-        const msg = `Olá! Sua encomenda da JËZ collection já foi postada nos Correios com muito carinho!\nCódigo de rastreamento: ${code || 'Enviado'}\nAcompanhe pelo link: https://rastreamento.correios.com.br/app/index.php?codigo=${code}`;
+        const code = sanitizeTrackingCode(e.currentTarget.getAttribute('data-tracking'));
+        const safeEncoded = encodeURIComponent(code);
+        const msg = `Olá! Sua encomenda da JËZ collection já foi postada nos Correios com muito carinho!\nCódigo de rastreamento: ${code || 'Enviado'}\nAcompanhe pelo link: https://rastreamento.correios.com.br/app/index.php?codigo=${safeEncoded}`;
         navigator.clipboard.writeText(msg).then(() => {
           showToast('Mensagem de rastreio copiada para o WhatsApp!');
         });
@@ -781,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
     orders = orders.map(o => {
       if (o.id === orderId) {
         const updated = { ...o, status: newStatus };
-        if (trackingCode !== null) updated.trackingCode = trackingCode;
+        if (trackingCode !== null) updated.trackingCode = sanitizeTrackingCode(trackingCode);
         return updated;
       }
       return o;
@@ -851,14 +893,17 @@ document.addEventListener('DOMContentLoaded', () => {
   formNewProduct.addEventListener('submit', (e) => {
     e.preventDefault();
 
-    const name = document.getElementById('product-name-input').value.trim();
+    const rawName = document.getElementById('product-name-input').value;
+    const name = sanitizeText(rawName, 120);
     const category = document.getElementById('product-category-input').value;
-    const price = parseFloat(document.getElementById('product-price-input').value);
+    const rawPrice = parseFloat(document.getElementById('product-price-input').value);
+    const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
     const modality = document.querySelector('input[name="product-modality"]:checked').value;
-    const leadTimeDays = modality === 'order' ? parseInt(document.getElementById('product-leadtime-input').value) || 7 : 0;
-    const dimensions = document.getElementById('product-dimensions-input').value.trim() || 'Medidas artesanais sob encomenda';
-    const materials = document.getElementById('product-materials-input').value.trim() || 'Fio 100% algodão premium artesanal';
-    const description = document.getElementById('product-desc-input').value.trim() || 'Peça autoral tecida com amor e acabamento único pela Jéssica Regina.';
+    const rawLeadTime = parseInt(document.getElementById('product-leadtime-input').value, 10);
+    const leadTimeDays = modality === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
+    const dimensions = sanitizeText(document.getElementById('product-dimensions-input').value, 150) || 'Medidas artesanais sob encomenda';
+    const materials = sanitizeText(document.getElementById('product-materials-input').value, 200) || 'Fio 100% algodão premium artesanal';
+    const description = sanitizeText(document.getElementById('product-desc-input').value, 800) || 'Peça autoral tecida com amor e acabamento único pela Jéssica Regina.';
 
     // Foto recortada e enquadrada em 1:1
     let photoToUse = 'assets/products/tote_cherry.jpg';
@@ -969,23 +1014,28 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleActionHtml = `<button class="btn-action-edit" data-action="suspend" data-id="${piece.id}">Suspender</button>`;
       }
 
+      const safeId = escapeHtml(piece.id);
+      const safeName = escapeHtml(piece.name);
+      const safeImage = sanitizeImageUrl(piece.image);
+      const safeLeadTime = parseInt(piece.leadTimeDays, 10) || 7;
+
       card.innerHTML = `
-        <img src="${piece.image}" alt="${piece.name}" class="admin-product-thumb">
+        <img src="${safeImage}" alt="${safeName}" class="admin-product-thumb">
         <div class="admin-product-details">
-          <span class="admin-product-name" title="${piece.name}">${piece.name}</span>
+          <span class="admin-product-name" title="${safeName}">${safeName}</span>
           <span class="admin-product-price">${formatCurrency(piece.price)}</span>
           
           <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
             ${statusBadgeHtml}
             ${piece.status === 'order' && piece.leadTimeDays ? `
-              <span style="font-size: 0.68rem; color: rgba(245, 236, 183, 0.7);">${piece.leadTimeDays} dias úteis</span>
+              <span style="font-size: 0.68rem; color: rgba(245, 236, 183, 0.7);">${safeLeadTime} dias úteis</span>
             ` : ''}
           </div>
 
           <div class="admin-product-actions">
-            <button class="btn-action-edit" data-action="edit" data-id="${piece.id}">Editar</button>
+            <button class="btn-action-edit" data-action="edit" data-id="${safeId}">Editar</button>
             ${toggleActionHtml}
-            <button class="btn-action-delete" data-action="delete" data-id="${piece.id}">Excluir</button>
+            <button class="btn-action-delete" data-action="delete" data-id="${safeId}">Excluir</button>
           </div>
         </div>
       `;
@@ -1156,15 +1206,18 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
 
     const id = document.getElementById('edit-piece-id').value;
-    const name = document.getElementById('edit-product-name').value.trim();
+    const rawName = document.getElementById('edit-product-name').value;
+    const name = sanitizeText(rawName, 120);
     const category = document.getElementById('edit-product-category').value;
-    const price = parseFloat(document.getElementById('edit-product-price').value);
+    const rawPrice = parseFloat(document.getElementById('edit-product-price').value);
+    const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
     const statusRadio = document.querySelector('input[name="edit-status"]:checked');
     const status = statusRadio ? statusRadio.value : 'ready';
-    const leadTimeDays = status === 'order' ? parseInt(document.getElementById('edit-product-leadtime').value) || 7 : 0;
-    const dimensions = document.getElementById('edit-product-dimensions').value.trim();
-    const materials = document.getElementById('edit-product-materials').value.trim();
-    const description = document.getElementById('edit-product-desc').value.trim();
+    const rawLeadTime = parseInt(document.getElementById('edit-product-leadtime').value, 10);
+    const leadTimeDays = status === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
+    const dimensions = sanitizeText(document.getElementById('edit-product-dimensions').value, 150);
+    const materials = sanitizeText(document.getElementById('edit-product-materials').value, 200);
+    const description = sanitizeText(document.getElementById('edit-product-desc').value, 800);
 
     // Obtém a foto recortada 1:1
     const croppedImage = editPieceCropper.getCroppedDataUrl(600);
