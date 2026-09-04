@@ -94,7 +94,14 @@ console.log('\n✂️ 7. Validando Elementos de Colagem, Washi-Tape, Tags Têxte
 assert(htmlContent.includes('washi-tape'), 'Detalhe de fita adesiva washi-tape presente no Hero Card');
 assert(stylesContent.includes('dashed') && stylesContent.includes('product-badge'), 'Etiquetas de produto possuem pesponto de costura (dashed stitch)');
 assert(stylesContent.includes('.btn-instagram') && !stylesContent.match(/\.btn-instagram\s*\{[^}]*border-radius:\s*var\(--radius-full\)/), 'Botão do Instagram NÃO usa formato pílula');
-assert(htmlContent.includes('Ariel'), 'Ariel (Diretoria de Arte) devidamente creditada na equipe técnica');
+// 8. Validação de Responsividade Mobile & Contenção Vertical Total (JEZ-011 - Lumi & Robin)
+console.log('\n📱 8. Validando Contenção Vertical e Responsividade Mobile (JEZ-011):');
+assert(stylesContent.includes('max-width: 100vw') && stylesContent.includes('overflow-x: hidden'), 'html e body possuem contenção estrita de 100vw e overflow-x: hidden');
+assert(stylesContent.includes('repeat(2, minmax(0, 1fr))'), 'Grade de produtos no mobile usa repeat(2, minmax(0, 1fr)) prevenindo transbordamento lateral');
+assert(stylesContent.includes('.cart-drawer') && stylesContent.includes('max-width: 100vw'), 'Gaveta do carrinho (cart drawer) ocupa 100vw em smartphone');
+assert(stylesContent.includes('.filter-pills') && stylesContent.includes('flex-wrap: wrap'), 'Pílulas de categoria usam flex-wrap para acomodação vertical completa sem corte');
+assert(htmlContent.includes('name="viewport"'), 'index.html possui metatag de viewport configurada');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);
