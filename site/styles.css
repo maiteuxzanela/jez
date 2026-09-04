@@ -1655,54 +1655,88 @@ a {
     padding: 14px 12px;
   }
 
-  /* 7. Adaptação de Abertura: Modal de Detalhes do Produto */
+  /* 7. Adaptação de Abertura: Modal de Detalhes do Produto Centralizado com Foto, Dados e Compra */
   .modal-backdrop {
-    padding: 8px;
-    align-items: flex-end;
+    padding: 16px 12px;
+    align-items: center;
+    justify-content: center;
   }
 
   .modal-card {
-    max-height: 92vh;
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    max-height: 88vh;
+    border-radius: var(--radius-md);
     width: 100%;
-    transform: translateY(20px);
+    max-width: 420px;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.95);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    overflow-y: auto;
   }
 
   .modal-backdrop.active .modal-card {
-    transform: translateY(0);
+    transform: scale(1);
   }
 
   .modal-img-wrap {
-    height: 200px;
-    min-height: 180px;
+    height: 165px;
+    min-height: 150px;
+    flex-shrink: 0;
+    width: 100%;
+    position: relative;
+    border-bottom: 2px solid rgba(254, 191, 151, 0.25);
   }
 
   .modal-content {
-    padding: 16px 14px;
-    gap: 10px;
+    padding: 14px 16px 18px;
+    gap: 8px;
+  }
+
+  .modal-category {
+    font-size: 0.72rem;
   }
 
   .modal-title {
-    font-size: 1.3rem;
+    font-size: 1.25rem;
+    line-height: 1.2;
   }
 
   .modal-price {
     font-size: 1.25rem;
+    font-weight: 800;
   }
 
   .modal-desc {
-    font-size: 0.88rem;
-    line-height: 1.5;
+    font-size: 0.85rem;
+    line-height: 1.45;
   }
 
   .modal-spec-list {
-    padding: 10px 12px;
-    font-size: 0.8rem;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    gap: 4px;
   }
 
   .modal-actions {
     gap: 8px;
-    margin-top: 4px;
+    margin-top: 6px;
+  }
+
+  .modal-actions .btn-add-cart {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    min-height: 44px;
+  }
+
+  .modal-actions .btn-whatsapp-direct {
+    width: 100%;
+    justify-content: center;
+    padding: 9px 12px;
+    font-size: 0.8rem;
+    min-height: 40px;
   }
 
   .btn-close-modal {
@@ -1711,6 +1745,9 @@ a {
     width: 34px;
     height: 34px;
     font-size: 1.1rem;
+    background: rgba(35, 25, 45, 0.75);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   /* 8. Rodapé & Botão Flutuante */
