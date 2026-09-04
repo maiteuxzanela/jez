@@ -32,7 +32,7 @@ console.log('🧪 ======================================================\n');
 
 // 1. Integridade dos Arquivos Estruturais
 console.log('📁 1. Validando Arquivos Essenciais do Repositório:');
-const requiredFiles = ['index.html', 'styles.css', 'app.js'];
+const requiredFiles = ['index.html', 'styles.css', 'app.js', 'admin.html', 'admin.css', 'admin.js'];
 requiredFiles.forEach(file => {
   const filePath = path.join(ROOT_DIR, file);
   assert(fs.existsSync(filePath) && fs.statSync(filePath).size > 100, `Arquivo ${file} existe e possui conteúdo`);
@@ -101,6 +101,20 @@ assert(stylesContent.includes('repeat(2, minmax(0, 1fr))'), 'Grade de produtos n
 assert(stylesContent.includes('.cart-drawer') && stylesContent.includes('max-width: 100vw'), 'Gaveta do carrinho (cart drawer) ocupa 100vw em smartphone');
 assert(stylesContent.includes('.filter-pills') && stylesContent.includes('flex-wrap: wrap'), 'Pílulas de categoria usam flex-wrap para acomodação vertical completa sem corte');
 assert(htmlContent.includes('name="viewport"'), 'index.html possui metatag de viewport configurada');
+
+// 9. Validação do Painel Administrativo Mobile da Jéssica (JEZ-009 - Cris & Alex)
+console.log('\n👩‍🎨 9. Validando Painel Administrativo Mobile da Jéssica (JEZ-009):');
+const adminHtmlContent = fs.readFileSync(path.join(ROOT_DIR, 'admin.html'), 'utf-8');
+const adminJsContent = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+const adminCssContent = fs.readFileSync(path.join(ROOT_DIR, 'admin.css'), 'utf-8');
+
+assert(!emojiRegex.test(adminHtmlContent), 'admin.html possui rigorosamente ZERO emojis na interface');
+assert(!emojiRegex.test(adminJsContent), 'admin.js possui rigorosamente ZERO emojis no código');
+assert(adminHtmlContent.includes('kpi-sales') && adminHtmlContent.includes('kpi-shipping') && adminHtmlContent.includes('kpi-production'), 'Dashboard possui os 3 cartões executivos essenciais (vendas, postagens e produção)');
+assert(adminHtmlContent.includes('form-new-product') && adminHtmlContent.includes('photo-upload-zone'), 'Formulário ágil de cadastro de peça com upload de foto presente');
+assert(adminHtmlContent.includes('status-aguardando-pagamento') || adminCssContent.includes('status-aguardando-pagamento'), 'Quadro de status visual por cores configurado');
+assert(adminJsContent.includes('https://rastreamento.correios.com.br/app/index.php?codigo='), 'Geração automática de link de rastreio dos Correios implementada');
+assert(htmlContent.includes('admin.html'), 'Vitrine (index.html) possui link de acesso direto ao painel do ateliê no rodapé');
 
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);

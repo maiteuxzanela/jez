@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   // 1. Catálogo Real de Peças Artesanais (Acervo Instagram @_jezcollection)
   // --------------------------------------------------------------------------
-  const products = [
+  const defaultProducts = [
     {
       id: 'bolsa-punk',
       name: 'Bolsa Punk Slouchy com Correntes',
@@ -129,6 +129,17 @@ document.addEventListener('DOMContentLoaded', () => {
       description: 'Case protetora fofa em crochê para fones de ouvido sem fio. Protege o estojo de arranhões e vem com gancho para pendurar na bolsa ou no cinto.'
     }
   ];
+
+  // Carrega peças padrão + peças cadastradas pela Jéssica no painel
+  const getProducts = () => {
+    try {
+      const custom = JSON.parse(localStorage.getItem('jez_custom_products') || '[]');
+      return [...defaultProducts, ...custom];
+    } catch {
+      return defaultProducts;
+    }
+  };
+  let products = getProducts();
 
   // --------------------------------------------------------------------------
   // 2. Estado Global da Loja
@@ -504,6 +515,27 @@ document.addEventListener('DOMContentLoaded', () => {
       message += `Frete estimado: ${formatCurrency(shippingCost)}\n`;
     }
     message += `*Total: ${formatCurrency(total)}*\n\nComo posso efetuar o pagamento via Pix?`;
+
+    // Registra pedido em tempo real no localStorage para o Painel da Jéssica
+    const newOrderId = 'JEZ-' + Math.floor(1000 + Math.random() * 9000);
+    const newOrder = {
+      id: newOrderId,
+      date: new Date().toISOString(),
+      customer: 'Cliente Loja Online',
+      items: cart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
+      subtotal: subtotal,
+      shipping: shippingCost,
+      total: total,
+      status: 'aguardando-pagamento',
+      trackingCode: ''
+    };
+    try {
+      const currentOrders = JSON.parse(localStorage.getItem('jez_orders') || '[]');
+      currentOrders.unshift(newOrder);
+      localStorage.setItem('jez_orders', JSON.stringify(currentOrders));
+    } catch (e) {
+      console.error(e);
+    }
 
     const phone = '5538999999999';
     const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;

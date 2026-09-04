@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JËZ Ateliê & Gestão | Painel da Artesã</title>
+  
+  <!-- Metadados de Gestão Interna -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#23192d">
+  
+  <!-- Google Fonts Oficiais -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,700;0,6..96,900;1,6..96,700&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Estilos da Vitrine e Estilos Dedicados do Back-Office -->
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body class="admin-body">
+
+  <!-- Cabeçalho do Painel da Jéssica -->
+  <header class="admin-header" id="admin-header">
+    <div class="admin-header-container">
+      <div class="admin-brand">
+        <a href="admin.html" class="admin-logo" aria-label="Painel da Artesã JËZ">
+          <span class="admin-logo-title">JËZ <span class="admin-logo-accent">ateliê</span></span>
+          <span class="admin-logo-sub">painel da artesã • montes claros</span>
+        </a>
+      </div>
+
+      <div class="admin-top-actions">
+        <a href="index.html" class="btn-back-store" id="btn-back-store" title="Abrir a vitrine da loja online">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+          <span>Ver Loja</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navegação em Abas do Painel (Mobile-First) -->
+  <nav class="admin-nav" id="admin-nav" aria-label="Navegação do Painel">
+    <div class="admin-nav-container">
+      <button class="nav-tab active" data-tab="dashboard" id="tab-dashboard">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+        <span>Visão Geral</span>
+      </button>
+
+      <button class="nav-tab" data-tab="orders" id="tab-orders">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+        <span>Pedidos</span>
+        <span class="tab-badge" id="pending-orders-badge" style="display: none;">0</span>
+      </button>
+
+      <button class="nav-tab" data-tab="new-product" id="tab-new-product">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+        <span>Nova Peça</span>
+      </button>
+
+      <button class="nav-tab" data-tab="catalog" id="tab-catalog">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <span>Acervo</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Conteúdo Principal do Back-Office -->
+  <main class="admin-main-container">
+
+    <!-- ====================================================================
+         SEÇÃO 1: DASHBOARD EXECUTIVO (VISÃO GERAL)
+         ==================================================================== -->
+    <section class="admin-section active" id="section-dashboard">
+      <div class="section-welcome">
+        <div class="welcome-text">
+          <h2>Olá, Jéssica!</h2>
+          <p>Aqui está o resumo em tempo real do seu ateliê:</p>
+        </div>
+        <button class="btn-refresh-data" id="btn-refresh-data" title="Atualizar dados">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          <span>Atualizar</span>
+        </button>
+      </div>
+
+      <!-- 3 Cartões Executivos Fundamentais -->
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-sales">
+          <div class="kpi-header">
+            <span class="kpi-label">Faturamento do Mês</span>
+            <div class="kpi-icon-wrap icon-green">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            </div>
+          </div>
+          <div class="kpi-value" id="kpi-sales-value">R$ 0,00</div>
+          <div class="kpi-subtext" id="kpi-sales-count">0 pedidos pagos</div>
+        </div>
+
+        <div class="kpi-card kpi-shipping">
+          <div class="kpi-header">
+            <span class="kpi-label">Pedidos para Postar</span>
+            <div class="kpi-icon-wrap icon-blue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+            </div>
+          </div>
+          <div class="kpi-value" id="kpi-shipping-value">0</div>
+          <div class="kpi-subtext" id="kpi-shipping-subtext">Aguardando envio nos Correios</div>
+        </div>
+
+        <div class="kpi-card kpi-production">
+          <div class="kpi-header">
+            <span class="kpi-label">Em Produção</span>
+            <div class="kpi-icon-wrap icon-orange">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </div>
+          </div>
+          <div class="kpi-value" id="kpi-production-value">0</div>
+          <div class="kpi-subtext">Encomendas ativas no tear</div>
+        </div>
+      </div>
+
+      <!-- Ações Rápidas -->
+      <div class="quick-actions-bar">
+        <button class="btn-quick-action" id="btn-quick-new-piece">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Cadastrar Nova Peça</span>
+        </button>
+        <button class="btn-quick-action secondary" id="btn-quick-view-orders">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+          <span>Ver Pedidos Pendentes</span>
+        </button>
+      </div>
+
+      <!-- Pedidos Recentes -->
+      <div class="dashboard-block">
+        <div class="block-header">
+          <h3>Últimos Pedidos Recebidos</h3>
+          <button class="link-see-all" id="btn-see-all-orders">Ver Todos ↗</button>
+        </div>
+        <div class="recent-orders-list" id="dashboard-recent-orders">
+          <!-- Injetado via admin.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         SEÇÃO 2: GESTÃO VISUAL DE PEDIDOS
+         ==================================================================== -->
+    <section class="admin-section" id="section-orders">
+      <div class="section-title-wrap">
+        <h2>Controle Visual de Pedidos</h2>
+        <p>Acompanhe e avance o status dos pedidos dos seus clientes com até 2 toques:</p>
+      </div>
+
+      <!-- Filtros por Status com Cores Oficiais -->
+      <div class="orders-filter-bar" id="orders-filter-bar">
+        <button class="order-filter-btn active" data-status="all">Todos (<span id="count-all">0</span>)</button>
+        <button class="order-filter-btn filter-yellow" data-status="aguardando-pagamento">Aguardando Pagamento (<span id="count-yellow">0</span>)</button>
+        <button class="order-filter-btn filter-orange" data-status="em-producao">Em Produção (<span id="count-orange">0</span>)</button>
+        <button class="order-filter-btn filter-blue" data-status="preparar-envio">Preparar Envio (<span id="count-blue">0</span>)</button>
+        <button class="order-filter-btn filter-purple" data-status="enviado">Enviados (<span id="count-purple">0</span>)</button>
+        <button class="order-filter-btn filter-green" data-status="concluido">Concluídos (<span id="count-green">0</span>)</button>
+      </div>
+
+      <!-- Lista de Cartões de Pedido -->
+      <div class="orders-list-container" id="orders-list-container">
+        <!-- Injetado via admin.js -->
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         SEÇÃO 3: CADASTRO ÁGIL DE NOVA PEÇA
+         ==================================================================== -->
+    <section class="admin-section" id="section-new-product">
+      <div class="section-title-wrap">
+        <h2>Cadastrar Nova Peça no Acervo</h2>
+        <p>Preencha os dados e a peça será exibida automaticamente na vitrine da sua loja.</p>
+      </div>
+
+      <form class="craft-form" id="form-new-product">
+        <!-- 1. Upload de Foto com Preview Instantâneo -->
+        <div class="form-group">
+          <label class="form-label" for="product-photo-input">
+            Foto da Peça Artesanal
+            <span class="label-badge">Obrigatório</span>
+          </label>
+          <div class="photo-upload-zone" id="photo-upload-zone">
+            <input type="file" id="product-photo-input" accept="image/*" class="file-input-hidden">
+            <div class="upload-prompt" id="upload-prompt">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+              <span>Toque para escolher da galeria ou tirar foto</span>
+              <small>Formatos aceitos: JPG, PNG, WEBP</small>
+            </div>
+            <div class="upload-preview-container" id="upload-preview-container" style="display: none;">
+              <img src="" alt="Preview da peça" id="photo-preview-img">
+              <button type="button" class="btn-remove-photo" id="btn-remove-photo" title="Remover e escolher outra foto">Trocar Foto</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Nome da Peça -->
+        <div class="form-group">
+          <label class="form-label" for="product-name-input">Nome da Peça</label>
+          <input type="text" id="product-name-input" class="craft-input" placeholder="Ex: Bolsa Coração Cherry Slouchy" required>
+        </div>
+
+        <!-- 3. Categoria e Preço -->
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label" for="product-category-input">Categoria</label>
+            <select id="product-category-input" class="craft-select" required>
+              <option value="bolsas">Bolsas & Bags</option>
+              <option value="vestuario">Vestuário Autoral</option>
+              <option value="acessorios">Acessórios</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="product-price-input">Valor de Venda (R$)</label>
+            <input type="number" id="product-price-input" class="craft-input" placeholder="Ex: 159.90" step="0.01" min="1" required>
+          </div>
+        </div>
+
+        <!-- 4. Modalidade: Pronta Entrega vs Sob Encomenda -->
+        <div class="form-group modality-box">
+          <label class="form-label">Disponibilidade da Peça</label>
+          <div class="modality-toggle-group">
+            <label class="modality-option active" id="label-modality-ready">
+              <input type="radio" name="product-modality" value="ready" checked>
+              <div class="option-content">
+                <strong>Pronta Entrega</strong>
+                <span>Item confeccionado pronto para postagem</span>
+              </div>
+            </label>
+
+            <label class="modality-option" id="label-modality-order">
+              <input type="radio" name="product-modality" value="order">
+              <div class="option-content">
+                <strong>Sob Encomenda</strong>
+                <span>Produzida artesanalmente sob pedido</span>
+              </div>
+            </label>
+          </div>
+
+          <!-- Campo dinâmico de dias para encomenda -->
+          <div class="order-leadtime-field" id="order-leadtime-field" style="display: none;">
+            <label class="form-label" for="product-leadtime-input">Prazo de Produção (Dias Úteis)</label>
+            <input type="number" id="product-leadtime-input" class="craft-input" value="7" min="1" max="60">
+            <small class="field-hint">Ex: 7 dias úteis para tecer e dar acabamento.</small>
+          </div>
+        </div>
+
+        <!-- 5. Medidas e Materiais -->
+        <div class="form-row-2">
+          <div class="form-group">
+            <label class="form-label" for="product-dimensions-input">Medidas / Dimensões</label>
+            <input type="text" id="product-dimensions-input" class="craft-input" placeholder="Ex: 26cm (L) × 20cm (A)">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="product-materials-input">Fios & Materiais</label>
+            <input type="text" id="product-materials-input" class="craft-input" placeholder="Ex: Fio 100% algodão e correntes de aço">
+          </div>
+        </div>
+
+        <!-- 6. Descrição Autoral -->
+        <div class="form-group">
+          <label class="form-label" for="product-desc-input">História & Detalhes da Peça</label>
+          <textarea id="product-desc-input" class="craft-textarea" rows="3" placeholder="Conte brevemente sobre o estilo, fechamento e detalhes exclusivos da peça..."></textarea>
+        </div>
+
+        <!-- Botão de Salvar -->
+        <div class="form-actions">
+          <button type="submit" class="btn-save-piece" id="btn-save-piece">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span>Salvar e Publicar na Loja</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- ====================================================================
+         SEÇÃO 4: ACERVO & CATÁLOGO ATIVO
+         ==================================================================== -->
+    <section class="admin-section" id="section-catalog">
+      <div class="section-title-wrap">
+        <h2>Acervo de Peças Cadastradas</h2>
+        <p>Visualize as peças ativas na sua boutique e alterne a disponibilidade rapidamente:</p>
+      </div>
+
+      <div class="catalog-summary-bar">
+        <input type="text" id="catalog-search-input" class="craft-input" placeholder="Buscar peça por nome...">
+        <span class="total-pieces-count" id="total-pieces-count">0 peças</span>
+      </div>
+
+      <div class="catalog-cards-grid" id="admin-catalog-grid">
+        <!-- Injetado via admin.js -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notification do Painel -->
+  <div class="admin-toast" id="admin-toast"></div>
+
+  <!-- Scripts do Back-Office -->
+  <script src="admin.js"></script>
+</body>
+</html>

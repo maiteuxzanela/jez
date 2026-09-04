@@ -1370,6 +1370,20 @@ a {
   }
 }
 
+.admin-access-link {
+  color: rgba(254, 191, 151, 0.75);
+  font-size: 0.74rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: underline;
+  transition: var(--transition-fast);
+}
+
+.admin-access-link:hover {
+  color: var(--color-primary);
+}
+
 /* --------------------------------------------------------------------------
    12. Ajustes Mobile-First & Contenção Vertical Total (360px a 600px)
    -------------------------------------------------------------------------- */
