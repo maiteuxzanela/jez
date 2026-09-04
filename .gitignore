@@ -3,6 +3,7 @@
 
 # Excecoes permitidas no repositorio:
 !/.gitignore
+!/.nojekyll
 !/index.html
 !/site/
 !/site/**
