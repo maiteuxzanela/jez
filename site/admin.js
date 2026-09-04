@@ -303,13 +303,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDragging = false;
     let startX = 0;
     let startY = 0;
-    let baseScale = 1;
+    let baseWidth = 240;
+    let baseHeight = 240;
     let naturalWidth = 1;
     let naturalHeight = 1;
 
     const updateTransform = () => {
-      const totalScale = zoom * baseScale;
-      imgEl.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px)) scale(${totalScale})`;
+      imgEl.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px)) scale(${zoom})`;
       if (zoomSlider) zoomSlider.value = zoom;
       if (zoomValEl) zoomValEl.textContent = `${Math.round(zoom * 100)}%`;
     };
@@ -317,9 +317,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const constrainOffsets = () => {
       const vpW = viewportEl.clientWidth || 240;
       const vpH = viewportEl.clientHeight || 240;
-      const totalScale = zoom * baseScale;
-      const renderedW = naturalWidth * totalScale;
-      const renderedH = naturalHeight * totalScale;
+      const renderedW = baseWidth * zoom;
+      const renderedH = baseHeight * zoom;
       const maxOffsetX = Math.max(0, (renderedW - vpW) / 2);
       const maxOffsetY = Math.max(0, (renderedH - vpH) / 2);
       offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, offsetX));
@@ -333,7 +332,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const vpW = viewportEl.clientWidth || 240;
       const vpH = viewportEl.clientHeight || 240;
       if (naturalWidth && naturalHeight) {
-        baseScale = Math.max(vpW / naturalWidth, vpH / naturalHeight);
+        const scaleToCover = Math.max(vpW / naturalWidth, vpH / naturalHeight);
+        baseWidth = naturalWidth * scaleToCover;
+        baseHeight = naturalHeight * scaleToCover;
+        imgEl.style.width = `${baseWidth}px`;
+        imgEl.style.height = `${baseHeight}px`;
+        imgEl.style.maxWidth = 'none';
+        imgEl.style.maxHeight = 'none';
       }
       updateTransform();
     };
@@ -410,16 +415,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const loadImage = (src) => {
       return new Promise((resolve) => {
-        imgEl.onload = () => {
+        const onImgDone = () => {
           naturalWidth = imgEl.naturalWidth || 400;
           naturalHeight = imgEl.naturalHeight || 400;
-          const vpW = viewportEl.clientWidth || 240;
-          const vpH = viewportEl.clientHeight || 240;
-          baseScale = Math.max(vpW / naturalWidth, vpH / naturalHeight);
           reset();
           resolve();
         };
-        imgEl.src = src;
+
+        imgEl.onload = onImgDone;
+        imgEl.onerror = () => {
+          reset();
+          resolve();
+        };
+
+        if (imgEl.src === src && imgEl.complete && imgEl.naturalWidth > 0) {
+          onImgDone();
+        } else {
+          imgEl.src = src;
+        }
       });
     };
 
@@ -434,18 +447,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const vpW = viewportEl.clientWidth || 240;
         const vpH = viewportEl.clientHeight || 240;
-        const totalScale = zoom * baseScale;
-        
-        const srcCropW = vpW / totalScale;
-        const srcCropH = vpH / totalScale;
-        const srcCenterX = naturalWidth / 2 - (offsetX / totalScale);
-        const srcCenterY = naturalHeight / 2 - (offsetY / totalScale);
-        const srcX = Math.max(0, Math.min(naturalWidth - srcCropW, srcCenterX - srcCropW / 2));
-        const srcY = Math.max(0, Math.min(naturalHeight - srcCropH, srcCenterY - srcCropH / 2));
+
+        const currentScale = (baseWidth * zoom) / naturalWidth;
+        const vpInImgX = (baseWidth * zoom - vpW) / 2 - offsetX;
+        const vpInImgY = (baseHeight * zoom - vpH) / 2 - offsetY;
+
+        const srcW = Math.min(naturalWidth, vpW / currentScale);
+        const srcH = Math.min(naturalHeight, vpH / currentScale);
+        const srcX = Math.max(0, Math.min(naturalWidth - srcW, vpInImgX / currentScale));
+        const srcY = Math.max(0, Math.min(naturalHeight - srcH, vpInImgY / currentScale));
 
         ctx.fillStyle = '#23192d';
         ctx.fillRect(0, 0, targetSize, targetSize);
-        ctx.drawImage(imgEl, srcX, srcY, srcCropW, srcCropH, 0, 0, targetSize, targetSize);
+        ctx.drawImage(imgEl, srcX, srcY, srcW, srcH, 0, 0, targetSize, targetSize);
         return canvas.toDataURL('image/jpeg', 0.88);
       } catch {
         return imgEl.src;
@@ -801,9 +815,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const reader = new FileReader();
     reader.onload = async (event) => {
-      await newPieceCropper.loadImage(event.target.result);
       uploadPrompt.style.display = 'none';
       cropWorkspace.style.display = 'flex';
+      await newPieceCropper.loadImage(event.target.result);
       showToast('Foto carregada! Ajuste o enquadramento se desejar.');
     };
     reader.readAsDataURL(file);
@@ -1084,10 +1098,11 @@ document.addEventListener('DOMContentLoaded', () => {
       editLeadtimeWrap.style.display = 'none';
     }
 
+    // Exibe modal primeiro para que dimensões do viewport sejam computadas corretamente
+    modalEditBackdrop.style.display = 'flex';
+
     // Carrega foto no recortador do modal
     await editPieceCropper.loadImage(piece.image);
-
-    modalEditBackdrop.style.display = 'flex';
   };
 
   const closeEditModal = () => {

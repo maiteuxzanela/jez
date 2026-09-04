@@ -725,6 +725,8 @@
   text-align: center;
   position: relative;
   transition: var(--transition-fast);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .photo-upload-zone:hover {
@@ -795,6 +797,8 @@
 .crop-viewport {
   width: 240px;
   height: 240px;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-xs);
@@ -803,6 +807,7 @@
   cursor: grab;
   touch-action: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
 }
 
 .crop-viewport:active {
@@ -817,6 +822,9 @@
   user-select: none;
   -webkit-user-drag: none;
   pointer-events: none;
+  max-width: none !important;
+  max-height: none !important;
+  display: block;
 }
 
 .crop-grid-overlay {
@@ -841,48 +849,66 @@
   gap: 8px;
   width: 100%;
   max-width: 280px;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .zoom-control-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(35, 25, 45, 0.8);
+  gap: 6px;
+  background: rgba(35, 25, 45, 0.85);
   padding: 6px 10px;
   border-radius: 4px;
   border: 1px dashed rgba(254, 191, 151, 0.3);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .zoom-label {
   font-size: 0.74rem;
   font-weight: 700;
   color: var(--color-accent);
+  flex-shrink: 0;
 }
 
 .btn-zoom-step {
   width: 26px;
   height: 26px;
+  min-width: 26px !important;
+  min-height: 26px !important;
+  max-width: 26px;
+  max-height: 26px;
+  padding: 0 !important;
   border-radius: 3px;
   background: var(--admin-card-bg);
   border: 1px solid rgba(254, 191, 151, 0.4);
   color: var(--color-bg-light);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 800;
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  flex-shrink: 0;
+  transition: var(--transition-fast);
 }
 
 .btn-zoom-step:hover {
   background: var(--color-primary);
+  border-color: var(--color-primary);
   color: #fff;
 }
 
 .crop-range-slider {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0 !important;
+  width: 100%;
+  height: 6px;
   accent-color: var(--color-primary);
   cursor: pointer;
+  margin: 0;
 }
 
 .zoom-val-display {
@@ -891,6 +917,8 @@
   color: var(--color-bg-light);
   min-width: 36px;
   text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .crop-actions-row {
@@ -1238,13 +1266,16 @@
   color: var(--color-bg-light);
   width: 28px;
   height: 28px;
+  min-width: 28px !important;
+  min-height: 28px !important;
   border-radius: 4px;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 !important;
 }
 
 .btn-close-modal:hover {

@@ -350,19 +350,19 @@
         <!-- Foto e Reenquadramento no Modal -->
         <div class="form-group">
           <label class="form-label">Foto da Peça (Moldura 1:1)</label>
-          <div class="photo-upload-zone" style="padding: 10px;">
+          <div class="photo-upload-zone">
             <div class="crop-workspace" id="edit-crop-workspace">
-              <div class="crop-viewport" id="edit-crop-viewport" style="width: 200px; height: 200px;">
+              <div class="crop-viewport" id="edit-crop-viewport">
                 <img src="" alt="Enquadramento da peca" id="edit-crop-source-img" class="crop-image">
                 <div class="crop-grid-overlay"></div>
               </div>
 
-              <div class="crop-controls" style="max-width: 240px;">
+              <div class="crop-controls">
                 <div class="zoom-control-row">
                   <span class="zoom-label">Zoom:</span>
-                  <button type="button" class="btn-zoom-step" id="btn-edit-zoom-out">-</button>
+                  <button type="button" class="btn-zoom-step" id="btn-edit-zoom-out" title="Reduzir zoom">-</button>
                   <input type="range" id="edit-crop-zoom-slider" min="1" max="3" step="0.02" value="1" class="crop-range-slider">
-                  <button type="button" class="btn-zoom-step" id="btn-edit-zoom-in">+</button>
+                  <button type="button" class="btn-zoom-step" id="btn-edit-zoom-in" title="Aumentar zoom">+</button>
                   <span class="zoom-val-display" id="edit-zoom-val-display">100%</span>
                 </div>
 
