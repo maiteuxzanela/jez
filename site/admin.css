@@ -924,19 +924,32 @@
 .crop-actions-row {
   display: flex;
   justify-content: center;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
 }
 
 .btn-crop-secondary {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  vertical-align: middle;
   background: rgba(254, 191, 151, 0.15);
   border: 1px dashed var(--color-accent);
   color: var(--color-bg-light);
-  padding: 5px 12px;
-  border-radius: 3px;
-  font-size: 0.72rem;
+  padding: 6px 14px;
+  min-height: 36px !important;
+  height: 36px;
+  min-width: 105px;
+  border-radius: 4px;
+  font-size: 0.78rem;
   font-weight: 700;
+  line-height: 1;
   cursor: pointer;
   transition: var(--transition-fast);
+  box-sizing: border-box;
+  margin: 0;
 }
 
 .btn-crop-secondary:hover {

@@ -1132,6 +1132,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Trocar foto na edição
+  const btnEditChangePhoto = document.getElementById('btn-edit-change-photo');
+  if (btnEditChangePhoto) {
+    btnEditChangePhoto.addEventListener('click', () => {
+      editPhotoInput.click();
+    });
+  }
+
   editPhotoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
