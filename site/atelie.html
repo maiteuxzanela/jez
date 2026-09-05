@@ -12,7 +12,7 @@
   <!-- Metadados de Segurança & Privacidade (Morgan - Cibersegurança & LGPD) -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://viacep.com.br https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasestorage.app;">
 
   <!-- Google Fonts Oficiais -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,6 +36,10 @@
       </div>
 
       <div class="admin-top-actions">
+        <span class="cloud-sync-badge" id="cloud-sync-badge" title="Sincronização em Nuvem ativa">
+          <span class="sync-dot"></span>
+          <span class="sync-label">Nuvem Ativa</span>
+        </span>
         <a href="index.html" class="btn-back-store" id="btn-back-store" title="Abrir a vitrine da loja online">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
           <span>Ver Loja</span>
@@ -525,7 +529,8 @@
   <!-- Toast Notification do Painel -->
   <div class="admin-toast" id="admin-toast"></div>
 
-  <!-- Scripts do Back-Office -->
+  <!-- Scripts de Sincronização em Nuvem (Firebase) e Back-Office -->
+  <script type="module" src="firebase-service.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>

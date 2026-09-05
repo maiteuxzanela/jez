@@ -262,6 +262,26 @@ assert(appJsRef.includes('Olá Jéssica! Me chamo') && appJsRef.includes('Endere
 assert(appJsRef.includes('address: fullAddress') && appJsRef.includes('cep: formattedCep'), 'app.js salva endereço completo e CEP no payload de jez_orders');
 assert(adminJsRef.includes('order.address') && adminJsRef.includes('Endereço de Entrega:'), 'admin.js renderiza o endereço de entrega do cliente nos cards de pedidos do Ateliê');
 
+// 17. Validação da Integração com Firebase Cloud Firestore (JEZ-021 - Alex, Morgan & Cris)
+console.log('\n🔥 17. Validando Integração com Firebase Cloud Firestore (JEZ-021):');
+const fbConfigContent = fs.readFileSync(path.join(ROOT_DIR, 'firebase-config.js'), 'utf-8');
+const fbServiceContent = fs.readFileSync(path.join(ROOT_DIR, 'firebase-service.js'), 'utf-8');
+const firestoreRulesPath = path.resolve(ROOT_DIR, '..', 'firestore.rules');
+const firestoreRulesContent = fs.existsSync(firestoreRulesPath) ? fs.readFileSync(firestoreRulesPath, 'utf-8') : '';
+
+assert(fbConfigContent.includes('jez-collection'), 'firebase-config.js configurado com o projectId oficial jez-collection');
+assert(fbServiceContent.includes('JezFirebaseService') && fbServiceContent.includes('onProductsChange'), 'firebase-service.js implementa escuta e sincronização de produtos');
+assert(fbServiceContent.includes('onOrdersChange') && fbServiceContent.includes('createOrder'), 'firebase-service.js implementa escuta e criação de pedidos em nuvem');
+assert(fbServiceContent.includes('updateOrderStatus'), 'firebase-service.js implementa atualização de status de pedidos no Firestore');
+assert(fbServiceContent.includes('seedInitialProductsIfEmpty'), 'firebase-service.js possui rotina de semeamento automático de acervo inicial');
+assert(firestoreRulesContent.includes('match /products/{productId}') && firestoreRulesContent.includes('match /orders/{orderId}'), 'firestore.rules define permissões de segurança para produtos e pedidos');
+
+// CSP atualizado nos arquivos HTML
+assert(htmlRef.includes('https://www.gstatic.com') && htmlRef.includes('https://*.firebaseio.com'), 'index.html possui CSP configurado para carregar e conectar ao Firebase');
+assert(adminHtmlRef.includes('https://www.gstatic.com') && adminHtmlRef.includes('https://*.firebaseio.com'), 'atelie.html possui CSP configurado para carregar e conectar ao Firebase');
+assert(adminHtmlRef.includes('id="cloud-sync-badge"'), 'atelie.html exibe indicador visual de status de sincronização (#cloud-sync-badge)');
+assert(appJsRef.includes('window.jezFirebase') && adminJsRef.includes('window.jezFirebase'), 'app.js e admin.js integram nativamente com window.jezFirebase');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

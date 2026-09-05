@@ -272,6 +272,15 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem(STORAGE_CUSTOM_PRODUCTS_KEY, JSON.stringify(customOnly));
     renderCatalog();
     updateDashboard();
+
+    // Sincroniza catálogo em tempo real com o Cloud Firestore (Fase 2 - JEZ-021)
+    if (window.jezFirebase && typeof window.jezFirebase.saveProduct === 'function') {
+      catalogList.forEach(p => {
+        window.jezFirebase.saveProduct(p).catch(err => {
+          console.warn('[JËZ Cloud] Erro ao sincronizar peça:', p.id, err.message);
+        });
+      });
+    }
   };
 
   let orders = loadOrders();
@@ -843,6 +852,14 @@ document.addEventListener('DOMContentLoaded', () => {
       return o;
     });
     saveOrders(orders);
+
+    // Sincroniza status do pedido com Cloud Firestore (Fase 2 - JEZ-021)
+    if (window.jezFirebase && typeof window.jezFirebase.updateOrderStatus === 'function') {
+      window.jezFirebase.updateOrderStatus(orderId, newStatus, trackingCode).catch(err => {
+        console.warn('[JËZ Cloud] Erro ao sincronizar status do pedido na nuvem:', err.message);
+      });
+    }
+
     showToast(`Status do pedido ${orderId} atualizado para ${getStatusMeta(newStatus).label}!`);
   };
 
@@ -1097,6 +1114,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const piece = catalog.find(p => p.id === id);
     if (!piece) return;
     localStorage.setItem('jez_featured_product_id', id);
+
+    // Sincroniza destaque em nuvem (Fase 2 - JEZ-021)
+    if (window.jezFirebase && typeof window.jezFirebase.setFeaturedProduct === 'function') {
+      window.jezFirebase.setFeaturedProduct(id).catch(err => console.warn(err));
+    }
+
     const searchInput = document.getElementById('catalog-search-input');
     renderCatalog(searchInput ? searchInput.value.trim() : '');
     showToast(`Peça "${piece.name}" agora é o destaque da vitrine!`);
@@ -1504,7 +1527,56 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDashboard();
     renderOrders();
     renderCatalog();
+
+    // Sincronização em Nuvem (Firebase Cloud Firestore — JEZ-021)
+    initCloudSync();
   }
+
+  const initCloudSync = () => {
+    const syncBadge = document.getElementById('cloud-sync-badge');
+    const updateBadge = (online) => {
+      if (!syncBadge) return;
+      if (online) {
+        syncBadge.className = 'cloud-sync-badge';
+        const label = syncBadge.querySelector('.sync-label');
+        if (label) label.textContent = 'Nuvem Conectada';
+      } else {
+        syncBadge.className = 'cloud-sync-badge offline';
+        const label = syncBadge.querySelector('.sync-label');
+        if (label) label.textContent = 'Modo Local';
+      }
+    };
+
+    if (window.jezFirebase) {
+      window.jezFirebase.onConnectionChange(updateBadge);
+
+      // Ouve pedidos em tempo real da nuvem
+      window.jezFirebase.onOrdersChange((cloudOrders) => {
+        if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+          orders = cloudOrders;
+          localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(orders));
+          renderOrders();
+          updateDashboard();
+        }
+      });
+
+      // Ouve catálogo em tempo real da nuvem
+      window.jezFirebase.onProductsChange((cloudCatalog) => {
+        if (Array.isArray(cloudCatalog) && cloudCatalog.length > 0) {
+          catalog = cloudCatalog;
+          localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalog));
+          const searchInput = document.getElementById('catalog-search-input');
+          renderCatalog(searchInput ? searchInput.value.trim() : '');
+          updateDashboard();
+        }
+      });
+
+      // Semeia o acervo inicial no Firestore caso o banco esteja novo/vazio
+      window.jezFirebase.seedInitialProductsIfEmpty(defaultInitialCatalog);
+    } else {
+      updateBadge(false);
+    }
+  };
 
   // Alternar visibilidade da senha (mostrar/ocultar)
   if (btnTogglePassword && adminPasswordInput) {

@@ -766,6 +766,13 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error(e);
     }
 
+    // Sincroniza pedido em tempo real com o Cloud Firestore (Fase 2 - JEZ-021)
+    if (window.jezFirebase && typeof window.jezFirebase.createOrder === 'function') {
+      window.jezFirebase.createOrder(newOrder).catch(err => {
+        console.warn('[JËZ Cloud] Pedido salvo localmente, pendente de sync em nuvem:', err.message);
+      });
+    }
+
     const phone = '553892322411'; // WhatsApp da Jéssica (+55 38 9232-2411)
     const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
     
@@ -987,4 +994,32 @@ document.addEventListener('DOMContentLoaded', () => {
   renderCatalog();
   renderHeroFeaturedCard();
   updateCartUI();
+
+  // Sincronização em Nuvem (Firebase Cloud Firestore — JEZ-021)
+  const initCloudSync = () => {
+    if (window.jezFirebase) {
+      window.jezFirebase.onProductsChange((cloudProducts) => {
+        if (Array.isArray(cloudProducts) && cloudProducts.length > 0) {
+          products = cloudProducts
+            .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
+            .map(p => ({
+              ...p,
+              isReady: p.status ? p.status === 'ready' : (p.isReady !== undefined ? p.isReady : true)
+            }));
+          renderCatalog();
+          renderHeroFeaturedCard();
+        }
+      });
+
+      window.jezFirebase.seedInitialProductsIfEmpty(defaultProducts);
+
+      window.jezFirebase.onFeaturedChange((featuredId) => {
+        if (featuredId) {
+          localStorage.setItem('jez_featured_product_id', featuredId);
+          renderHeroFeaturedCard();
+        }
+      });
+    }
+  };
+  initCloudSync();
 });
