@@ -195,6 +195,32 @@ const loginSectionHtml = adminHtmlRef.substring(
 );
 assert(!emojiRegex.test(loginSectionHtml), 'Diretriz Inegociável da Marca: Zero emojis na tela e formulário de login');
 
+// 13. Validação de Otimização WebP, SEO e Metatags Sociais (JEZ-008 - Noa)
+console.log('\n🚀 13. Validando Otimização WebP, Metatags OpenGraph e SEO (JEZ-008):');
+const webpProducts = [
+  'blusa_teia.webp', 'bolsa_punk.webp', 'bolsa_xadrez.webp',
+  'cardiga_manteiga.webp', 'chaveiro_baphomet.webp', 'porta_airpods.webp',
+  'shoulder_coracao.webp', 'top_bandana.webp', 'tote_cherry.webp'
+];
+webpProducts.forEach(webpFile => {
+  const p = path.join(ROOT_DIR, 'assets', 'products', webpFile);
+  assert(fs.existsSync(p) && fs.statSync(p).size > 20000, `Arquivo WebP otimizado ${webpFile} existe e possui alta compressão`);
+});
+
+// Metatags Sociais e SEO
+assert(htmlRef.includes('og:image') && htmlRef.includes('og:title') && htmlRef.includes('og:description'), 'index.html possui metatags OpenGraph configuradas para WhatsApp e Instagram');
+assert(htmlRef.includes('twitter:card') && htmlRef.includes('summary_large_image'), 'index.html possui Twitter Cards configurado para compartilhamento com foto grande');
+assert(adminHtmlRef.includes('name="robots" content="noindex, nofollow"'), 'atelie.html possui diretiva estrita de noindex para proteger a rota privada contra rastreadores');
+assert(htmlRef.includes('<source id="hero-featured-webp"') || appJsRef.includes("type=\"image/webp\""), 'Suporte a picture element com fallback progressivo WebP implementado');
+
+// 14. Validação da Polaroid Destaque Hero Clicável & Gestão no Ateliê (JEZ-015 - Lumi & Cris)
+console.log('\n⭐ 14. Validando Polaroid Destaque Clicável e Gestão no Ateliê (JEZ-015):');
+assert(htmlRef.includes('id="hero-featured-card"') && htmlRef.includes('role="button"') && htmlRef.includes('tabindex="0"'), 'Card destaque hero (#hero-featured-card) possui semântica acessível e foco via teclado');
+assert(stylesContent.includes('.hero-card-featured') && stylesContent.includes('cursor: pointer'), 'Card polaroid possui cursor pointer e micro-interação de hover autoral');
+assert(appJsRef.includes('renderHeroFeaturedCard'), 'Vitrine (app.js) possui renderização dinâmica da peça em destaque');
+assert(adminJsRef.includes('setFeaturedPiece') && adminJsRef.includes('jez_featured_product_id'), 'Ateliê (admin.js) implementa seleção da peça em destaque com 1 clique');
+assert(adminCssContent.includes('.btn-action-featured') && adminCssContent.includes('.badge-featured-piece'), 'Estilos de destaque (.btn-action-featured e .badge-featured-piece) implementados no ateliê');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

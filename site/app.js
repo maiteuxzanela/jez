@@ -272,9 +272,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ? `<span class="product-badge badge-ready">Pronta Entrega</span>`
         : `<span class="product-badge badge-order">Sob Encomenda (${safeLeadTime}d)</span>`;
 
+      const isLocalAsset = safeImage.startsWith('assets/');
+      const webpCandidate = isLocalAsset ? safeImage.replace(/\.(jpg|jpeg|png)$/i, '.webp') : '';
+      const imageMarkup = isLocalAsset
+        ? `<picture>
+            <source srcset="${webpCandidate}" type="image/webp">
+            <img src="${safeImage}" alt="${safeName}" loading="lazy" width="400" height="400">
+          </picture>`
+        : `<img src="${safeImage}" alt="${safeName}" loading="lazy" width="400" height="400">`;
+
       card.innerHTML = `
         <div class="product-image-wrap" data-action="quickview" data-id="${safeId}">
-          <img src="${safeImage}" alt="${safeName}" loading="lazy" width="400" height="400">
+          ${imageMarkup}
           ${badgeHtml}
           <button type="button" class="quick-view-overlay-btn" title="Visualizar detalhes" aria-label="Visualizar ${safeName}" data-action="quickview" data-id="${safeId}">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -719,18 +728,69 @@ document.addEventListener('DOMContentLoaded', () => {
     closeDrawer
   };
 
-  // Sincronização em tempo real caso a artesã edite peças em outra aba
+  // --------------------------------------------------------------------------
+  // 12. Renderização e Interatividade do Card Polaroid Hero (JEZ-015 - Lumi & Ariel)
+  // --------------------------------------------------------------------------
+  const heroFeaturedCard = document.getElementById('hero-featured-card');
+
+  const renderHeroFeaturedCard = () => {
+    if (!heroFeaturedCard) return;
+
+    const allProducts = getProducts();
+    const featuredId = localStorage.getItem('jez_featured_product_id') || 'tote-cherry';
+    const featuredProduct = allProducts.find(p => p.id === featuredId) || allProducts[0];
+
+    if (!featuredProduct) return;
+
+    heroFeaturedCard.setAttribute('data-product-id', featuredProduct.id);
+    heroFeaturedCard.setAttribute('aria-label', `Ver detalhes da peça em destaque: ${featuredProduct.name}`);
+
+    const nameEl = document.getElementById('hero-featured-name') || heroFeaturedCard.querySelector('.hero-card-name');
+    const priceEl = document.getElementById('hero-featured-price') || heroFeaturedCard.querySelector('.hero-card-price');
+    const imgEl = document.getElementById('hero-featured-img') || heroFeaturedCard.querySelector('img');
+    const webpEl = document.getElementById('hero-featured-webp') || heroFeaturedCard.querySelector('source[type="image/webp"]');
+
+    if (nameEl) nameEl.textContent = featuredProduct.name;
+    if (priceEl) priceEl.textContent = formatCurrency(featuredProduct.price);
+    if (imgEl) {
+      imgEl.src = sanitizeImageUrl(featuredProduct.image);
+      imgEl.alt = `Destaque: ${featuredProduct.name}`;
+    }
+    if (webpEl && featuredProduct.image.startsWith('assets/')) {
+      webpEl.srcset = featuredProduct.image.replace(/\.(jpg|jpeg|png)$/i, '.webp');
+    }
+  };
+
+  if (heroFeaturedCard) {
+    heroFeaturedCard.addEventListener('click', () => {
+      const prodId = heroFeaturedCard.getAttribute('data-product-id') || 'tote-cherry';
+      openQuickView(prodId);
+    });
+
+    heroFeaturedCard.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const prodId = heroFeaturedCard.getAttribute('data-product-id') || 'tote-cherry';
+        openQuickView(prodId);
+      }
+    });
+  }
+
+  // Sincronização em tempo real caso a artesã edite peças ou altere o destaque em outra aba
   window.addEventListener('storage', (e) => {
-    if (e.key === 'jez_catalog' || e.key === 'jez_custom_products') {
+    if (e.key === 'jez_catalog' || e.key === 'jez_custom_products' || e.key === 'jez_featured_product_id') {
       renderCatalog();
+      renderHeroFeaturedCard();
     }
   });
 
   window.addEventListener('focus', () => {
     renderCatalog();
+    renderHeroFeaturedCard();
   });
 
   // Inicialização
   renderCatalog();
+  renderHeroFeaturedCard();
   updateCartUI();
 });

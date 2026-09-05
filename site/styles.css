@@ -399,7 +399,24 @@ a {
   max-width: 320px;
   transform: rotate(2deg);
   position: relative;
-  cursor: default;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  outline: none;
+  user-select: none;
+}
+
+.hero-card-featured:hover {
+  transform: translateY(-6px) rotate(1deg) scale(1.02);
+  box-shadow: 8px 10px 0px var(--color-primary), 0 24px 44px rgba(0, 0, 0, 0.4);
+}
+
+.hero-card-featured:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 4px;
+}
+
+.hero-card-featured:active {
+  transform: translateY(-2px) rotate(1.5deg) scale(1);
 }
 
 /* Fita Adesiva Washi-Tape com Borda Serrilhada de Corte */

@@ -1003,13 +1003,23 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const currentFeaturedId = localStorage.getItem('jez_featured_product_id') || 'tote-cherry';
+
     filtered.forEach(piece => {
       const card = document.createElement('div');
       const isSuspended = piece.status === 'suspended';
-      card.className = `admin-product-card ${isSuspended ? 'card-suspended' : ''}`;
+      const isFeatured = piece.id === currentFeaturedId;
+      card.className = `admin-product-card ${isSuspended ? 'card-suspended' : ''} ${isFeatured ? 'card-featured' : ''}`;
 
       let statusBadgeHtml = '';
       let toggleActionHtml = '';
+      let featuredHtml = '';
+
+      if (isFeatured) {
+        featuredHtml = `<span class="badge-featured-piece" title="Peça em destaque na página inicial">Destaque na Vitrine</span>`;
+      } else if (!isSuspended) {
+        featuredHtml = `<button class="btn-action-featured" data-action="feature" data-id="${piece.id}" title="Definir como peça de destaque no topo da loja">Destacar na Loja</button>`;
+      }
 
       if (isSuspended) {
         statusBadgeHtml = `<span class="btn-status-badge suspended" title="Oculta da loja online">Suspensa (Oculta)</span>`;
@@ -1030,7 +1040,10 @@ document.addEventListener('DOMContentLoaded', () => {
       card.innerHTML = `
         <img src="${safeImage}" alt="${safeName}" class="admin-product-thumb">
         <div class="admin-product-details">
-          <span class="admin-product-name" title="${safeName}">${safeName}</span>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;">
+            <span class="admin-product-name" title="${safeName}">${safeName}</span>
+            ${isFeatured ? featuredHtml : ''}
+          </div>
           <span class="admin-product-price">${formatCurrency(piece.price)}</span>
           
           <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
@@ -1042,6 +1055,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           <div class="admin-product-actions">
             <button class="btn-action-edit" data-action="edit" data-id="${safeId}">Editar</button>
+            ${!isFeatured && !isSuspended ? featuredHtml : ''}
             ${toggleActionHtml}
             <button class="btn-action-delete" data-action="delete" data-id="${safeId}">Excluir</button>
           </div>
@@ -1059,6 +1073,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (action === 'edit') {
           openEditModal(id);
+        } else if (action === 'feature') {
+          setFeaturedPiece(id);
         } else if (action === 'suspend') {
           setPieceStatus(id, 'suspended');
         } else if (action === 'reactivate') {
@@ -1068,6 +1084,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     });
+  };
+
+  // Define a peça em destaque no topo da loja virtual
+  const setFeaturedPiece = (id) => {
+    const piece = catalog.find(p => p.id === id);
+    if (!piece) return;
+    localStorage.setItem('jez_featured_product_id', id);
+    const searchInput = document.getElementById('catalog-search-input');
+    renderCatalog(searchInput ? searchInput.value.trim() : '');
+    showToast(`Peça "${piece.name}" agora é o destaque da vitrine!`);
   };
 
   // Alterna status rápido da peça
@@ -1099,6 +1125,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     catalog = loadCatalog().filter(p => p.id !== id);
     saveCatalog(catalog);
+
+    if (localStorage.getItem('jez_featured_product_id') === id) {
+      localStorage.setItem('jez_featured_product_id', 'tote-cherry');
+    }
+
     showToast('Peça removida do acervo.');
   };
 
