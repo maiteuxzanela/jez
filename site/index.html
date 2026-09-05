@@ -106,12 +106,58 @@
           <div class="washi-tape" aria-hidden="true"></div>
           <picture>
             <source id="hero-featured-webp" srcset="assets/products/tote_cherry.webp" type="image/webp">
-            <img id="hero-featured-img" src="assets/products/tote_cherry.jpg" alt="Destaque: Tote Bag Cherry com Laço" width="320" height="260">
+            <img id="hero-featured-img" src="assets/products/tote_cherry.jpg" alt="Destaque: Peça Artesanal" width="320" height="260">
           </picture>
           <div class="hero-card-caption">
             <span class="hero-card-name" id="hero-featured-name">Tote Bag Cherry com Laço</span>
             <span class="hero-card-price" id="hero-featured-price">R$ 149,90</span>
           </div>
+          <script>
+            (function() {
+              try {
+                var featId = localStorage.getItem('jez_featured_product_id') || 'tote-cherry';
+                var quickLookup = {
+                  'tote-cherry': { name: 'Tote Bag Cherry com Laço', price: 'R$ 149,90', image: 'assets/products/tote_cherry.jpg', webp: 'assets/products/tote_cherry.webp' },
+                  'bolsa-punk': { name: 'Bolsa Punk Slouchy com Correntes', price: 'R$ 169,90', image: 'assets/products/bolsa_punk.jpg', webp: 'assets/products/bolsa_punk.webp' },
+                  'chaveiro-baphomet': { name: 'Chaveiro Amigurumi Baphomet Cute', price: 'R$ 49,90', image: 'assets/products/chaveiro_baphomet.jpg', webp: 'assets/products/chaveiro_baphomet.webp' },
+                  'shoulder-coracao': { name: 'Shoulder Bag Coração Granny Square', price: 'R$ 139,90', image: 'assets/products/shoulder_coracao.jpg', webp: 'assets/products/shoulder_coracao.webp' },
+                  'bolsa-xadrez': { name: 'Bolsa Xadrez Checkerboard', price: 'R$ 159,90', image: 'assets/products/bolsa_xadrez.jpg', webp: 'assets/products/bolsa_xadrez.webp' },
+                  'blusa-teia': { name: 'Blusa Teia de Aranha Cropped', price: 'R$ 189,90', image: 'assets/products/blusa_teia.jpg', webp: 'assets/products/blusa_teia.webp' },
+                  'top-bandana': { name: 'Top Amarração Frontal + Bandana', price: 'R$ 145,00', image: 'assets/products/top_bandana.jpg', webp: 'assets/products/top_bandana.webp' },
+                  'cardiga-manteiga': { name: 'Cardigã Cropped Manteiga (Shrug)', price: 'R$ 179,90', image: 'assets/products/cardiga_manteiga.jpg', webp: 'assets/products/cardiga_manteiga.webp' },
+                  'porta-airpods': { name: 'Porta-AirPods / Fones em Crochê', price: 'R$ 39,90', image: 'assets/products/porta_airpods.jpg', webp: 'assets/products/porta_airpods.webp' }
+                };
+                var p = null;
+                var cacheRaw = localStorage.getItem('jez_featured_product_cache');
+                if (cacheRaw) {
+                  try { p = JSON.parse(cacheRaw); } catch(e) {}
+                }
+                if ((!p || !p.name) && quickLookup[featId]) {
+                  p = quickLookup[featId];
+                }
+                if (p && p.name) {
+                  var card = document.getElementById('hero-featured-card');
+                  var nameEl = document.getElementById('hero-featured-name');
+                  var priceEl = document.getElementById('hero-featured-price');
+                  var imgEl = document.getElementById('hero-featured-img');
+                  var webpEl = document.getElementById('hero-featured-webp');
+                  if (card) {
+                    card.setAttribute('data-product-id', featId);
+                    card.setAttribute('aria-label', 'Ver detalhes da peça em destaque: ' + p.name);
+                  }
+                  if (nameEl) nameEl.textContent = p.name;
+                  if (priceEl) priceEl.textContent = p.formattedPrice || (typeof p.price === 'number' ? 'R$ ' + p.price.toFixed(2).replace('.', ',') : p.price);
+                  if (imgEl && p.image) {
+                    imgEl.src = p.image;
+                    imgEl.alt = 'Destaque: ' + p.name;
+                  }
+                  if (webpEl) {
+                    webpEl.srcset = p.webp || (p.image && p.image.startsWith('assets/') ? p.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : '');
+                  }
+                }
+              } catch(e) {}
+            })();
+          </script>
         </div>
       </div>
     </div>

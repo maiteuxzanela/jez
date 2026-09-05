@@ -1114,6 +1114,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const piece = catalog.find(p => p.id === id);
     if (!piece) return;
     localStorage.setItem('jez_featured_product_id', id);
+    try {
+      localStorage.setItem('jez_featured_product_cache', JSON.stringify({
+        id: piece.id,
+        name: piece.name,
+        price: piece.price,
+        formattedPrice: formatCurrency(piece.price),
+        image: piece.image,
+        webp: piece.image && piece.image.startsWith('assets/') ? piece.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : ''
+      }));
+    } catch(e) {}
 
     // Sincroniza destaque em nuvem (Fase 2 - JEZ-021)
     if (window.jezFirebase && typeof window.jezFirebase.setFeaturedProduct === 'function') {

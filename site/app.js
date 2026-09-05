@@ -960,6 +960,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (webpEl && featuredProduct.image.startsWith('assets/')) {
       webpEl.srcset = featuredProduct.image.replace(/\.(jpg|jpeg|png)$/i, '.webp');
     }
+
+    try {
+      localStorage.setItem('jez_featured_product_cache', JSON.stringify({
+        id: featuredProduct.id,
+        name: featuredProduct.name,
+        price: featuredProduct.price,
+        formattedPrice: formatCurrency(featuredProduct.price),
+        image: sanitizeImageUrl(featuredProduct.image),
+        webp: featuredProduct.image.startsWith('assets/') ? featuredProduct.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : ''
+      }));
+    } catch(e) {}
   };
 
   if (heroFeaturedCard) {
