@@ -1402,3 +1402,218 @@
   transform: translateX(-50%) translateY(0);
   opacity: 1;
 }
+
+/* ==========================================================================
+   TELA DE LOGIN E AUTENTICAÇÃO DO ATELIÊ (JEZ-016 - Morgan & Cris)
+   Paleta oficial, acabamento de ateliê, pesponto costurado e zero emojis
+   ========================================================================== */
+
+/* Botão de Logout no Cabeçalho */
+.btn-admin-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(253, 10, 84, 0.12);
+  color: var(--color-secondary);
+  border: 1.5px dashed var(--color-secondary);
+  padding: 7px 12px;
+  border-radius: var(--radius-xs);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  min-height: 44px;
+  min-width: 44px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.btn-admin-logout:hover {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+  transform: translateY(-1px);
+}
+
+/* Tela de Autenticação Centralizada */
+.admin-login-screen {
+  min-height: calc(100vh - 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px 40px;
+  box-sizing: border-box;
+}
+
+.admin-login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--admin-card-bg);
+  border: var(--admin-card-border);
+  border-radius: var(--radius-sm);
+  padding: 28px 24px;
+  box-shadow: 4px 4px 0px rgba(35, 25, 45, 0.4);
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.login-header {
+  margin-bottom: 22px;
+}
+
+.login-logo-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.login-logo-title {
+  font-family: var(--font-serif-display);
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: var(--color-bg-light);
+  letter-spacing: 0.5px;
+}
+
+.login-logo-accent {
+  font-family: var(--font-serif-editorial);
+  font-style: italic;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-size: 1.4rem;
+}
+
+.login-logo-sub {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.login-desc {
+  font-size: 0.85rem;
+  color: var(--color-bg-light);
+  opacity: 0.88;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Alerta de Erro / Bloqueio por Força Bruta */
+.login-error-box {
+  background: rgba(253, 10, 84, 0.16);
+  border: 1.5px dashed var(--color-primary);
+  border-radius: var(--radius-xs);
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ffadb3;
+  margin-bottom: 18px;
+  text-align: left;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* Formulário de Login */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+.login-password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.login-password-input {
+  width: 100%;
+  padding-right: 48px;
+  box-sizing: border-box;
+}
+
+.btn-toggle-password {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  padding: 8px 12px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  transition: color 0.2s ease;
+}
+
+.btn-toggle-password:hover {
+  color: var(--color-bg-light);
+}
+
+.btn-login-submit {
+  width: 100%;
+  background: var(--color-primary);
+  color: #ffffff;
+  border: 1.5px dashed var(--color-bg-light);
+  padding: 14px 20px;
+  border-radius: var(--radius-xs);
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px var(--color-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  transition: all 0.2s ease;
+  margin-top: 6px;
+}
+
+.btn-login-submit:hover:not(:disabled) {
+  background: #e00849;
+  transform: translateY(-1px);
+  box-shadow: 3px 3px 0px var(--color-dark);
+}
+
+.btn-login-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.login-footer {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(254, 191, 151, 0.25);
+}
+
+.login-link-store {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  min-height: 44px;
+  padding: 4px 8px;
+  transition: color 0.2s ease;
+}
+
+.login-link-store:hover {
+  color: var(--color-bg-light);
+  text-decoration: underline;
+}

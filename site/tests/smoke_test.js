@@ -164,6 +164,36 @@ assert(appJsRef.includes("data-action=\"quickview\"") && appJsRef.includes("data
 assert(htmlRef.includes('privacy-modal-backdrop') && htmlRef.includes('btn-open-privacy'), 'Modal transparente de Privacidade & LGPD implementado com botão de acesso');
 assert(appJsRef.includes('privacyModalBackdrop'), 'Lógica de abertura e fechamento do modal LGPD ativa');
 
+// 12. Validação do Sistema de Autenticação & Proteção do Ateliê (JEZ-016 - Morgan & Cris)
+console.log('\n🔐 12. Validando Sistema de Autenticação & Gatekeeper do Ateliê (JEZ-016):');
+assert(adminHtmlRef.includes('id="admin-login-screen"'), 'Tela de login dedicada presente no HTML do ateliê');
+assert(adminHtmlRef.includes('id="admin-workspace"') && adminHtmlRef.includes('class="admin-workspace" id="admin-workspace" style="display: none;"'), 'Área de trabalho do ateliê protegida contra FOUC com display: none estático');
+assert(adminHtmlRef.includes('id="admin-password"') && adminHtmlRef.includes('id="btn-toggle-password"'), 'Input de senha seguro e botão de alternância de visibilidade presentes');
+assert(adminHtmlRef.includes('id="btn-admin-logout"'), 'Botão de encerramento de sessão presente no cabeçalho do ateliê');
+assert(adminHtmlRef.includes('id="login-error-box"'), 'Caixa de avisos de erro e bloqueio temporário presente');
+
+// Validação da criptografia SHA-256 e Web Crypto API
+assert(adminJsRef.includes('crypto.subtle.digest') && adminJsRef.includes('sha256Hex'), 'Autenticação utiliza Web Crypto API nativa com digest SHA-256');
+assert(adminJsRef.includes('3ec583f48c630ea4e2c7ef915480e1e0fe6fa96225b9affcb5d4feefd0e42711'), 'Hash SHA-256 da chave mestre está configurado');
+
+// Teste unitário Node.js da chave mestre contra o hash
+const nodeCrypto = require('crypto');
+const calculatedNodeHash = nodeCrypto.createHash('sha256').update('atelie2026').digest('hex');
+assert(calculatedNodeHash === '3ec583f48c630ea4e2c7ef915480e1e0fe6fa96225b9affcb5d4feefd0e42711', 'Teste unitário criptográfico: hash de atelie2026 bate exatamente com o valor pré-computado');
+
+// Validação das políticas de segurança
+assert(adminJsRef.includes('MAX_FAILED_ATTEMPTS = 5'), 'Política de rate limiting contra ataques de força bruta definida para 5 tentativas');
+assert(adminJsRef.includes('LOCKOUT_DURATION_MS = 5 * 60 * 1000'), 'Duração do bloqueio temporário configurada para 5 minutos');
+assert(adminJsRef.includes('SESSION_DURATION_MS = 4 * 60 * 60 * 1000'), 'Duração da sessão administrativa configurada para 4 horas');
+assert(adminJsRef.includes('sessionStorage.getItem(STORAGE_SESSION_KEY)'), 'Sessão administrativa mantida exclusivamente em sessionStorage');
+
+// Validação estética: zero emojis na tela de login
+const loginSectionHtml = adminHtmlRef.substring(
+  adminHtmlRef.indexOf('id="admin-login-screen"'),
+  adminHtmlRef.indexOf('id="admin-workspace"')
+);
+assert(!emojiRegex.test(loginSectionHtml), 'Diretriz Inegociável da Marca: Zero emojis na tela e formulário de login');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

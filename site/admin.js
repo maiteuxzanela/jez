@@ -9,11 +9,19 @@
 
 document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
-  // 1. Chaves de Armazenamento Local
+  // 1. Chaves de Armazenamento Local e Constantes de Segurança
   // --------------------------------------------------------------------------
   const STORAGE_ORDERS_KEY = 'jez_orders';
   const STORAGE_CUSTOM_PRODUCTS_KEY = 'jez_custom_products';
   const STORAGE_CATALOG_KEY = 'jez_catalog';
+  const STORAGE_SESSION_KEY = 'jez_admin_session';
+  const STORAGE_ATTEMPTS_KEY = 'jez_login_attempts';
+
+  // Hash SHA-256 da chave de acesso mestre da Jéssica ('atelie2026')
+  const HASH_MASTER_PASSWORD = '3ec583f48c630ea4e2c7ef915480e1e0fe6fa96225b9affcb5d4feefd0e42711';
+  const SESSION_DURATION_MS = 4 * 60 * 60 * 1000; // 4 horas
+  const MAX_FAILED_ATTEMPTS = 5;
+  const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutos de bloqueio temporário por Morgan
 
   // Pedidos Iniciais de Demonstração
   const defaultSampleOrders = [
@@ -1254,9 +1262,282 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 10. Inicialização Inicial
+  // 10. Autenticação Criptográfica, Sessão & Gatekeeper do Ateliê (Morgan - Cibersegurança)
   // --------------------------------------------------------------------------
-  updateDashboard();
-  renderOrders();
-  renderCatalog();
+
+  const adminLoginScreen = document.getElementById('admin-login-screen');
+  const adminWorkspace = document.getElementById('admin-workspace');
+  const btnAdminLogout = document.getElementById('btn-admin-logout');
+  const formAdminLogin = document.getElementById('form-admin-login');
+  const adminPasswordInput = document.getElementById('admin-password');
+  const btnTogglePassword = document.getElementById('btn-toggle-password');
+  const loginErrorBox = document.getElementById('login-error-box');
+  const btnLoginSubmit = document.getElementById('btn-login-submit');
+
+  let lockoutTimerInterval = null;
+
+  /**
+   * Calcula o hash SHA-256 de uma string utilizando a Web Crypto API nativa do navegador
+   * @param {string} text
+   * @returns {Promise<string>} hash hexadecimal de 64 caracteres
+   */
+  async function sha256Hex(text) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  /**
+   * Verifica se existe uma sessão administrativa válida e não expirada em sessionStorage
+   * @returns {boolean}
+   */
+  function hasValidSession() {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_SESSION_KEY);
+      if (!raw) return false;
+      const session = JSON.parse(raw);
+      if (!session || !session.token || !session.expiresAt) return false;
+      if (Date.now() > session.expiresAt) {
+        sessionStorage.removeItem(STORAGE_SESSION_KEY);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      sessionStorage.removeItem(STORAGE_SESSION_KEY);
+      return false;
+    }
+  }
+
+  /**
+   * Cria nova sessão com token criptográfico e validade de 4 horas
+   */
+  function createSession() {
+    const randomBytes = new Uint8Array(16);
+    crypto.getRandomValues(randomBytes);
+    const tokenHex = Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    const sessionData = {
+      token: 'jez_' + tokenHex,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + SESSION_DURATION_MS
+    };
+    sessionStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(sessionData));
+  }
+
+  /**
+   * Destrói a sessão atual em sessionStorage
+   */
+  function destroySession() {
+    sessionStorage.removeItem(STORAGE_SESSION_KEY);
+  }
+
+  /**
+   * Retorna o estado atual de tentativas e eventual bloqueio temporário
+   * @returns {{ attempts: number, lockedUntil: number | null }}
+   */
+  function getLockoutState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_ATTEMPTS_KEY);
+      if (!raw) return { attempts: 0, lockedUntil: null };
+      const state = JSON.parse(raw);
+      if (state.lockedUntil && Date.now() < state.lockedUntil) {
+        return state;
+      }
+      if (state.lockedUntil && Date.now() >= state.lockedUntil) {
+        localStorage.removeItem(STORAGE_ATTEMPTS_KEY);
+        return { attempts: 0, lockedUntil: null };
+      }
+      return state;
+    } catch (e) {
+      return { attempts: 0, lockedUntil: null };
+    }
+  }
+
+  /**
+   * Registra uma tentativa falha de autenticação contra força bruta
+   * @returns {{ attempts: number, lockedUntil: number | null }}
+   */
+  function recordFailedAttempt() {
+    const state = getLockoutState();
+    const newAttempts = (state.attempts || 0) + 1;
+    let lockedUntil = null;
+    if (newAttempts >= MAX_FAILED_ATTEMPTS) {
+      lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+    }
+    localStorage.setItem(STORAGE_ATTEMPTS_KEY, JSON.stringify({
+      attempts: newAttempts,
+      lockedUntil
+    }));
+    return { attempts: newAttempts, lockedUntil };
+  }
+
+  /**
+   * Redefine o histórico de tentativas após login bem-sucedido
+   */
+  function resetLoginAttempts() {
+    localStorage.removeItem(STORAGE_ATTEMPTS_KEY);
+  }
+
+  /**
+   * Inicia ou atualiza a contagem regressiva de bloqueio temporário
+   * @param {number} lockedUntil
+   */
+  function startLockoutCountdown(lockedUntil) {
+    if (lockoutTimerInterval) {
+      clearInterval(lockoutTimerInterval);
+      lockoutTimerInterval = null;
+    }
+
+    function updateCountdown() {
+      const remainingMs = lockedUntil - Date.now();
+      if (remainingMs <= 0) {
+        clearInterval(lockoutTimerInterval);
+        lockoutTimerInterval = null;
+        localStorage.removeItem(STORAGE_ATTEMPTS_KEY);
+        if (loginErrorBox) {
+          loginErrorBox.style.display = 'none';
+          loginErrorBox.textContent = '';
+        }
+        if (adminPasswordInput) adminPasswordInput.disabled = false;
+        if (btnLoginSubmit) btnLoginSubmit.disabled = false;
+        return;
+      }
+
+      const totalSeconds = Math.ceil(remainingMs / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+      if (loginErrorBox) {
+        loginErrorBox.style.display = 'block';
+        loginErrorBox.textContent = `Acesso temporariamente bloqueado por excesso de tentativas. Tente novamente em ${formattedTime}.`;
+      }
+      if (adminPasswordInput) adminPasswordInput.disabled = true;
+      if (btnLoginSubmit) btnLoginSubmit.disabled = true;
+    }
+
+    updateCountdown();
+    lockoutTimerInterval = setInterval(updateCountdown, 1000);
+  }
+
+  /**
+   * Exibe a tela de login e oculta os dados sensíveis do ateliê
+   * @param {string | null} errorMessage
+   */
+  function showLoginScreen(errorMessage = null) {
+    if (adminLoginScreen) adminLoginScreen.style.display = 'flex';
+    if (adminWorkspace) adminWorkspace.style.display = 'none';
+    if (btnAdminLogout) btnAdminLogout.style.display = 'none';
+
+    const lockoutState = getLockoutState();
+    if (lockoutState.lockedUntil && Date.now() < lockoutState.lockedUntil) {
+      startLockoutCountdown(lockoutState.lockedUntil);
+    } else {
+      if (adminPasswordInput) {
+        adminPasswordInput.disabled = false;
+        adminPasswordInput.value = '';
+        adminPasswordInput.focus();
+      }
+      if (btnLoginSubmit) btnLoginSubmit.disabled = false;
+
+      if (errorMessage && loginErrorBox) {
+        loginErrorBox.style.display = 'block';
+        loginErrorBox.textContent = errorMessage;
+      } else if (loginErrorBox) {
+        loginErrorBox.style.display = 'none';
+        loginErrorBox.textContent = '';
+      }
+    }
+  }
+
+  /**
+   * Exibe a área de gestão do ateliê e inicializa pedidos e catálogo
+   */
+  function showWorkspace() {
+    if (lockoutTimerInterval) {
+      clearInterval(lockoutTimerInterval);
+      lockoutTimerInterval = null;
+    }
+
+    if (adminLoginScreen) adminLoginScreen.style.display = 'none';
+    if (adminWorkspace) adminWorkspace.style.display = 'block';
+    if (btnAdminLogout) btnAdminLogout.style.display = 'inline-flex';
+
+    updateDashboard();
+    renderOrders();
+    renderCatalog();
+  }
+
+  // Alternar visibilidade da senha (mostrar/ocultar)
+  if (btnTogglePassword && adminPasswordInput) {
+    btnTogglePassword.addEventListener('click', () => {
+      const isPassword = adminPasswordInput.type === 'password';
+      adminPasswordInput.type = isPassword ? 'text' : 'password';
+
+      const eyeOpen = btnTogglePassword.querySelector('.eye-icon-open');
+      const eyeClosed = btnTogglePassword.querySelector('.eye-icon-closed');
+      if (eyeOpen && eyeClosed) {
+        eyeOpen.style.display = isPassword ? 'none' : 'block';
+        eyeClosed.style.display = isPassword ? 'block' : 'none';
+      }
+    });
+  }
+
+  // Processamento da autenticação ao submeter o formulário
+  if (formAdminLogin) {
+    formAdminLogin.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const lockout = getLockoutState();
+      if (lockout.lockedUntil && Date.now() < lockout.lockedUntil) {
+        startLockoutCountdown(lockout.lockedUntil);
+        return;
+      }
+
+      const inputPassword = adminPasswordInput ? adminPasswordInput.value.trim() : '';
+      if (!inputPassword) {
+        if (loginErrorBox) {
+          loginErrorBox.style.display = 'block';
+          loginErrorBox.textContent = 'Por favor, informe a chave de acesso do ateliê.';
+        }
+        return;
+      }
+
+      // Cálculo de hash criptográfico
+      const calculatedHash = await sha256Hex(inputPassword);
+
+      if (calculatedHash === HASH_MASTER_PASSWORD) {
+        resetLoginAttempts();
+        createSession();
+        showWorkspace();
+        showToast('Acesso autorizado. Bem-vinda ao ateliê!');
+      } else {
+        const result = recordFailedAttempt();
+        if (result.lockedUntil) {
+          startLockoutCountdown(result.lockedUntil);
+        } else {
+          const attemptsLeft = MAX_FAILED_ATTEMPTS - result.attempts;
+          const msg = `Chave de acesso incorreta. ${attemptsLeft} tentativa${attemptsLeft === 1 ? '' : 's'} restante${attemptsLeft === 1 ? '' : 's'} antes do bloqueio temporário.`;
+          showLoginScreen(msg);
+        }
+      }
+    });
+  }
+
+  // Encerrar sessão (Logout)
+  if (btnAdminLogout) {
+    btnAdminLogout.addEventListener('click', () => {
+      destroySession();
+      showLoginScreen();
+      showToast('Sessão encerrada com sucesso.');
+    });
+  }
+
+  // Verificação inicial do Gatekeeper ao carregar a página
+  if (hasValidSession()) {
+    showWorkspace();
+  } else {
+    showLoginScreen();
+  }
 });
