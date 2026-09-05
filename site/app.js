@@ -184,6 +184,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const productModalBackdrop = document.getElementById('product-modal-backdrop');
   const btnCloseModal = document.getElementById('btn-close-modal');
 
+  // Elementos de Dados do Cliente no Carrinho (Sam & Morgan)
+  const customerInfoBox = document.getElementById('customer-info-box');
+  const customerNameInput = document.getElementById('customer-name');
+  const customerStreetInput = document.getElementById('customer-street');
+  const customerNumberInput = document.getElementById('customer-number');
+  const customerCityInput = document.getElementById('customer-city');
+  const customerDataHint = document.getElementById('customer-data-hint');
+
   // Elementos do Modal Rápido
   const modalImg = document.getElementById('modal-img');
   const modalImgBlur = document.getElementById('modal-img-blur');
@@ -208,6 +216,15 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  };
+
+  const sanitizeCustomerInput = (str, maxLen = 100) => {
+    if (!str || typeof str !== 'string') return '';
+    return str
+      .replace(/[<>'"`;]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, maxLen);
   };
 
   const sanitizeImageUrl = (url) => {
@@ -308,8 +325,136 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // --------------------------------------------------------------------------
-  // 6. Gerenciamento do Carrinho (Cart Drawer)
+  // 6. Gerenciamento do Carrinho (Cart Drawer) & Checkout Seguro
   // --------------------------------------------------------------------------
+  let lastLookupCep = '';
+  const lookupAddressByCep = async (cleanCep) => {
+    if (!cleanCep || cleanCep.length !== 8 || cleanCep === lastLookupCep) return;
+    lastLookupCep = cleanCep;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (!data.erro) {
+          if (data.logradouro && customerStreetInput) {
+            const streetVal = data.bairro ? `${data.logradouro} - ${data.bairro}` : data.logradouro;
+            if (!customerStreetInput.value.trim() || customerStreetInput.dataset.autofilled === 'true') {
+              customerStreetInput.value = streetVal;
+              customerStreetInput.dataset.autofilled = 'true';
+            }
+          }
+          if (data.localidade && customerCityInput) {
+            const cityVal = data.uf ? `${data.localidade} / ${data.uf}` : data.localidade;
+            if (!customerCityInput.value.trim() || customerCityInput.dataset.autofilled === 'true') {
+              customerCityInput.value = cityVal;
+              customerCityInput.dataset.autofilled = 'true';
+            }
+          }
+          updateCheckoutReadiness();
+          if (customerNameInput && !customerNameInput.value.trim()) {
+            customerNameInput.focus();
+          } else if (customerNumberInput && !customerNumberInput.value.trim()) {
+            customerNumberInput.focus();
+          }
+          return;
+        }
+      }
+    } catch (err) {
+      // Falha de rede ou timeout: fallback gracioso sem quebrar fluxo
+    }
+
+    // Fallback gracioso local para Montes Claros (Origem da artesã: CEPs 39400 a 39409)
+    const prefix = parseInt(cleanCep.substring(0, 5), 10);
+    if (prefix >= 39400 && prefix <= 39409) {
+      if (customerCityInput && (!customerCityInput.value.trim() || customerCityInput.dataset.autofilled === 'true')) {
+        customerCityInput.value = 'Montes Claros / MG';
+        customerCityInput.dataset.autofilled = 'true';
+        updateCheckoutReadiness();
+      }
+    }
+  };
+
+  const updateCheckoutReadiness = () => {
+    if (!btnCheckout) return false;
+
+    if (cart.length === 0) {
+      btnCheckout.disabled = true;
+      if (customerDataHint) {
+        customerDataHint.className = 'customer-data-hint';
+        customerDataHint.textContent = 'Adicione itens à sacola para iniciar.';
+      }
+      return false;
+    }
+
+    const rawCep = cepInput ? cepInput.value.replace(/\D/g, '') : '';
+    const hasShipping = Boolean(shippingCost > 0 || shippingMethod);
+    if (rawCep.length !== 8 || !hasShipping) {
+      btnCheckout.disabled = true;
+      if (customerDataHint) {
+        customerDataHint.className = 'customer-data-hint';
+        customerDataHint.textContent = 'Informe o CEP e calcule o frete para prosseguir.';
+      }
+      return false;
+    }
+
+    const rawName = customerNameInput ? customerNameInput.value.trim() : '';
+    const safeName = sanitizeCustomerInput(rawName, 80);
+    const nameWords = safeName.split(/\s+/).filter(w => w.length >= 2);
+    if (nameWords.length < 2) {
+      btnCheckout.disabled = true;
+      if (customerDataHint) {
+        customerDataHint.className = 'customer-data-hint';
+        customerDataHint.textContent = 'Informe seu Nome e Sobrenome para identificação.';
+      }
+      return false;
+    }
+
+    const safeStreet = sanitizeCustomerInput(customerStreetInput ? customerStreetInput.value : '', 120);
+    if (safeStreet.length < 3) {
+      btnCheckout.disabled = true;
+      if (customerDataHint) {
+        customerDataHint.className = 'customer-data-hint';
+        customerDataHint.textContent = 'Informe a rua / logradouro de entrega.';
+      }
+      return false;
+    }
+
+    const safeNumber = sanitizeCustomerInput(customerNumberInput ? customerNumberInput.value : '', 40);
+    if (safeNumber.length < 1) {
+      btnCheckout.disabled = true;
+      if (customerDataHint) {
+        customerDataHint.className = 'customer-data-hint';
+        customerDataHint.textContent = 'Informe o número da residência (ou S/N).';
+      }
+      return false;
+    }
+
+    const safeCity = sanitizeCustomerInput(customerCityInput ? customerCityInput.value : '', 60);
+    if (safeCity.length < 3) {
+      btnCheckout.disabled = true;
+      if (customerDataHint) {
+        customerDataHint.className = 'customer-data-hint';
+        customerDataHint.textContent = 'Informe a cidade e UF para entrega.';
+      }
+      return false;
+    }
+
+    // Todos os dados válidos
+    btnCheckout.disabled = false;
+    if (customerDataHint) {
+      customerDataHint.className = 'customer-data-hint valid';
+      customerDataHint.textContent = 'Tudo preenchido! Pronto para finalizar no WhatsApp.';
+    }
+    return true;
+  };
+
   const saveCart = () => {
     localStorage.setItem('jez_cart', JSON.stringify(cart));
   };
@@ -333,17 +478,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cart.length === 0) {
       cartItemsContainer.style.display = 'none';
       cartEmptyState.style.display = 'block';
+      if (customerInfoBox) customerInfoBox.style.display = 'none';
       btnCheckout.disabled = true;
-      btnCheckout.style.opacity = '0.5';
-      btnCheckout.style.cursor = 'not-allowed';
+      if (customerDataHint) {
+        customerDataHint.className = 'customer-data-hint';
+        customerDataHint.textContent = 'Adicione itens à sacola para iniciar.';
+      }
       return;
     }
 
     cartItemsContainer.style.display = 'flex';
     cartEmptyState.style.display = 'none';
-    btnCheckout.disabled = false;
-    btnCheckout.style.opacity = '1';
-    btnCheckout.style.cursor = 'pointer';
+    if (customerInfoBox) customerInfoBox.style.display = 'flex';
+    updateCheckoutReadiness();
 
     cartItemsContainer.innerHTML = '';
     cart.forEach(item => {
@@ -452,6 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnCalcShipping.textContent = 'Calculando...';
     btnCalcShipping.disabled = true;
+    lookupAddressByCep(rawCep);
 
     setTimeout(() => {
       // Simulação realista considerando origem em Montes Claros - MG (39400-000)
@@ -500,17 +648,23 @@ document.addEventListener('DOMContentLoaded', () => {
       btnCalcShipping.textContent = 'Calcular';
       btnCalcShipping.disabled = false;
       updateCartUI();
+      updateCheckoutReadiness();
     }, 500);
   };
 
-  // Máscara de CEP automática
+  // Máscara de CEP automática e busca de endereço
   cepInput.addEventListener('input', (e) => {
     let value = e.target.value.replace(/\D/g, '');
     if (value.length > 8) value = value.slice(0, 8);
+    const cleanCep = value;
     if (value.length > 5) {
       value = value.replace(/^(\d{5})(\d)/, '$1-$2');
     }
     e.target.value = value;
+    if (cleanCep.length === 8) {
+      lookupAddressByCep(cleanCep);
+    }
+    updateCheckoutReadiness();
   });
 
   // --------------------------------------------------------------------------
@@ -562,25 +716,41 @@ document.addEventListener('DOMContentLoaded', () => {
   // 9. Checkout & Finalização
   // --------------------------------------------------------------------------
   btnCheckout.addEventListener('click', () => {
-    if (cart.length === 0) return;
+    if (!updateCheckoutReadiness()) {
+      showToast('Por favor, preencha seu nome e endereço completo para finalizar.');
+      return;
+    }
 
+    const rawCep = cepInput.value.replace(/\D/g, '');
+    const formattedCep = cepInput.value.trim() || (rawCep.length === 8 ? `${rawCep.slice(0, 5)}-${rawCep.slice(5)}` : '');
+    const safeCustomerName = sanitizeCustomerInput(customerNameInput ? customerNameInput.value : '', 80) || 'Cliente';
+    const safeStreet = sanitizeCustomerInput(customerStreetInput ? customerStreetInput.value : '', 120);
+    const safeNumber = sanitizeCustomerInput(customerNumberInput ? customerNumberInput.value : '', 40);
+    const safeCity = sanitizeCustomerInput(customerCityInput ? customerCityInput.value : '', 60);
+
+    const fullAddress = `${safeStreet}, nº ${safeNumber} - ${safeCity}`;
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const total = subtotal + shippingCost;
     
-    // Resumo dos itens para envio via WhatsApp ou Gateway
-    let itemsText = cart.map(i => `• ${i.quantity}x ${i.name} (${formatCurrency(i.price * i.quantity)})`).join('\n');
-    let message = `Olá Jéssica! Gostaria de finalizar meu pedido na JËZ Collection:\n\n${itemsText}\n\n`;
+    // Resumo dos itens e mensagem personalizada
+    const itemsText = cart.map(i => `• ${i.quantity}x ${i.name} (${formatCurrency(i.price * i.quantity)})`).join('\n');
+    let message = `Olá Jéssica! Me chamo ${safeCustomerName} e gostaria de finalizar meu pedido na JËZ Collection:\n\n${itemsText}\n\n`;
     if (shippingCost > 0) {
       message += `Frete estimado: ${formatCurrency(shippingCost)}\n`;
     }
-    message += `*Total: ${formatCurrency(total)}*\n\nComo posso efetuar o pagamento via Pix?`;
+    message += `*Total: ${formatCurrency(total)}*\n\n`;
+    const pinIcon = String.fromCodePoint(0x1F4CD);
+    message += `${pinIcon} Endereço de envio: ${fullAddress} — CEP ${formattedCep}\n\n`;
+    message += `Como posso efetuar o pagamento via Pix?`;
 
     // Registra pedido em tempo real no localStorage para o Painel da Jéssica
     const newOrderId = 'JEZ-' + Math.floor(1000 + Math.random() * 9000);
     const newOrder = {
       id: newOrderId,
       date: new Date().toISOString(),
-      customer: 'Cliente Loja Online',
+      customer: safeCustomerName,
+      address: fullAddress,
+      cep: formattedCep,
       items: cart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
       subtotal: subtotal,
       shipping: shippingCost,
@@ -625,6 +795,26 @@ document.addEventListener('DOMContentLoaded', () => {
   cartDrawerBackdrop.addEventListener('click', (e) => {
     if (e.target === cartDrawerBackdrop) closeDrawer();
   });
+
+  // Monitoramento das Entradas de Dados do Cliente
+  if (customerNameInput) {
+    customerNameInput.addEventListener('input', updateCheckoutReadiness);
+  }
+  if (customerStreetInput) {
+    customerStreetInput.addEventListener('input', () => {
+      delete customerStreetInput.dataset.autofilled;
+      updateCheckoutReadiness();
+    });
+  }
+  if (customerNumberInput) {
+    customerNumberInput.addEventListener('input', updateCheckoutReadiness);
+  }
+  if (customerCityInput) {
+    customerCityInput.addEventListener('input', () => {
+      delete customerCityInput.dataset.autofilled;
+      updateCheckoutReadiness();
+    });
+  }
 
   // Modal Rápido
   btnCloseModal.addEventListener('click', closeModal);

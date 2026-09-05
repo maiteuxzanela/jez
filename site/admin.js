@@ -719,6 +719,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         <div class="order-items-summary">
           ${itemsHtml}
+          ${order.address ? `
+            <div style="color: rgba(245, 236, 183, 0.9); font-size: 0.74rem; border-top: 1px dashed rgba(254, 191, 151, 0.25); padding-top: 5px; margin-top: 4px; display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-weight: 700; color: var(--color-accent);">Endereço de Entrega:</span>
+              <span style="line-height: 1.3;">${escapeHtml(order.address)}${order.cep ? ` — CEP ${escapeHtml(order.cep)}` : ''}</span>
+            </div>
+          ` : ''}
           ${order.shipping > 0 ? `
             <div style="display: flex; justify-content: space-between; color: rgba(245, 236, 183, 0.75); font-size: 0.74rem; border-top: 1px dashed rgba(254, 191, 151, 0.25); padding-top: 4px; margin-top: 2px;">
               <span>Frete Correios:</span>

@@ -29,7 +29,7 @@
   <!-- Metadados de Segurança & Privacidade (Morgan - Cibersegurança & LGPD) -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://viacep.com.br;">
 
   <!-- Google Fonts: Bodoni Moda, Playfair Display & Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -176,6 +176,32 @@
             <button class="btn-calc-shipping" id="btn-calc-shipping">Calcular</button>
           </div>
           <div class="shipping-result" id="shipping-result"></div>
+        </div>
+
+        <!-- Dados do Cliente & Endereço de Envio (Sam & Morgan) -->
+        <div class="customer-info-box" id="customer-info-box" style="display: none;">
+          <div class="customer-box-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Dados para Envio & Contato</span>
+          </div>
+          
+          <div class="customer-inputs-grid">
+            <div class="form-field-row">
+              <input type="text" class="customer-input" id="customer-name" placeholder="Seu Nome e Sobrenome" maxlength="80" required aria-label="Nome e Sobrenome do Cliente">
+            </div>
+
+            <div class="form-field-row">
+              <input type="text" class="customer-input" id="customer-street" placeholder="Rua / Logradouro e Bairro" maxlength="120" required aria-label="Rua e Bairro">
+            </div>
+
+            <div class="form-field-grid-2">
+              <input type="text" class="customer-input" id="customer-number" placeholder="Nº e Compl." maxlength="40" required aria-label="Número e Complemento">
+              <input type="text" class="customer-input" id="customer-city" placeholder="Cidade / UF" maxlength="60" required aria-label="Cidade e UF">
+            </div>
+          </div>
+          <div class="customer-data-hint" id="customer-data-hint">
+            Preencha nome e endereço para liberar o pedido via WhatsApp.
+          </div>
         </div>
       </div>
 

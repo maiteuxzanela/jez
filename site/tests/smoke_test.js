@@ -227,6 +227,41 @@ assert(htmlRef.includes('wa.me/553892322411'), 'index.html possui link direto co
 assert(appJsRef.includes('553892322411'), 'app.js utiliza o WhatsApp oficial da Jéssica no checkout e no Quick View');
 assert(!htmlRef.includes('5538999999999') && !appJsRef.includes('5538999999999'), 'Número placeholder antigo (5538999999999) foi 100% eliminado da base de código');
 
+// 16. Validação dos Dados de Envio no Carrinho & WhatsApp Personalizado (JEZ-020 - Sam, Morgan & Lumi)
+console.log('\n📦 16. Validando Coleta de Dados de Envio no Carrinho e Mensagem WhatsApp (JEZ-020):');
+assert(htmlRef.includes('id="customer-info-box"'), 'index.html possui o container #customer-info-box no Drawer da sacola');
+assert(htmlRef.includes('id="customer-name"') && htmlRef.includes('id="customer-street"'), 'Campos de nome e logradouro presentes no formulário de entrega');
+assert(htmlRef.includes('id="customer-number"') && htmlRef.includes('id="customer-city"'), 'Campos de número/complemento e cidade/UF presentes no formulário');
+assert(htmlRef.includes('id="customer-data-hint"'), 'Mensagem informativa de validação #customer-data-hint presente');
+assert(htmlRef.includes('connect-src') && htmlRef.includes('https://viacep.com.br'), 'CSP de index.html autoriza requisições seguras à API ViaCEP');
+
+// Teste Unitário da Sanitização Estrita de Entradas (Morgan)
+function testSanitizeCustomerInput(str, maxLen = 100) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/[<>'"`;]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLen);
+}
+const maliciousName = `<script>alert("hack")</script> Maria'; DROP TABLE orders; --`;
+const sanitizedName = testSanitizeCustomerInput(maliciousName, 80);
+assert(!sanitizedName.includes('<') && !sanitizedName.includes('>') && !sanitizedName.includes('"') && !sanitizedName.includes(';'), 'Entrada de dados do cliente higienizada contra scripts, aspas e ponto-e-vírgula');
+
+const spacingName = '   Maria   da   Silva   ';
+const cleanSpacing = testSanitizeCustomerInput(spacingName, 80);
+assert(cleanSpacing === 'Maria da Silva', 'Sanitização preserva caracteres legítimos e colapsa espaços excedentes');
+
+// Lógica de Condicionamento e Preenchimento Automático em app.js
+assert(appJsRef.includes('updateCheckoutReadiness'), 'app.js implementa verificação dinâmica de prontidão do checkout');
+assert(appJsRef.includes('lookupAddressByCep'), 'app.js implementa consulta e preenchimento automático por CEP');
+assert(appJsRef.includes('btnCheckout.disabled = true'), 'Botão de checkout permanece bloqueado preventivamente quando dados estão pendentes');
+
+// Estrutura da Mensagem de WhatsApp e Gravação de Pedido com Endereço
+assert(appJsRef.includes('Olá Jéssica! Me chamo') && appJsRef.includes('Endereço de envio:'), 'app.js formata a mensagem de WhatsApp conforme o template aprovado pela Jéssica');
+assert(appJsRef.includes('address: fullAddress') && appJsRef.includes('cep: formattedCep'), 'app.js salva endereço completo e CEP no payload de jez_orders');
+assert(adminJsRef.includes('order.address') && adminJsRef.includes('Endereço de Entrega:'), 'admin.js renderiza o endereço de entrega do cliente nos cards de pedidos do Ateliê');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);
