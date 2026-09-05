@@ -186,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Elementos do Modal Rápido
   const modalImg = document.getElementById('modal-img');
+  const modalImgBlur = document.getElementById('modal-img-blur');
   const modalCategory = document.getElementById('modal-category');
   const modalTitle = document.getElementById('modal-title');
   const modalPrice = document.getElementById('modal-price');
@@ -524,6 +525,9 @@ document.addEventListener('DOMContentLoaded', () => {
     currentModalProductId = productId;
     modalImg.src = product.image;
     modalImg.alt = product.name;
+    if (modalImgBlur) {
+      modalImgBlur.src = product.image;
+    }
     modalCategory.textContent = product.categoryLabel;
     modalTitle.textContent = product.name;
     modalPrice.textContent = formatCurrency(product.price);
