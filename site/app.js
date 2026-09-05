@@ -544,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Botão de WhatsApp direcionado para a peça
-    const phone = '5538999999999'; // Número placeholder da loja em Montes Claros (DDD 38)
+    const phone = '553892322411'; // WhatsApp da Jéssica (+55 38 9232-2411)
     const msg = encodeURIComponent(`Olá Jéssica! Tenho uma dúvida sobre a peça "${product.name}" que vi no site da JËZ collection.`);
     modalBtnWhatsapp.href = `https://wa.me/${phone}?text=${msg}`;
 
@@ -596,7 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error(e);
     }
 
-    const phone = '5538999999999';
+    const phone = '553892322411'; // WhatsApp da Jéssica (+55 38 9232-2411)
     const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
     
     // Abre a confirmação e direcionamento

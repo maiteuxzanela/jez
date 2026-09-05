@@ -221,6 +221,12 @@ assert(appJsRef.includes('renderHeroFeaturedCard'), 'Vitrine (app.js) possui ren
 assert(adminJsRef.includes('setFeaturedPiece') && adminJsRef.includes('jez_featured_product_id'), 'Ateliê (admin.js) implementa seleção da peça em destaque com 1 clique');
 assert(adminCssContent.includes('.btn-action-featured') && adminCssContent.includes('.badge-featured-piece'), 'Estilos de destaque (.btn-action-featured e .badge-featured-piece) implementados no ateliê');
 
+// 15. Validação do WhatsApp Oficial da Jéssica (+55 38 9232-2411 - Sam & Lumi)
+console.log('\n💬 15. Validando WhatsApp Oficial da Jéssica (+55 38 9232-2411):');
+assert(htmlRef.includes('wa.me/553892322411'), 'index.html possui link direto com o WhatsApp oficial da Jéssica (553892322411)');
+assert(appJsRef.includes('553892322411'), 'app.js utiliza o WhatsApp oficial da Jéssica no checkout e no Quick View');
+assert(!htmlRef.includes('5538999999999') && !appJsRef.includes('5538999999999'), 'Número placeholder antigo (5538999999999) foi 100% eliminado da base de código');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);
