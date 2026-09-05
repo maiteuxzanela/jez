@@ -32,7 +32,7 @@ console.log('🧪 ======================================================\n');
 
 // 1. Integridade dos Arquivos Estruturais
 console.log('📁 1. Validando Arquivos Essenciais do Repositório:');
-const requiredFiles = ['index.html', 'styles.css', 'app.js', 'admin.html', 'admin.css', 'admin.js'];
+const requiredFiles = ['index.html', 'styles.css', 'app.js', 'atelie.html', 'admin.css', 'admin.js'];
 requiredFiles.forEach(file => {
   const filePath = path.join(ROOT_DIR, file);
   assert(fs.existsSync(filePath) && fs.statSync(filePath).size > 100, `Arquivo ${file} existe e possui conteúdo`);
@@ -104,17 +104,18 @@ assert(htmlContent.includes('name="viewport"'), 'index.html possui metatag de vi
 
 // 9. Validação do Painel Administrativo Mobile da Jéssica (JEZ-009 - Cris & Alex)
 console.log('\n👩‍🎨 9. Validando Painel Administrativo Mobile da Jéssica (JEZ-009):');
-const adminHtmlContent = fs.readFileSync(path.join(ROOT_DIR, 'admin.html'), 'utf-8');
+const adminHtmlContent = fs.readFileSync(path.join(ROOT_DIR, 'atelie.html'), 'utf-8');
 const adminJsContent = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
 const adminCssContent = fs.readFileSync(path.join(ROOT_DIR, 'admin.css'), 'utf-8');
 
-assert(!emojiRegex.test(adminHtmlContent), 'admin.html possui rigorosamente ZERO emojis na interface');
+assert(!emojiRegex.test(adminHtmlContent), 'atelie.html possui rigorosamente ZERO emojis na interface');
 assert(!emojiRegex.test(adminJsContent), 'admin.js possui rigorosamente ZERO emojis no código');
 assert(adminHtmlContent.includes('kpi-sales') && adminHtmlContent.includes('kpi-shipping') && adminHtmlContent.includes('kpi-production'), 'Dashboard possui os 3 cartões executivos essenciais (vendas, postagens e produção)');
 assert(adminHtmlContent.includes('form-new-product') && adminHtmlContent.includes('photo-upload-zone'), 'Formulário ágil de cadastro de peça com upload de foto presente');
 assert(adminHtmlContent.includes('status-aguardando-pagamento') || adminCssContent.includes('status-aguardando-pagamento'), 'Quadro de status visual por cores configurado');
 assert(adminJsContent.includes('https://rastreamento.correios.com.br/app/index.php?codigo='), 'Geração automática de link de rastreio dos Correios implementada');
-assert(htmlContent.includes('admin.html'), 'Vitrine (index.html) possui link de acesso direto ao painel do ateliê no rodapé');
+assert(!htmlContent.includes('atelie.html') && !htmlContent.includes('admin.html'), 'Vitrine (index.html) não expõe link público para o ateliê (defesa em profundidade)');
+assert(htmlContent.includes('Desenvolvimento Web: Maiteux Zanela'), 'Rodapé atribui formalmente o desenvolvimento web a Maiteux Zanela (JEZ-014)');
 
 // 10. Validação dos Ajustes de Usabilidade e Estética do Painel (Lumi & Cris)
 console.log('\n🎨 10. Validando Ajustes de Usabilidade e Estética do Painel:');
@@ -128,13 +129,13 @@ assert(appContent.includes("p.status !== 'suspended'"), 'Vitrine da loja (app.js
 // 11. Validação de Cibersegurança, Sanitização XSS & LGPD (JEZ-007 - Morgan & Robin)
 console.log('\n🛡️ 11. Validando Cibersegurança, Sanitização XSS e Conformidade LGPD (JEZ-007):');
 const htmlRef = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf-8');
-const adminHtmlRef = fs.readFileSync(path.join(ROOT_DIR, 'admin.html'), 'utf-8');
+const adminHtmlRef = fs.readFileSync(path.join(ROOT_DIR, 'atelie.html'), 'utf-8');
 const appJsRef = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf-8');
 const adminJsRef = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
 
 // A. Metadados de Segurança HTTP & CSP
-assert(htmlRef.includes('Content-Security-Policy') && adminHtmlRef.includes('Content-Security-Policy'), 'index.html e admin.html possuem Content-Security-Policy (CSP) configurado');
-assert(htmlRef.includes('X-Content-Type-Options') && adminHtmlRef.includes('X-Content-Type-Options'), 'Cabeçalho nosniff configurado em index.html e admin.html');
+assert(htmlRef.includes('Content-Security-Policy') && adminHtmlRef.includes('Content-Security-Policy'), 'index.html e atelie.html possuem Content-Security-Policy (CSP) configurado');
+assert(htmlRef.includes('X-Content-Type-Options') && adminHtmlRef.includes('X-Content-Type-Options'), 'Cabeçalho nosniff configurado em index.html e atelie.html');
 assert(htmlRef.includes('referrer') && adminHtmlRef.includes('referrer'), 'Política de referenciador estrita configurada em ambos os arquivos HTML');
 
 // B. Utilitários de Sanitização e Escape contra XSS
