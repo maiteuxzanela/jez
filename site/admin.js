@@ -1018,7 +1018,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isFeatured) {
         featuredHtml = `<span class="badge-featured-piece" title="Peça em destaque na página inicial">Destaque na Vitrine</span>`;
       } else if (!isSuspended) {
-        featuredHtml = `<button class="btn-action-featured" data-action="feature" data-id="${piece.id}" title="Definir como peça de destaque no topo da loja">Destacar na Loja</button>`;
+        featuredHtml = `<button class="btn-action-featured" data-action="feature" data-id="${piece.id}" title="Destacar esta peça na vitrine da loja">Destacar na Vitrine</button>`;
       }
 
       if (isSuspended) {
