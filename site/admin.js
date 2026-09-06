@@ -992,7 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
       thumb.innerHTML = `
         <img src="${sanitizeImageUrl(photoData)}" alt="Foto extra ${idx + 1}">
         <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover foto extra">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       `;
       newExtraPhotosGrid.appendChild(thumb);
@@ -1443,7 +1443,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const badgeText = item.isCover ? 'Capa' : `${idx + 1}`;
       const removeBtn = !item.isCover ? `
         <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover foto do carrossel" title="Remover foto">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       ` : '';
 

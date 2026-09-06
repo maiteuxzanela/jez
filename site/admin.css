@@ -1835,14 +1835,14 @@
 
 .btn-remove-extra-photo {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  background: rgba(35, 25, 45, 0.9);
+  top: 3px;
+  right: 3px;
+  background: rgba(35, 25, 45, 0.92);
   color: var(--color-secondary);
   border: 1px solid var(--color-secondary);
   border-radius: 50%;
-  width: 26px;
-  height: 26px;
+  width: 14px;
+  height: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1850,6 +1850,12 @@
   z-index: 3;
   padding: 0;
   transition: var(--transition-fast);
+}
+
+.btn-remove-extra-photo svg {
+  width: 8px;
+  height: 8px;
+  display: block;
 }
 
 .btn-remove-extra-photo:hover {
