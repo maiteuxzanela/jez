@@ -1762,11 +1762,29 @@
   border: 2px dashed rgba(254, 191, 151, 0.3);
   background: #1a1222;
   box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.extra-photo-thumb:hover {
+  border-color: var(--color-accent);
+  transform: translateY(-2px);
+}
+
+.extra-photo-thumb.active-thumb {
+  border: 2.5px solid var(--color-primary);
+  border-style: solid;
+  box-shadow: 0 0 14px rgba(253, 10, 84, 0.5), 2px 2px 0px rgba(0, 0, 0, 0.35);
+  transform: scale(1.04);
+  z-index: 2;
 }
 
 .extra-photo-thumb.is-cover {
   border-color: var(--color-accent);
-  border-style: solid;
+}
+
+.extra-photo-thumb.is-cover.active-thumb {
+  border-color: var(--color-primary);
 }
 
 .extra-photo-thumb img {
@@ -1774,6 +1792,28 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.carousel-thumb-badge {
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  background: rgba(35, 25, 45, 0.92);
+  color: var(--color-accent);
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px dashed rgba(254, 191, 151, 0.5);
+  letter-spacing: 0.04em;
+  z-index: 2;
+  user-select: none;
+}
+
+.extra-photo-thumb.active-thumb .carousel-thumb-badge {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.6);
 }
 
 .badge-cover-tag {

@@ -563,10 +563,22 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
+    const getState = () => ({ zoom, offsetX, offsetY });
+    const setState = (state) => {
+      if (!state) return;
+      if (typeof state.zoom === 'number') zoom = state.zoom;
+      if (typeof state.offsetX === 'number') offsetX = state.offsetX;
+      if (typeof state.offsetY === 'number') offsetY = state.offsetY;
+      constrainOffsets();
+      updateTransform();
+    };
+
     return {
       loadImage,
       reset,
       getCroppedDataUrl,
+      getState,
+      setState,
       hasImage: () => Boolean(imgEl.src && imgEl.src.length > 0)
     };
   };
@@ -1366,7 +1378,107 @@ document.addEventListener('DOMContentLoaded', () => {
   const editLeadtimeWrap = document.getElementById('edit-leadtime-wrap');
 
   let currentEditingPiece = null;
-  let editCoverChanged = false;
+  let editCarouselItems = [];
+  let activeCarouselIdx = 0;
+  let editPieceExtraPhotos = [];
+
+  const loadActiveCarouselPhoto = async () => {
+    if (!editCarouselItems || editCarouselItems.length === 0) return;
+    const current = editCarouselItems[activeCarouselIdx];
+    if (!current) return;
+
+    const titleLabel = document.getElementById('edit-crop-title-label');
+    if (titleLabel) {
+      titleLabel.textContent = current.isCover
+        ? 'Foto da Peça (Moldura 1:1) — Capa Principal'
+        : `Foto ${activeCarouselIdx + 1} do Carrossel (Moldura 1:1)`;
+    }
+
+    await editPieceCropper.loadImage(current.url);
+    if (current.isModified && current.zoom) {
+      editPieceCropper.setState({
+        zoom: current.zoom,
+        offsetX: current.offsetX,
+        offsetY: current.offsetY
+      });
+    }
+  };
+
+  const saveActivePhotoCropState = () => {
+    if (!editCarouselItems || !editCarouselItems[activeCarouselIdx]) return;
+    const current = editCarouselItems[activeCarouselIdx];
+    const st = editPieceCropper.getState();
+    const changed = st.zoom !== 1 || st.offsetX !== 0 || st.offsetY !== 0 || current.isModified;
+    if (changed) {
+      current.zoom = st.zoom;
+      current.offsetX = st.offsetX;
+      current.offsetY = st.offsetY;
+      current.isModified = true;
+      const cropped = editPieceCropper.getCroppedDataUrl(600);
+      if (cropped) {
+        current.url = cropped;
+      }
+    }
+  };
+
+  const selectCarouselPhoto = async (index) => {
+    if (index === activeCarouselIdx || index < 0 || index >= editCarouselItems.length) return;
+    saveActivePhotoCropState();
+    activeCarouselIdx = index;
+    renderEditCarousel();
+    await loadActiveCarouselPhoto();
+  };
+
+  const renderEditCarousel = () => {
+    if (!editExtraPhotosGrid) return;
+    editExtraPhotosGrid.innerHTML = '';
+
+    editCarouselItems.forEach((item, idx) => {
+      const thumb = document.createElement('div');
+      thumb.className = `extra-photo-thumb ${idx === activeCarouselIdx ? 'active-thumb' : ''} ${item.isCover ? 'is-cover' : ''}`;
+      thumb.setAttribute('data-idx', String(idx));
+      thumb.setAttribute('title', `Foto ${idx + 1} (${item.isCover ? 'Capa' : 'Carrossel'}) — Clique para enquadrar 1:1`);
+
+      const safeUrl = sanitizeImageUrl(item.url);
+      const badgeText = item.isCover ? 'Capa' : `${idx + 1}`;
+      const removeBtn = !item.isCover ? `
+        <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover foto do carrossel" title="Remover foto">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      ` : '';
+
+      thumb.innerHTML = `
+        <img src="${safeUrl}" alt="Foto ${idx + 1}">
+        <span class="carousel-thumb-badge">${badgeText}</span>
+        ${removeBtn}
+      `;
+
+      thumb.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-remove-extra-photo')) return;
+        selectCarouselPhoto(idx);
+      });
+
+      editExtraPhotosGrid.appendChild(thumb);
+    });
+
+    const counterEl = document.getElementById('edit-carousel-counter');
+    if (counterEl) {
+      counterEl.textContent = `${editCarouselItems.length}/5 fotos`;
+    }
+
+    if (btnAddEditExtraPhoto) {
+      if (editCarouselItems.length >= 5) {
+        btnAddEditExtraPhoto.style.opacity = '0.5';
+        btnAddEditExtraPhoto.disabled = true;
+      } else {
+        btnAddEditExtraPhoto.style.opacity = '1';
+        btnAddEditExtraPhoto.disabled = false;
+      }
+    }
+
+    // Mantém editPieceExtraPhotos sincronizado para retrocompatibilidade
+    editPieceExtraPhotos = editCarouselItems.slice(1).map(i => i.url);
+  };
 
   const openEditModal = async (pieceId) => {
     catalog = loadCatalog();
@@ -1374,7 +1486,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!piece) return;
 
     currentEditingPiece = piece;
-    editCoverChanged = false;
 
     document.getElementById('edit-piece-id').value = piece.id;
     document.getElementById('edit-product-name').value = piece.name || '';
@@ -1404,12 +1515,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // Exibe modal primeiro para que dimensões do viewport sejam computadas corretamente
     modalEditBackdrop.style.display = 'flex';
 
-    // Carrega fotos complementares (JEZ-019)
-    editPieceExtraPhotos = (piece.images && piece.images.length > 1) ? [...piece.images.slice(1)] : [];
-    renderEditExtraPhotos();
+    // Monta itens do carrossel: capa (0) + extras (1..4)
+    const initialPhotos = (Array.isArray(piece.images) && piece.images.length > 0)
+      ? [...piece.images]
+      : [piece.image || 'assets/products/tote_cherry.jpg'];
 
-    // Carrega foto no recortador do modal
-    await editPieceCropper.loadImage(piece.image);
+    editCarouselItems = initialPhotos.map((url, idx) => ({
+      url: sanitizeImageUrl(url),
+      isCover: idx === 0,
+      isModified: false,
+      zoom: 1,
+      offsetX: 0,
+      offsetY: 0
+    }));
+
+    activeCarouselIdx = 0;
+    renderEditCarousel();
+    await loadActiveCarouselPhoto();
   };
 
   const closeEditModal = () => {
@@ -1438,43 +1560,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Gerenciamento de Fotos Extras na Edição (JEZ-019)
-  let editPieceExtraPhotos = [];
+  // Gerenciamento do Carrossel de Fotos na Edição (JEZ-019)
   const btnAddEditExtraPhoto = document.getElementById('btn-add-edit-extra-photo');
   const editExtraPhotosInput = document.getElementById('edit-extra-photos-input');
   const editExtraPhotosGrid = document.getElementById('edit-extra-photos-grid');
 
-  const renderEditExtraPhotos = () => {
-    if (!editExtraPhotosGrid) return;
-    editExtraPhotosGrid.innerHTML = '';
-
-    editPieceExtraPhotos.forEach((photoData, idx) => {
-      const thumb = document.createElement('div');
-      thumb.className = 'extra-photo-thumb';
-      thumb.innerHTML = `
-        <img src="${sanitizeImageUrl(photoData)}" alt="Foto extra ${idx + 1}">
-        <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover foto extra">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-      `;
-      editExtraPhotosGrid.appendChild(thumb);
-    });
-
-    if (btnAddEditExtraPhoto) {
-      if (editPieceExtraPhotos.length >= 4) {
-        btnAddEditExtraPhoto.style.opacity = '0.5';
-        btnAddEditExtraPhoto.disabled = true;
-      } else {
-        btnAddEditExtraPhoto.style.opacity = '1';
-        btnAddEditExtraPhoto.disabled = false;
-      }
-    }
-  };
-
   if (btnAddEditExtraPhoto && editExtraPhotosInput) {
     btnAddEditExtraPhoto.addEventListener('click', () => {
-      if (editPieceExtraPhotos.length >= 4) {
-        showToast('Limite de 4 fotos extras atingido.');
+      if (editCarouselItems.length >= 5) {
+        showToast('Limite de 5 fotos no carrossel atingido.');
         return;
       }
       editExtraPhotosInput.click();
@@ -1483,18 +1577,36 @@ document.addEventListener('DOMContentLoaded', () => {
     editExtraPhotosInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files || []);
       if (files.length === 0) return;
-      const availableSlots = 4 - editPieceExtraPhotos.length;
+
+      saveActivePhotoCropState();
+
+      const availableSlots = 5 - editCarouselItems.length;
       const filesToProcess = files.slice(0, availableSlots);
 
+      let firstNewIdx = -1;
       for (const file of filesToProcess) {
         const compressed = await compressImageFile(file);
         if (compressed) {
-          editPieceExtraPhotos.push(compressed);
+          const newIdx = editCarouselItems.length;
+          if (firstNewIdx === -1) firstNewIdx = newIdx;
+          editCarouselItems.push({
+            url: compressed,
+            isCover: newIdx === 0,
+            isModified: true,
+            zoom: 1,
+            offsetX: 0,
+            offsetY: 0
+          });
         }
       }
+
       editExtraPhotosInput.value = '';
-      renderEditExtraPhotos();
-      showToast(`${filesToProcess.length} foto(s) extra(s) adicionada(s)!`);
+      if (firstNewIdx !== -1) {
+        activeCarouselIdx = firstNewIdx;
+        renderEditCarousel();
+        await loadActiveCarouselPhoto();
+        showToast(`Foto adicionada ao carrossel! Ajuste o enquadramento 1:1 acima.`);
+      }
     });
   }
 
@@ -1502,15 +1614,23 @@ document.addEventListener('DOMContentLoaded', () => {
     editExtraPhotosGrid.addEventListener('click', (e) => {
       const btn = e.target.closest('.btn-remove-extra-photo');
       if (!btn) return;
+      e.stopPropagation();
       const idx = parseInt(btn.getAttribute('data-idx'), 10);
-      if (!isNaN(idx)) {
-        editPieceExtraPhotos.splice(idx, 1);
-        renderEditExtraPhotos();
+      if (!isNaN(idx) && idx > 0 && idx < editCarouselItems.length) {
+        editCarouselItems.splice(idx, 1);
+        if (activeCarouselIdx >= editCarouselItems.length) {
+          activeCarouselIdx = editCarouselItems.length - 1;
+        } else if (activeCarouselIdx === idx) {
+          activeCarouselIdx = Math.max(0, idx - 1);
+        }
+        renderEditCarousel();
+        loadActiveCarouselPhoto();
+        showToast('Foto removida do carrossel.');
       }
     });
   }
 
-  // Trocar foto principal na edição
+  // Trocar foto selecionada na edição
   const btnEditChangePhoto = document.getElementById('btn-edit-change-photo');
   if (btnEditChangePhoto) {
     btnEditChangePhoto.addEventListener('click', () => {
@@ -1522,13 +1642,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    editCoverChanged = true;
     const reader = new FileReader();
     reader.onload = async (event) => {
-      await editPieceCropper.loadImage(event.target.result);
-      showToast('Nova foto carregada! Ajuste o zoom e enquadramento.');
+      const dataUrl = event.target.result;
+      if (editCarouselItems[activeCarouselIdx]) {
+        editCarouselItems[activeCarouselIdx].url = dataUrl;
+        editCarouselItems[activeCarouselIdx].isModified = true;
+        editCarouselItems[activeCarouselIdx].zoom = 1;
+        editCarouselItems[activeCarouselIdx].offsetX = 0;
+        editCarouselItems[activeCarouselIdx].offsetY = 0;
+      }
+      await editPieceCropper.loadImage(dataUrl);
+      renderEditCarousel();
+      showToast(`Foto ${activeCarouselIdx + 1} alterada! Ajuste o zoom e enquadramento.`);
     };
     reader.readAsDataURL(file);
+    editPhotoInput.value = '';
   });
 
   // Salvar alterações da edição
@@ -1549,15 +1678,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const materials = sanitizeText(document.getElementById('edit-product-materials').value, 200);
     const description = sanitizeText(document.getElementById('edit-product-desc').value, 800);
 
-    // Preserva a foto de capa original se a artesã não fez upload de uma nova foto (JEZ-019)
-    let coverImage = currentEditingPiece ? currentEditingPiece.image : 'assets/products/tote_cherry.jpg';
-    if (editCoverChanged) {
-      const croppedImage = editPieceCropper.getCroppedDataUrl(600);
-      if (croppedImage) {
-        coverImage = croppedImage;
-      }
-    }
-    coverImage = sanitizeImageUrl(coverImage);
+    // Salva o recorte da foto atualmente ativa no cropper
+    saveActivePhotoCropState();
 
     const categoryLabels = {
       bolsas: 'Bolsas & Bags',
@@ -1565,8 +1687,9 @@ document.addEventListener('DOMContentLoaded', () => {
       acessorios: 'Acessórios'
     };
 
-    const sanitizedExtras = editPieceExtraPhotos.map(img => sanitizeImageUrl(img));
-    const updatedImages = [coverImage, ...sanitizedExtras];
+    const finalImages = editCarouselItems.map(item => sanitizeImageUrl(item.url));
+    const coverImage = finalImages[0] || (currentEditingPiece ? currentEditingPiece.image : 'assets/products/tote_cherry.jpg');
+    const updatedImages = finalImages.length > 0 ? [...finalImages] : [coverImage];
 
     catalog = loadCatalog().map(p => {
       if (p.id === id) {
