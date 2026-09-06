@@ -70,10 +70,29 @@ class JezFirebaseService {
     if (!this.db) return () => {};
     try {
       const colRef = collection(this.db, 'products');
+      const defaultOrder = [
+        'bolsa-punk',
+        'tote-cherry',
+        'shoulder-coracao',
+        'bolsa-xadrez',
+        'blusa-teia',
+        'top-bandana',
+        'cardiga-manteiga',
+        'chaveiro-baphomet',
+        'porta-airpods'
+      ];
       return onSnapshot(colRef, (snapshot) => {
         const products = [];
         snapshot.forEach(docSnap => {
           products.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        products.sort((a, b) => {
+          const idxA = defaultOrder.indexOf(a.id);
+          const idxB = defaultOrder.indexOf(b.id);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return 0;
         });
         this.notifyConnectionListeners(true);
         callback(products);

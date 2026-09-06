@@ -246,6 +246,30 @@ document.addEventListener('DOMContentLoaded', () => {
     renderOrders();
   };
 
+  const defaultCatalogOrder = [
+    'bolsa-punk',
+    'tote-cherry',
+    'shoulder-coracao',
+    'bolsa-xadrez',
+    'blusa-teia',
+    'top-bandana',
+    'cardiga-manteiga',
+    'chaveiro-baphomet',
+    'porta-airpods'
+  ];
+
+  const sortCatalogByCuratedOrder = (list) => {
+    if (!Array.isArray(list)) return [];
+    return [...list].sort((a, b) => {
+      const idxA = defaultCatalogOrder.indexOf(a.id);
+      const idxB = defaultCatalogOrder.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    });
+  };
+
   const loadCatalog = () => {
     const raw = localStorage.getItem(STORAGE_CATALOG_KEY);
     if (!raw) {
@@ -258,8 +282,9 @@ document.addEventListener('DOMContentLoaded', () => {
           combined.push(c);
         }
       });
-      localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(combined));
-      return combined;
+      const sorted = sortCatalogByCuratedOrder(combined);
+      localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(sorted));
+      return sorted;
     }
     try {
       const parsed = JSON.parse(raw);
@@ -280,6 +305,12 @@ document.addEventListener('DOMContentLoaded', () => {
             updated = true;
           }
         }
+        // Auto-cura: blusa-teia não possui fotos complementares no catálogo padrão
+        if (p.id === 'blusa-teia' && Array.isArray(p.images) && p.images.length > 1) {
+          p.images = ['assets/products/blusa_teia.jpg'];
+          p.image = 'assets/products/blusa_teia.jpg';
+          updated = true;
+        }
         if (!p.images || p.images.length === 0) {
           const def = defaultInitialCatalog.find(d => d.id === p.id);
           if (def && def.images) {
@@ -289,30 +320,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return p;
       });
+      const sorted = sortCatalogByCuratedOrder(hydrated);
       if (updated) {
-        localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(hydrated));
+        localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(sorted));
       }
-      return hydrated;
+      return sorted;
     } catch {
       return defaultInitialCatalog;
     }
   };
 
-  const saveCatalog = (catalogList) => {
-    localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalogList));
+  const saveCatalog = (catalogList, targetProductId = null) => {
+    const sorted = sortCatalogByCuratedOrder(catalogList);
+    localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(sorted));
     // Sincroniza também jez_custom_products para compatibilidade reversa
-    const customOnly = catalogList.filter(p => p.id.startsWith('custom-'));
+    const customOnly = sorted.filter(p => p.id.startsWith('custom-'));
     localStorage.setItem(STORAGE_CUSTOM_PRODUCTS_KEY, JSON.stringify(customOnly));
     renderCatalog();
     updateDashboard();
 
     // Sincroniza catálogo em tempo real com o Cloud Firestore (Fase 2 - JEZ-021)
     if (window.jezFirebase && typeof window.jezFirebase.saveProduct === 'function') {
-      catalogList.forEach(p => {
-        window.jezFirebase.saveProduct(p).catch(err => {
-          console.warn('[JËZ Cloud] Erro ao sincronizar peça:', p.id, err.message);
+      if (targetProductId) {
+        const target = sorted.find(p => p.id === targetProductId);
+        if (target) {
+          window.jezFirebase.saveProduct(target).catch(err => {
+            console.warn('[JËZ Cloud] Erro ao sincronizar peça:', target.id, err.message);
+          });
+        }
+      } else {
+        sorted.forEach(p => {
+          window.jezFirebase.saveProduct(p).catch(err => {
+            console.warn('[JËZ Cloud] Erro ao sincronizar peça:', p.id, err.message);
+          });
         });
-      });
+      }
     }
   };
 
@@ -1137,7 +1179,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     catalog = loadCatalog();
     catalog.push(newPiece);
-    saveCatalog(catalog);
+    saveCatalog(catalog, newPiece.id);
 
     // Limpa formulário
     formNewProduct.reset();
@@ -1328,7 +1370,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       return p;
     });
-    saveCatalog(catalog);
+    saveCatalog(catalog, id);
     const statusLabels = {
       ready: 'Pronta Entrega',
       order: 'Sob Encomenda',
@@ -1345,6 +1387,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     catalog = loadCatalog().filter(p => p.id !== id);
     saveCatalog(catalog);
+
+    if (window.jezFirebase && typeof window.jezFirebase.deleteProduct === 'function') {
+      window.jezFirebase.deleteProduct(id).catch(err => console.warn(err));
+    }
 
     if (localStorage.getItem('jez_featured_product_id') === id) {
       localStorage.setItem('jez_featured_product_id', 'tote-cherry');
@@ -1712,7 +1758,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return p;
     });
 
-    saveCatalog(catalog);
+    saveCatalog(catalog, id);
     closeEditModal();
     showToast(`Peça "${name}" atualizada com sucesso!`);
   });
@@ -1959,7 +2005,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Ouve catálogo em tempo real da nuvem
       window.jezFirebase.onProductsChange((cloudCatalog) => {
         if (Array.isArray(cloudCatalog) && cloudCatalog.length > 0) {
-          catalog = cloudCatalog;
+          catalog = sortCatalogByCuratedOrder(cloudCatalog);
           localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalog));
           const searchInput = document.getElementById('catalog-search-input');
           renderCatalog(searchInput ? searchInput.value.trim() : '');

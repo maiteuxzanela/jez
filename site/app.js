@@ -133,6 +133,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   ];
 
+  const defaultCatalogOrder = [
+    'bolsa-punk',
+    'tote-cherry',
+    'shoulder-coracao',
+    'bolsa-xadrez',
+    'blusa-teia',
+    'top-bandana',
+    'cardiga-manteiga',
+    'chaveiro-baphomet',
+    'porta-airpods'
+  ];
+
+  const sortProductsByCuratedOrder = (list) => {
+    if (!Array.isArray(list)) return [];
+    return [...list].sort((a, b) => {
+      const idxA = defaultCatalogOrder.indexOf(a.id);
+      const idxB = defaultCatalogOrder.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    });
+  };
+
   // Carrega peças padrão + peças cadastradas e geridas pela Jéssica no painel
   const getProducts = () => {
     try {
@@ -156,6 +180,12 @@ document.addEventListener('DOMContentLoaded', () => {
               updated = true;
             }
           }
+          // Auto-cura: blusa-teia não possui fotos complementares no catálogo padrão
+          if (p.id === 'blusa-teia' && Array.isArray(p.images) && p.images.length > 1) {
+            p.images = ['assets/products/blusa_teia.jpg'];
+            p.image = 'assets/products/blusa_teia.jpg';
+            updated = true;
+          }
           if (!p.images || p.images.length === 0) {
             const def = defaultProducts.find(d => d.id === p.id);
             if (def && def.images) {
@@ -172,8 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const custom = JSON.parse(localStorage.getItem('jez_custom_products') || '[]');
         pieces = [...defaultProducts, ...custom];
       }
+      const sorted = sortProductsByCuratedOrder(pieces);
       // Filtra estritamente peças que NÃO estejam suspensas nem excluídas
-      return pieces
+      return sorted
         .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
         .map(p => ({
           ...p,
@@ -1156,7 +1187,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.jezFirebase) {
       window.jezFirebase.onProductsChange((cloudProducts) => {
         if (Array.isArray(cloudProducts) && cloudProducts.length > 0) {
-          products = cloudProducts
+          const sorted = sortProductsByCuratedOrder(cloudProducts);
+          products = sorted
             .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
             .map(p => ({
               ...p,
