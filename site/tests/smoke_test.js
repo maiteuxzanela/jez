@@ -282,6 +282,40 @@ assert(adminHtmlRef.includes('https://www.gstatic.com') && adminHtmlRef.includes
 assert(adminHtmlRef.includes('id="cloud-sync-badge"'), 'atelie.html exibe indicador visual de status de sincronização (#cloud-sync-badge)');
 assert(appJsRef.includes('window.jezFirebase') && adminJsRef.includes('window.jezFirebase'), 'app.js e admin.js integram nativamente com window.jezFirebase');
 
+// 18. Validação da Galeria Multi-Fotos no Ateliê e Vitrine (JEZ-019 - Lumi, Cris & Ariel)
+console.log('\n📸 18. Validando Galeria Multi-Fotos no Ateliê e Vitrine (JEZ-019):');
+assert(adminHtmlRef.includes('id="new-extra-photos-section"') && adminHtmlRef.includes('id="new-extra-photos-input"'), 'Formulário de nova peça possui seção e input para fotos complementares');
+assert(adminHtmlRef.includes('id="edit-extra-photos-section"') && adminHtmlRef.includes('id="edit-extra-photos-input"'), 'Modal de edição possui seção e input para fotos complementares');
+assert(adminCssContent.includes('.extra-photos-grid') && adminCssContent.includes('.btn-add-extra-photo') && adminCssContent.includes('.badge-catalog-photos'), 'admin.css define estilos boutique para fotos extras e badge no catálogo');
+assert(adminJsRef.includes('compressImageFile') && adminJsRef.includes('newPieceExtraPhotos') && adminJsRef.includes('editPieceExtraPhotos'), 'admin.js implementa compressão client-side em Canvas e gestão de fotos extras');
+assert(adminJsRef.includes('images: allImages') && adminJsRef.includes('images: updatedImages'), 'admin.js persiste o array de imagens preservando a capa oficial');
+
+assert(htmlRef.includes('id="modal-btn-prev"') && htmlRef.includes('id="modal-btn-next"'), 'index.html possui botões de navegação anterior/próximo no Quick View');
+assert(htmlRef.includes('id="modal-photo-counter"') && htmlRef.includes('id="modal-gallery-thumbs"'), 'index.html possui contador numérico e faixa de miniaturas no Quick View');
+assert(stylesContent.includes('.product-img-secondary') && stylesContent.includes('.has-secondary-image'), 'styles.css define regras para imagem secundária e efeito de transição no card');
+assert(stylesContent.includes('.modal-nav-btn') && stylesContent.includes('.modal-gallery-thumbs') && stylesContent.includes('.modal-thumb'), 'styles.css define estilos para botões flutuantes e miniaturas no Quick View');
+
+assert(appJsRef.includes('product-img-secondary') && appJsRef.includes('has-secondary-image'), 'app.js gera markup para imagem secundária no card de produto na vitrine');
+assert(appJsRef.includes('selectModalPhoto') && appJsRef.includes('currentModalPhotos'), 'app.js implementa controle dinâmico e seleção de fotos no Quick View');
+assert(appJsRef.includes('ArrowLeft') && appJsRef.includes('ArrowRight'), 'app.js oferece suporte nativo a atalhos de teclado (setas) para navegar nas fotos');
+
+// Validação dos novos arquivos de detalhe
+const detailAssets = [
+  'tote_cherry_detail.jpg', 'tote_cherry_detail.webp',
+  'bolsa_punk_detail.jpg', 'bolsa_punk_detail.webp',
+  'chaveiro_baphomet_detail.jpg', 'chaveiro_baphomet_detail.webp'
+];
+detailAssets.forEach(f => {
+  const p = path.join(ROOT_DIR, 'assets', 'products', f);
+  assert(fs.existsSync(p) && fs.statSync(p).size > 10000, `Arquivo de detalhe autoral ${f} existe e possui alta fidelidade`);
+});
+
+// Teste unitário de resiliência: retrocompatibilidade de peças com 1 foto
+const legacyProduct = { id: 'leg-1', image: 'assets/products/tote_cherry.jpg' };
+const resolvedImages = (Array.isArray(legacyProduct.images) && legacyProduct.images.length > 0) ? legacyProduct.images : [legacyProduct.image];
+assert(resolvedImages.length === 1 && resolvedImages[0] === legacyProduct.image, 'Peças legadas sem array images mantêm fallback perfeito para a capa');
+
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

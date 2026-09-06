@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
       categoryLabel: 'Bolsas & Bags',
       price: 169.90,
       image: 'assets/products/bolsa_punk.jpg',
+      images: ['assets/products/bolsa_punk.jpg', 'assets/products/bolsa_punk_detail.jpg'],
       isReady: false,
       leadTimeDays: 7,
       dimensions: '28cm (L) × 22cm (A) × 8cm (P)',
@@ -31,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
       categoryLabel: 'Bolsas & Bags',
       price: 149.90,
       image: 'assets/products/tote_cherry.jpg',
+      images: ['assets/products/tote_cherry.jpg', 'assets/products/tote_cherry_detail.jpg'],
       isReady: true,
       stockQty: 2,
       dimensions: '34cm (L) × 30cm (A) × 10cm (P)',
@@ -109,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
       categoryLabel: 'Acessórios & Miudezas',
       price: 49.90,
       image: 'assets/products/chaveiro_baphomet.jpg',
+      images: ['assets/products/chaveiro_baphomet.jpg', 'assets/products/chaveiro_baphomet_detail.jpg'],
       isReady: true,
       stockQty: 4,
       dimensions: '10cm de altura (sem contar a argola)',
@@ -136,7 +139,35 @@ document.addEventListener('DOMContentLoaded', () => {
       const catalogRaw = localStorage.getItem('jez_catalog');
       let pieces = [];
       if (catalogRaw) {
-        pieces = JSON.parse(catalogRaw);
+        let updated = false;
+        pieces = JSON.parse(catalogRaw).map(p => {
+          // Auto-cura do bug da bolsa cherry em peças padrão (JEZ-019)
+          if (p.id !== 'tote-cherry' && p.image && (p.image === 'assets/products/tote_cherry.jpg' || p.image.endsWith('/tote_cherry.jpg'))) {
+            const def = defaultProducts.find(d => d.id === p.id);
+            if (def && def.image) {
+              p.image = def.image;
+              updated = true;
+            }
+          }
+          if (p.id !== 'tote-cherry' && Array.isArray(p.images) && p.images.length > 0 && (p.images[0] === 'assets/products/tote_cherry.jpg' || p.images[0].endsWith('/tote_cherry.jpg'))) {
+            const def = defaultProducts.find(d => d.id === p.id);
+            if (def && def.image) {
+              p.images[0] = def.image;
+              updated = true;
+            }
+          }
+          if (!p.images || p.images.length === 0) {
+            const def = defaultProducts.find(d => d.id === p.id);
+            if (def && def.images) {
+              updated = true;
+              return { ...p, images: def.images };
+            }
+          }
+          return p;
+        });
+        if (updated) {
+          localStorage.setItem('jez_catalog', JSON.stringify(pieces));
+        }
       } else {
         const custom = JSON.parse(localStorage.getItem('jez_custom_products') || '[]');
         pieces = [...defaultProducts, ...custom];
@@ -204,6 +235,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalMaterials = document.getElementById('modal-materials');
   const modalBtnAddCart = document.getElementById('modal-btn-add-cart');
   const modalBtnWhatsapp = document.getElementById('modal-btn-whatsapp');
+  const modalBtnPrev = document.getElementById('modal-btn-prev');
+  const modalBtnNext = document.getElementById('modal-btn-next');
+  const modalPhotoCounter = document.getElementById('modal-photo-counter');
+  const modalGalleryThumbs = document.getElementById('modal-gallery-thumbs');
+
+  let currentModalPhotos = [];
+  let currentModalPhotoIndex = 0;
 
   // --------------------------------------------------------------------------
   // 4. Funções de Formatação, Sanitização & Segurança (Morgan - Cibersegurança)
@@ -230,7 +268,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const sanitizeImageUrl = (url) => {
     if (!url || typeof url !== 'string') return 'assets/products/tote_cherry.jpg';
     const trimmed = url.trim();
-    if (trimmed.startsWith('assets/') || trimmed.startsWith('data:image/') || trimmed.startsWith('https://') || trimmed.startsWith('./assets/')) {
+
+    // Normaliza caminhos de assets locais caso venham com URL absoluta do navegador
+    const assetIdx = trimmed.indexOf('assets/products/');
+    if (assetIdx !== -1) {
+      return trimmed.slice(assetIdx);
+    }
+
+    if (
+      trimmed.startsWith('assets/') ||
+      trimmed.startsWith('./assets/') ||
+      trimmed.startsWith('/assets/') ||
+      trimmed.startsWith('data:image/') ||
+      trimmed.startsWith('https://') ||
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('blob:')
+    ) {
       return trimmed;
     }
     return 'assets/products/tote_cherry.jpg';
@@ -286,6 +339,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const safeImage = sanitizeImageUrl(p.image);
       const safeLeadTime = parseInt(p.leadTimeDays, 10) || 7;
 
+      const productImages = (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.image];
+      const hasSecondary = productImages.length > 1;
+      const secondaryImage = hasSecondary ? sanitizeImageUrl(productImages[1]) : '';
+
       const badgeHtml = p.isReady
         ? `<span class="product-badge badge-ready">Pronta Entrega</span>`
         : `<span class="product-badge badge-order">Sob Encomenda (${safeLeadTime}d)</span>`;
@@ -295,13 +352,18 @@ document.addEventListener('DOMContentLoaded', () => {
       const imageMarkup = isLocalAsset
         ? `<picture>
             <source srcset="${webpCandidate}" type="image/webp">
-            <img src="${safeImage}" alt="${safeName}" loading="lazy" width="400" height="400">
+            <img src="${safeImage}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">
           </picture>`
-        : `<img src="${safeImage}" alt="${safeName}" loading="lazy" width="400" height="400">`;
+        : `<img src="${safeImage}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">`;
+
+      const secondaryMarkup = hasSecondary
+        ? `<img src="${secondaryImage}" class="product-img-secondary" alt="${safeName} - Detalhe" loading="lazy" width="400" height="400">`
+        : '';
 
       card.innerHTML = `
-        <div class="product-image-wrap" data-action="quickview" data-id="${safeId}">
+        <div class="product-image-wrap ${hasSecondary ? 'has-secondary-image' : ''}" data-action="quickview" data-id="${safeId}">
           ${imageMarkup}
+          ${secondaryMarkup}
           ${badgeHtml}
           <button type="button" class="quick-view-overlay-btn" title="Visualizar detalhes" aria-label="Visualizar ${safeName}" data-action="quickview" data-id="${safeId}">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -668,20 +730,82 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 8. Modal de Detalhes Rápido (Quick View)
+  // 8. Modal de Detalhes Rápido (Quick View) & Galeria Multi-Fotos (JEZ-019)
   // --------------------------------------------------------------------------
   let currentModalProductId = null;
+
+  const selectModalPhoto = (index) => {
+    if (!currentModalPhotos || currentModalPhotos.length === 0) return;
+    if (index < 0) index = currentModalPhotos.length - 1;
+    if (index >= currentModalPhotos.length) index = 0;
+    currentModalPhotoIndex = index;
+
+    const photoUrl = sanitizeImageUrl(currentModalPhotos[index]);
+    if (modalImg) {
+      modalImg.src = photoUrl;
+    }
+    if (modalImgBlur) {
+      modalImgBlur.src = photoUrl;
+    }
+    if (modalPhotoCounter) {
+      modalPhotoCounter.textContent = `${index + 1} / ${currentModalPhotos.length}`;
+    }
+
+    if (modalGalleryThumbs) {
+      const thumbs = modalGalleryThumbs.querySelectorAll('.modal-thumb');
+      thumbs.forEach((t, i) => {
+        t.classList.toggle('active', i === index);
+      });
+    }
+  };
 
   const openQuickView = (productId) => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
     currentModalProductId = productId;
-    modalImg.src = product.image;
-    modalImg.alt = product.name;
-    if (modalImgBlur) {
-      modalImgBlur.src = product.image;
+
+    // Configura galeria de fotos (JEZ-019)
+    currentModalPhotos = (Array.isArray(product.images) && product.images.length > 0)
+      ? product.images
+      : [product.image];
+    currentModalPhotoIndex = 0;
+
+    if (modalGalleryThumbs) {
+      modalGalleryThumbs.innerHTML = '';
+      if (currentModalPhotos.length > 1) {
+        currentModalPhotos.forEach((photoUrl, idx) => {
+          const thumbBtn = document.createElement('button');
+          thumbBtn.type = 'button';
+          thumbBtn.className = `modal-thumb ${idx === 0 ? 'active' : ''}`;
+          thumbBtn.setAttribute('aria-label', `Ver foto ${idx + 1} de ${product.name}`);
+          thumbBtn.innerHTML = `<img src="${sanitizeImageUrl(photoUrl)}" alt="" loading="lazy">`;
+          thumbBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectModalPhoto(idx);
+          });
+          modalGalleryThumbs.appendChild(thumbBtn);
+        });
+        modalGalleryThumbs.style.display = 'flex';
+        if (modalBtnPrev) modalBtnPrev.style.display = 'flex';
+        if (modalBtnNext) modalBtnNext.style.display = 'flex';
+        if (modalPhotoCounter) modalPhotoCounter.style.display = 'block';
+      } else {
+        modalGalleryThumbs.style.display = 'none';
+        if (modalBtnPrev) modalBtnPrev.style.display = 'none';
+        if (modalBtnNext) modalBtnNext.style.display = 'none';
+        if (modalPhotoCounter) modalPhotoCounter.style.display = 'none';
+      }
     }
+
+    const modalImgWrap = document.getElementById('modal-img-wrap');
+    if (modalImgWrap) {
+      modalImgWrap.classList.toggle('has-gallery', currentModalPhotos.length > 1);
+    }
+
+    selectModalPhoto(0);
+
+    modalImg.alt = product.name;
     modalCategory.textContent = product.categoryLabel;
     modalTitle.textContent = product.name;
     modalPrice.textContent = formatCurrency(product.price);
@@ -892,14 +1016,35 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Tecla ESC para fechar modais
+  // Tecla ESC para fechar modais e setas para navegar fotos
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeDrawer();
       closeModal();
       closePrivacyModal();
+    } else if (productModalBackdrop && productModalBackdrop.classList.contains('active')) {
+      if (e.key === 'ArrowLeft') {
+        selectModalPhoto(currentModalPhotoIndex - 1);
+      } else if (e.key === 'ArrowRight') {
+        selectModalPhoto(currentModalPhotoIndex + 1);
+      }
     }
   });
+
+  // Navegação pelos botões do Quick View (JEZ-019)
+  if (modalBtnPrev) {
+    modalBtnPrev.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectModalPhoto(currentModalPhotoIndex - 1);
+    });
+  }
+
+  if (modalBtnNext) {
+    modalBtnNext.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectModalPhoto(currentModalPhotoIndex + 1);
+    });
+  }
 
   // Frete
   btnCalcShipping.addEventListener('click', handleCalculateShipping);

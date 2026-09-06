@@ -1686,3 +1686,149 @@
   color: var(--color-bg-light);
   text-decoration: underline;
 }
+
+/* --------------------------------------------------------------------------
+   Galeria Multi-Fotos no Ateliê (JEZ-019)
+   -------------------------------------------------------------------------- */
+.extra-photos-section {
+  margin-top: 14px;
+  background: rgba(35, 25, 45, 0.45);
+  border: 1px dashed rgba(254, 191, 151, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.extra-photos-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.label-badge-optional {
+  font-size: 0.7rem;
+  color: var(--color-accent);
+  background: rgba(254, 191, 151, 0.15);
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px dashed rgba(254, 191, 151, 0.35);
+  margin-left: 6px;
+  font-weight: normal;
+}
+
+.btn-add-extra-photo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(253, 10, 84, 0.15);
+  color: var(--color-bg-light);
+  border: 1px dashed var(--color-secondary);
+  border-radius: var(--radius-xs);
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  min-height: 44px;
+}
+
+.btn-add-extra-photo:hover {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+}
+
+.extra-photos-hint {
+  font-size: 0.72rem;
+  color: rgba(245, 236, 183, 0.7);
+  margin-bottom: 10px;
+  line-height: 1.35;
+}
+
+.extra-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+}
+
+.extra-photo-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 2px dashed rgba(254, 191, 151, 0.3);
+  background: #1a1222;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.25);
+}
+
+.extra-photo-thumb.is-cover {
+  border-color: var(--color-accent);
+  border-style: solid;
+}
+
+.extra-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.badge-cover-tag {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  background: var(--color-dark);
+  color: var(--color-accent);
+  font-size: 0.58rem;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 2px;
+  border: 1px dashed var(--color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  z-index: 2;
+  user-select: none;
+}
+
+.btn-remove-extra-photo {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(35, 25, 45, 0.9);
+  color: var(--color-secondary);
+  border: 1px solid var(--color-secondary);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 3;
+  padding: 0;
+  transition: var(--transition-fast);
+}
+
+.btn-remove-extra-photo:hover {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+}
+
+.badge-catalog-photos {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: var(--color-bg-light);
+  background: rgba(254, 191, 151, 0.12);
+  border: 1px dashed rgba(254, 191, 151, 0.4);
+  border-radius: 2px;
+  padding: 2px 5px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+

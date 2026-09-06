@@ -279,10 +279,22 @@
       <button class="btn-close-modal" id="btn-close-modal" aria-label="Fechar detalhes da peça">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
-      <div class="modal-img-wrap">
+      <div class="modal-img-wrap" id="modal-img-wrap">
         <img src="" alt="" id="modal-img-blur" class="modal-img-blur" aria-hidden="true">
         <div class="modal-img-overlay" aria-hidden="true"></div>
         <img src="" alt="" id="modal-img" width="400" height="400">
+
+        <!-- Navegação e Contador de Galeria Multi-Fotos (JEZ-019) -->
+        <span class="modal-photo-counter" id="modal-photo-counter" style="display: none;">1 / 1</span>
+        <button type="button" class="modal-nav-btn modal-nav-prev" id="modal-btn-prev" aria-label="Foto anterior" style="display: none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button type="button" class="modal-nav-btn modal-nav-next" id="modal-btn-next" aria-label="Próxima foto" style="display: none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+
+        <!-- Faixa de Miniaturas Flutuantes (JEZ-019) -->
+        <div class="modal-gallery-thumbs" id="modal-gallery-thumbs" style="display: none;"></div>
       </div>
       <div class="modal-content">
         <div>

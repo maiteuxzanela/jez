@@ -284,6 +284,23 @@
               </div>
             </div>
           </div>
+
+          <!-- Fotos Complementares da Peça (Galeria Multi-Fotos - JEZ-019) -->
+          <div class="extra-photos-section" id="new-extra-photos-section">
+            <div class="extra-photos-header">
+              <label class="form-label" style="margin-bottom: 0;">
+                Fotos Complementares (Ângulos & Detalhes)
+                <span class="label-badge-optional">Opcional • até 4 fotos extras</span>
+              </label>
+              <button type="button" class="btn-add-extra-photo" id="btn-add-new-extra-photo">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Adicionar Fotos Extras
+              </button>
+              <input type="file" id="new-extra-photos-input" multiple accept="image/*" style="display: none;">
+            </div>
+            <p class="extra-photos-hint">A foto principal acima é a Capa Oficial (1:1). As fotos extras aparecem na galeria de detalhes e na alternância ao passar o mouse.</p>
+            <div class="extra-photos-grid" id="new-extra-photos-grid"></div>
+          </div>
         </div>
 
         <!-- 2. Nome da Peça -->
@@ -435,6 +452,23 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- Fotos Complementares na Edição (Galeria Multi-Fotos - JEZ-019) -->
+          <div class="extra-photos-section" id="edit-extra-photos-section">
+            <div class="extra-photos-header">
+              <label class="form-label" style="margin-bottom: 0;">
+                Fotos Complementares (Ângulos & Detalhes)
+                <span class="label-badge-optional">Até 4 fotos extras</span>
+              </label>
+              <button type="button" class="btn-add-extra-photo" id="btn-add-edit-extra-photo">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Adicionar Fotos Extras
+              </button>
+              <input type="file" id="edit-extra-photos-input" multiple accept="image/*" style="display: none;">
+            </div>
+            <p class="extra-photos-hint">A foto principal acima é a Capa Oficial da vitrine. As fotos extras compõem a galeria e o efeito de alternância ao passar o mouse.</p>
+            <div class="extra-photos-grid" id="edit-extra-photos-grid"></div>
           </div>
         </div>
 

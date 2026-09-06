@@ -95,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
       categoryLabel: 'Bolsas & Bags',
       price: 169.90,
       image: 'assets/products/bolsa_punk.jpg',
+      images: ['assets/products/bolsa_punk.jpg', 'assets/products/bolsa_punk_detail.jpg'],
       status: 'order',
       isReady: false,
       leadTimeDays: 7,
@@ -109,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
       categoryLabel: 'Bolsas & Bags',
       price: 149.90,
       image: 'assets/products/tote_cherry.jpg',
+      images: ['assets/products/tote_cherry.jpg', 'assets/products/tote_cherry_detail.jpg'],
       status: 'ready',
       isReady: true,
       stockQty: 3,
@@ -196,6 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
       categoryLabel: 'Acessórios & Miudezas',
       price: 42.00,
       image: 'assets/products/chaveiro_baphomet.jpg',
+      images: ['assets/products/chaveiro_baphomet.jpg', 'assets/products/chaveiro_baphomet_detail.jpg'],
       status: 'ready',
       isReady: true,
       stockQty: 4,
@@ -259,7 +262,37 @@ document.addEventListener('DOMContentLoaded', () => {
       return combined;
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      let updated = false;
+      const hydrated = parsed.map(p => {
+        // Auto-cura do bug da bolsa cherry em peças padrão (JEZ-019)
+        if (p.id !== 'tote-cherry' && p.image && (p.image === 'assets/products/tote_cherry.jpg' || p.image.endsWith('/tote_cherry.jpg'))) {
+          const def = defaultInitialCatalog.find(d => d.id === p.id);
+          if (def && def.image) {
+            p.image = def.image;
+            updated = true;
+          }
+        }
+        if (p.id !== 'tote-cherry' && Array.isArray(p.images) && p.images.length > 0 && (p.images[0] === 'assets/products/tote_cherry.jpg' || p.images[0].endsWith('/tote_cherry.jpg'))) {
+          const def = defaultInitialCatalog.find(d => d.id === p.id);
+          if (def && def.image) {
+            p.images[0] = def.image;
+            updated = true;
+          }
+        }
+        if (!p.images || p.images.length === 0) {
+          const def = defaultInitialCatalog.find(d => d.id === p.id);
+          if (def && def.images) {
+            updated = true;
+            return { ...p, images: def.images };
+          }
+        }
+        return p;
+      });
+      if (updated) {
+        localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(hydrated));
+      }
+      return hydrated;
     } catch {
       return defaultInitialCatalog;
     }
@@ -309,7 +342,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const sanitizeImageUrl = (url) => {
     if (!url || typeof url !== 'string') return 'assets/products/tote_cherry.jpg';
     const trimmed = url.trim();
-    if (trimmed.startsWith('assets/') || trimmed.startsWith('data:image/') || trimmed.startsWith('https://') || trimmed.startsWith('./assets/')) {
+
+    // Normaliza caminhos de assets locais caso venham com URL absoluta do navegador
+    const assetIdx = trimmed.indexOf('assets/products/');
+    if (assetIdx !== -1) {
+      return trimmed.slice(assetIdx);
+    }
+
+    if (
+      trimmed.startsWith('assets/') ||
+      trimmed.startsWith('./assets/') ||
+      trimmed.startsWith('/assets/') ||
+      trimmed.startsWith('data:image/') ||
+      trimmed.startsWith('https://') ||
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('blob:')
+    ) {
       return trimmed;
     }
     return 'assets/products/tote_cherry.jpg';
@@ -544,6 +592,41 @@ document.addEventListener('DOMContentLoaded', () => {
     btnReset: document.getElementById('btn-edit-reset-crop'),
     zoomValEl: document.getElementById('edit-zoom-val-display')
   });
+
+  /**
+   * Comprime e redimensiona arquivos de imagem client-side via Canvas (JEZ-019)
+   */
+  const compressImageFile = (file, maxWidth = 800, quality = 0.78) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
+          if (width > maxWidth || height > maxWidth) {
+            if (width > height) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxWidth) / height);
+              height = maxWidth;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(e.target.result);
+        img.src = e.target.result;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
 
   // --------------------------------------------------------------------------
   // 4. Navegação em Abas Mobile-First
@@ -881,7 +964,79 @@ document.addEventListener('DOMContentLoaded', () => {
   const cropWorkspace = document.getElementById('crop-workspace');
   const btnChangeCropPhoto = document.getElementById('btn-change-crop-photo');
 
-  // Ao selecionar foto
+  // Gerenciamento de Fotos Extras no Cadastro (JEZ-019)
+  let newPieceExtraPhotos = [];
+  const btnAddNewExtraPhoto = document.getElementById('btn-add-new-extra-photo');
+  const newExtraPhotosInput = document.getElementById('new-extra-photos-input');
+  const newExtraPhotosGrid = document.getElementById('new-extra-photos-grid');
+
+  const renderNewExtraPhotos = () => {
+    if (!newExtraPhotosGrid) return;
+    newExtraPhotosGrid.innerHTML = '';
+
+    newPieceExtraPhotos.forEach((photoData, idx) => {
+      const thumb = document.createElement('div');
+      thumb.className = 'extra-photo-thumb';
+      thumb.innerHTML = `
+        <img src="${sanitizeImageUrl(photoData)}" alt="Foto extra ${idx + 1}">
+        <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover foto extra">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      `;
+      newExtraPhotosGrid.appendChild(thumb);
+    });
+
+    if (btnAddNewExtraPhoto) {
+      if (newPieceExtraPhotos.length >= 4) {
+        btnAddNewExtraPhoto.style.opacity = '0.5';
+        btnAddNewExtraPhoto.disabled = true;
+      } else {
+        btnAddNewExtraPhoto.style.opacity = '1';
+        btnAddNewExtraPhoto.disabled = false;
+      }
+    }
+  };
+
+  if (btnAddNewExtraPhoto && newExtraPhotosInput) {
+    btnAddNewExtraPhoto.addEventListener('click', () => {
+      if (newPieceExtraPhotos.length >= 4) {
+        showToast('Limite de 4 fotos extras atingido.');
+        return;
+      }
+      newExtraPhotosInput.click();
+    });
+
+    newExtraPhotosInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      const availableSlots = 4 - newPieceExtraPhotos.length;
+      const filesToProcess = files.slice(0, availableSlots);
+
+      for (const file of filesToProcess) {
+        const compressed = await compressImageFile(file);
+        if (compressed) {
+          newPieceExtraPhotos.push(compressed);
+        }
+      }
+      newExtraPhotosInput.value = '';
+      renderNewExtraPhotos();
+      showToast(`${filesToProcess.length} foto(s) extra(s) adicionada(s)!`);
+    });
+  }
+
+  if (newExtraPhotosGrid) {
+    newExtraPhotosGrid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-remove-extra-photo');
+      if (!btn) return;
+      const idx = parseInt(btn.getAttribute('data-idx'), 10);
+      if (!isNaN(idx)) {
+        newPieceExtraPhotos.splice(idx, 1);
+        renderNewExtraPhotos();
+      }
+    });
+  }
+
+  // Ao selecionar foto principal
   photoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -948,6 +1103,9 @@ document.addEventListener('DOMContentLoaded', () => {
       acessorios: 'Acessórios'
     };
 
+    const extraImages = [...newPieceExtraPhotos];
+    const allImages = [photoToUse, ...extraImages];
+
     const newPiece = {
       id: 'custom-' + Date.now(),
       name,
@@ -955,6 +1113,7 @@ document.addEventListener('DOMContentLoaded', () => {
       categoryLabel: categoryLabels[category] || 'Peças Autorais',
       price,
       image: photoToUse,
+      images: allImages,
       status: modality, // 'ready' ou 'order'
       isReady: modality === 'ready',
       stockQty: modality === 'ready' ? 1 : 0,
@@ -971,6 +1130,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Limpa formulário
     formNewProduct.reset();
     photoInput.value = '';
+    newPieceExtraPhotos = [];
+    renderNewExtraPhotos();
     cropWorkspace.style.display = 'none';
     uploadPrompt.style.display = 'flex';
     modalityOptions[0].click();
@@ -1067,7 +1228,15 @@ document.addEventListener('DOMContentLoaded', () => {
             <span class="admin-product-name" title="${safeName}">${safeName}</span>
             ${isFeatured ? featuredHtml : ''}
           </div>
-          <span class="admin-product-price">${formatCurrency(piece.price)}</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="admin-product-price">${formatCurrency(piece.price)}</span>
+            ${piece.images && piece.images.length > 1 ? `
+              <span class="badge-catalog-photos" title="${piece.images.length} fotos cadastradas">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                ${piece.images.length} fotos
+              </span>
+            ` : ''}
+          </div>
           
           <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
             ${statusBadgeHtml}
@@ -1196,10 +1365,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const editPhotoInput = document.getElementById('edit-photo-input');
   const editLeadtimeWrap = document.getElementById('edit-leadtime-wrap');
 
+  let currentEditingPiece = null;
+  let editCoverChanged = false;
+
   const openEditModal = async (pieceId) => {
     catalog = loadCatalog();
     const piece = catalog.find(p => p.id === pieceId);
     if (!piece) return;
+
+    currentEditingPiece = piece;
+    editCoverChanged = false;
 
     document.getElementById('edit-piece-id').value = piece.id;
     document.getElementById('edit-product-name').value = piece.name || '';
@@ -1228,6 +1403,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Exibe modal primeiro para que dimensões do viewport sejam computadas corretamente
     modalEditBackdrop.style.display = 'flex';
+
+    // Carrega fotos complementares (JEZ-019)
+    editPieceExtraPhotos = (piece.images && piece.images.length > 1) ? [...piece.images.slice(1)] : [];
+    renderEditExtraPhotos();
 
     // Carrega foto no recortador do modal
     await editPieceCropper.loadImage(piece.image);
@@ -1259,7 +1438,79 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Trocar foto na edição
+  // Gerenciamento de Fotos Extras na Edição (JEZ-019)
+  let editPieceExtraPhotos = [];
+  const btnAddEditExtraPhoto = document.getElementById('btn-add-edit-extra-photo');
+  const editExtraPhotosInput = document.getElementById('edit-extra-photos-input');
+  const editExtraPhotosGrid = document.getElementById('edit-extra-photos-grid');
+
+  const renderEditExtraPhotos = () => {
+    if (!editExtraPhotosGrid) return;
+    editExtraPhotosGrid.innerHTML = '';
+
+    editPieceExtraPhotos.forEach((photoData, idx) => {
+      const thumb = document.createElement('div');
+      thumb.className = 'extra-photo-thumb';
+      thumb.innerHTML = `
+        <img src="${sanitizeImageUrl(photoData)}" alt="Foto extra ${idx + 1}">
+        <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover foto extra">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      `;
+      editExtraPhotosGrid.appendChild(thumb);
+    });
+
+    if (btnAddEditExtraPhoto) {
+      if (editPieceExtraPhotos.length >= 4) {
+        btnAddEditExtraPhoto.style.opacity = '0.5';
+        btnAddEditExtraPhoto.disabled = true;
+      } else {
+        btnAddEditExtraPhoto.style.opacity = '1';
+        btnAddEditExtraPhoto.disabled = false;
+      }
+    }
+  };
+
+  if (btnAddEditExtraPhoto && editExtraPhotosInput) {
+    btnAddEditExtraPhoto.addEventListener('click', () => {
+      if (editPieceExtraPhotos.length >= 4) {
+        showToast('Limite de 4 fotos extras atingido.');
+        return;
+      }
+      editExtraPhotosInput.click();
+    });
+
+    editExtraPhotosInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      const availableSlots = 4 - editPieceExtraPhotos.length;
+      const filesToProcess = files.slice(0, availableSlots);
+
+      for (const file of filesToProcess) {
+        const compressed = await compressImageFile(file);
+        if (compressed) {
+          editPieceExtraPhotos.push(compressed);
+        }
+      }
+      editExtraPhotosInput.value = '';
+      renderEditExtraPhotos();
+      showToast(`${filesToProcess.length} foto(s) extra(s) adicionada(s)!`);
+    });
+  }
+
+  if (editExtraPhotosGrid) {
+    editExtraPhotosGrid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-remove-extra-photo');
+      if (!btn) return;
+      const idx = parseInt(btn.getAttribute('data-idx'), 10);
+      if (!isNaN(idx)) {
+        editPieceExtraPhotos.splice(idx, 1);
+        renderEditExtraPhotos();
+      }
+    });
+  }
+
+  // Trocar foto principal na edição
   const btnEditChangePhoto = document.getElementById('btn-edit-change-photo');
   if (btnEditChangePhoto) {
     btnEditChangePhoto.addEventListener('click', () => {
@@ -1271,6 +1522,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    editCoverChanged = true;
     const reader = new FileReader();
     reader.onload = async (event) => {
       await editPieceCropper.loadImage(event.target.result);
@@ -1297,14 +1549,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const materials = sanitizeText(document.getElementById('edit-product-materials').value, 200);
     const description = sanitizeText(document.getElementById('edit-product-desc').value, 800);
 
-    // Obtém a foto recortada 1:1
-    const croppedImage = editPieceCropper.getCroppedDataUrl(600);
+    // Preserva a foto de capa original se a artesã não fez upload de uma nova foto (JEZ-019)
+    let coverImage = currentEditingPiece ? currentEditingPiece.image : 'assets/products/tote_cherry.jpg';
+    if (editCoverChanged) {
+      const croppedImage = editPieceCropper.getCroppedDataUrl(600);
+      if (croppedImage) {
+        coverImage = croppedImage;
+      }
+    }
+    coverImage = sanitizeImageUrl(coverImage);
 
     const categoryLabels = {
       bolsas: 'Bolsas & Bags',
       vestuario: 'Vestuário Autoral',
       acessorios: 'Acessórios'
     };
+
+    const sanitizedExtras = editPieceExtraPhotos.map(img => sanitizeImageUrl(img));
+    const updatedImages = [coverImage, ...sanitizedExtras];
 
     catalog = loadCatalog().map(p => {
       if (p.id === id) {
@@ -1320,7 +1582,8 @@ document.addEventListener('DOMContentLoaded', () => {
           dimensions,
           materials,
           description,
-          image: croppedImage || p.image
+          image: coverImage,
+          images: updatedImages
         };
       }
       return p;
