@@ -17,6 +17,7 @@ const STATIC_ASSETS = [
   './firebase-config.js',
   './firebase-service.js',
   './manifest.json',
+  './manifest-atelie.json',
   './favicon.svg',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',

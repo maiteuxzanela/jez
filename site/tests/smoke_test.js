@@ -338,13 +338,25 @@ if (fs.existsSync(firebaseJsonPath)) {
 
 // 19.2 Manifesto Web App & Ícones PWA
 const manifestPath = path.join(ROOT_DIR, 'manifest.json');
+const manifestAteliePath = path.join(ROOT_DIR, 'manifest-atelie.json');
 assert(fs.existsSync(manifestPath), 'manifest.json existe no diretório site/');
+assert(fs.existsSync(manifestAteliePath), 'manifest-atelie.json isolado existe no diretório site/');
+
 if (fs.existsSync(manifestPath)) {
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+  const manifestRaw = fs.readFileSync(manifestPath, 'utf-8');
+  const manifest = JSON.parse(manifestRaw);
   assert(manifest.name && manifest.name.includes('JËZ'), 'manifest.json possui nome oficial com trema (JËZ)');
   assert(manifest.display === 'standalone', 'manifest.json define display standalone para sensação nativa de app');
   assert(manifest.theme_color === '#23192d' && manifest.background_color === '#23192d', 'manifest.json utiliza cores oficiais da marca (#23192d)');
   assert(Array.isArray(manifest.icons) && manifest.icons.length >= 3, 'manifest.json possui ícones configurados (192, 512, maskable)');
+  assert(!manifestRaw.includes('atelie.html') && !manifestRaw.includes('Painel do Ateliê'), 'Segurança & Privacidade: manifest.json público NÃO expõe link nem atalho para o Ateliê');
+}
+
+if (fs.existsSync(manifestAteliePath)) {
+  const atelieManifest = JSON.parse(fs.readFileSync(manifestAteliePath, 'utf-8'));
+  assert(atelieManifest.name === 'JËZ Ateliê | Painel da Artesã', 'manifest-atelie.json possui nome dedicado do Ateliê');
+  assert(atelieManifest.start_url === './atelie', 'manifest-atelie.json inicia diretamente na rota protegida do ateliê');
+  assert(atelieManifest.display === 'standalone', 'manifest-atelie.json permite instalação como app independente da artesã');
 }
 
 const pwaIcons = [
@@ -367,13 +379,14 @@ if (fs.existsSync(swPath)) {
   assert(swContent.includes("addEventListener('install'") || swContent.includes('addEventListener("install"'), 'sw.js implementa evento de instalação com pré-cache');
   assert(swContent.includes("addEventListener('activate'") || swContent.includes('addEventListener("activate"'), 'sw.js implementa evento de ativação e limpeza de cache antigo');
   assert(swContent.includes("addEventListener('fetch'") || swContent.includes('addEventListener("fetch"'), 'sw.js intercepta requisições com cache inteligente e fallback offline');
+  assert(swContent.includes('manifest-atelie.json'), 'sw.js armazena em cache o manifest-atelie.json');
 }
 
 // 19.4 Vinculação no HTML & CSS
 const latestIndexHtml = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf-8');
 const latestAtelieHtml = fs.readFileSync(path.join(ROOT_DIR, 'atelie.html'), 'utf-8');
-assert(latestIndexHtml.includes('rel="manifest"') && latestIndexHtml.includes('manifest.json'), 'index.html vincula o manifest.json');
-assert(latestAtelieHtml.includes('rel="manifest"') && latestAtelieHtml.includes('manifest.json'), 'atelie.html vincula o manifest.json');
+assert(latestIndexHtml.includes('rel="manifest"') && latestIndexHtml.includes('manifest.json'), 'index.html vincula o manifest.json público');
+assert(latestAtelieHtml.includes('rel="manifest"') && latestAtelieHtml.includes('manifest-atelie.json'), 'atelie.html vincula manifesto dedicado e isolado manifest-atelie.json');
 assert(latestIndexHtml.includes('apple-touch-icon') && latestAtelieHtml.includes('apple-touch-icon'), 'index.html e atelie.html declaram apple-touch-icon para iOS');
 assert(latestIndexHtml.includes('btn-pwa-install'), 'index.html contém botão de instalação do PWA');
 assert(latestAtelieHtml.includes('btn-pwa-install-admin'), 'atelie.html contém botão de instalação do PWA para o back-office');

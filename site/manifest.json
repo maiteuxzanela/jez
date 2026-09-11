@@ -47,18 +47,6 @@
           "sizes": "192x192"
         }
       ]
-    },
-    {
-      "name": "Painel do Ateliê",
-      "short_name": "Ateliê",
-      "description": "Gestão de pedidos, catálogo e produção artesanal",
-      "url": "./atelie.html",
-      "icons": [
-        {
-          "src": "assets/icons/icon-192.png",
-          "sizes": "192x192"
-        }
-      ]
     }
   ]
 }
