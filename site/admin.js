@@ -2097,6 +2097,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   let deferredAdminInstallPrompt = null;
   const btnPwaAdmin = document.getElementById('btn-pwa-install-admin');
+  const isIosAdminDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isStandaloneAdminMode = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+  // No iOS Safari, o beforeinstallprompt nao existe; exibimos o botao se nao estiver instalado em standalone
+  if (isIosAdminDevice && !isStandaloneAdminMode && btnPwaAdmin) {
+    btnPwaAdmin.style.display = 'inline-flex';
+  }
 
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
@@ -2108,8 +2115,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnPwaAdmin) {
     btnPwaAdmin.addEventListener('click', async () => {
+      if (isIosAdminDevice && !isStandaloneAdminMode) {
+        alert('Para instalar o aplicativo no iPhone ou iPad (Safari):\n1. Toque no botao de Compartilhar (icone com um quadrado e seta para cima na barra inferior do Safari).\n2. Role a lista e toque em "Adicionar a Tela de Inicio".\n3. Toque em "Adicionar" no canto superior direito.');
+        return;
+      }
+
       if (!deferredAdminInstallPrompt) {
-        alert('Para instalar o aplicativo no Navegador Samsung:\n1. Toque no menu de opcoes (tres linhas no canto inferior).\n2. Selecione "Adicionar pagina a".\n3. Escolha "Tela de inicio" (ou "Aplicativo").');
+        alert('Para instalar o aplicativo:\n- No Safari: Toque no botao de Compartilhar e selecione "Adicionar a Tela de Inicio".\n- No Samsung Internet: Toque no menu (tres linhas) e selecione "Adicionar pagina a" -> "Tela de inicio".\n- No Chrome: Toque no menu (tres pontos) e selecione "Instalar aplicativo".');
         return;
       }
       try {

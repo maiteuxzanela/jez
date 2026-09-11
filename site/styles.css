@@ -455,6 +455,7 @@ a {
   height: 26px;
   background: rgba(254, 191, 151, 0.88);
   backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   clip-path: polygon(
     0% 0%, 100% 0%, 
@@ -812,6 +813,7 @@ a {
   inset: 0;
   background: rgba(35, 25, 45, 0.6);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 1000;
   opacity: 0;
   pointer-events: none;
@@ -1177,6 +1179,7 @@ a {
   inset: 0;
   background: rgba(35, 25, 45, 0.65);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 1100;
   display: flex;
   align-items: center;
@@ -1976,6 +1979,11 @@ a {
     gap: 6px;
   }
 
+  .shipping-input,
+  .customer-input {
+    font-size: 16px; /* Evita zoom automatico no Safari / iOS ao focar no campo */
+  }
+
   .btn-calc-shipping {
     width: 100%;
     padding: 8px 12px;
@@ -2217,6 +2225,7 @@ a {
   inset: 0;
   background: rgba(15, 10, 20, 0.78);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 400;
   display: flex;
   align-items: center;
