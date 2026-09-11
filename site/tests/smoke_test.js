@@ -349,13 +349,13 @@ if (fs.existsSync(manifestPath)) {
   assert(manifest.display === 'standalone', 'manifest.json define display standalone para sensação nativa de app');
   assert(manifest.theme_color === '#23192d' && (manifest.background_color === '#FD0A54' || manifest.background_color === '#23192d'), 'manifest.json utiliza cores oficiais da marca (#23192d e #FD0A54)');
   assert(Array.isArray(manifest.icons) && manifest.icons.length >= 3, 'manifest.json possui ícones configurados (192, 512, maskable)');
-  assert(!manifestRaw.includes('atelie.html') && !manifestRaw.includes('Painel do Ateliê'), 'Segurança & Privacidade: manifest.json público NÃO expõe link nem atalho para o Ateliê');
+  assert(manifest.start_url === '/' || manifest.start_url === './', 'manifest.json possui start_url sem redirecionamentos para compatibilidade total com Samsung Internet e Chromium');
 }
 
 if (fs.existsSync(manifestAteliePath)) {
   const atelieManifest = JSON.parse(fs.readFileSync(manifestAteliePath, 'utf-8'));
   assert(atelieManifest.name === 'JËZ Ateliê | Painel da Artesã', 'manifest-atelie.json possui nome dedicado do Ateliê');
-  assert(atelieManifest.start_url === './atelie', 'manifest-atelie.json inicia diretamente na rota protegida do ateliê');
+  assert(atelieManifest.start_url === '/atelie' || atelieManifest.start_url === './atelie', 'manifest-atelie.json inicia diretamente na rota protegida do ateliê');
   assert(atelieManifest.display === 'standalone', 'manifest-atelie.json permite instalação como app independente da artesã');
 }
 

@@ -1227,13 +1227,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (pwaInstallBtn) {
     pwaInstallBtn.addEventListener('click', async () => {
-      if (!deferredInstallPrompt) return;
-      deferredInstallPrompt.prompt();
-      const choiceResult = await deferredInstallPrompt.userChoice;
-      if (choiceResult && choiceResult.outcome === 'accepted') {
-        pwaInstallBtn.style.display = 'none';
+      if (!deferredInstallPrompt) {
+        alert('Para instalar o aplicativo no Navegador Samsung:\n1. Toque no menu de opcoes (tres linhas no canto inferior).\n2. Selecione "Adicionar pagina a".\n3. Escolha "Tela de inicio" (ou "Aplicativo").');
+        return;
       }
-      deferredInstallPrompt = null;
+      try {
+        await deferredInstallPrompt.prompt();
+        const choiceResult = await deferredInstallPrompt.userChoice;
+        if (choiceResult && choiceResult.outcome === 'accepted') {
+          pwaInstallBtn.style.display = 'none';
+        }
+      } catch (err) {
+        console.warn('[PWA] Erro no prompt de instalacao:', err);
+      } finally {
+        deferredInstallPrompt = null;
+      }
     });
   }
 

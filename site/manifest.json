@@ -3,8 +3,8 @@
   "name": "JËZ collection | Moda Autoral & Crochê",
   "short_name": "JËZ collection",
   "description": "Peças exclusivas de crochê, moda alternativa, bolsas autorais e artes visuais feitas à mão por Jéssica Regina em Montes Claros – MG.",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#FD0A54",
@@ -17,19 +17,19 @@
   ],
   "icons": [
     {
-      "src": "assets/icons/icon-192.png?v=2",
+      "src": "assets/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-512.png?v=2",
+      "src": "assets/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "assets/icons/icon-maskable.png?v=2",
+      "src": "assets/icons/icon-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -40,10 +40,10 @@
       "name": "Vitrine de Peças",
       "short_name": "Vitrine",
       "description": "Explorar acervo de moda autoral e bolsas",
-      "url": "./index.html",
+      "url": "/",
       "icons": [
         {
-          "src": "assets/icons/icon-192.png?v=2",
+          "src": "assets/icons/icon-192.png",
           "sizes": "192x192"
         }
       ]

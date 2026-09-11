@@ -2108,13 +2108,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnPwaAdmin) {
     btnPwaAdmin.addEventListener('click', async () => {
-      if (!deferredAdminInstallPrompt) return;
-      deferredAdminInstallPrompt.prompt();
-      const choiceResult = await deferredAdminInstallPrompt.userChoice;
-      if (choiceResult && choiceResult.outcome === 'accepted') {
-        btnPwaAdmin.style.display = 'none';
+      if (!deferredAdminInstallPrompt) {
+        alert('Para instalar o aplicativo no Navegador Samsung:\n1. Toque no menu de opcoes (tres linhas no canto inferior).\n2. Selecione "Adicionar pagina a".\n3. Escolha "Tela de inicio" (ou "Aplicativo").');
+        return;
       }
-      deferredAdminInstallPrompt = null;
+      try {
+        await deferredAdminInstallPrompt.prompt();
+        const choiceResult = await deferredAdminInstallPrompt.userChoice;
+        if (choiceResult && choiceResult.outcome === 'accepted') {
+          btnPwaAdmin.style.display = 'none';
+        }
+      } catch (err) {
+        console.warn('[PWA Atelie] Erro no prompt de instalacao:', err);
+      } finally {
+        deferredAdminInstallPrompt = null;
+      }
     });
   }
 
