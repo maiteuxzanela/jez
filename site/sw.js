@@ -3,7 +3,7 @@
 // Arquitetura: Alex (CTO) | Performance: Noa | Cibersegurança: Morgan
 // ==========================================================================
 
-const CACHE_NAME = 'jez-boutique-cache-v1.0.0';
+const CACHE_NAME = 'jez-boutique-cache-v1.1.0';
 
 // Recursos essenciais para funcionamento offline e carregamento instantâneo
 const STATIC_ASSETS = [
@@ -19,9 +19,13 @@ const STATIC_ASSETS = [
   './manifest.json',
   './manifest-atelie.json',
   './favicon.svg',
+  './favicon.png',
+  './assets/logo-official.png',
+  './assets/logo-share.png',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
   './assets/icons/apple-touch-icon.png',
+  './assets/icons/icon-maskable.png',
   './assets/products/bolsa_punk.webp',
   './assets/products/bolsa_punk_detail.webp',
   './assets/products/tote_cherry.webp',
