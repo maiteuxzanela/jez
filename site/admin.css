@@ -131,6 +131,30 @@
   border-color: var(--color-primary);
 }
 
+.btn-pwa-install-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-primary);
+  border: 1px dashed rgba(245, 236, 183, 0.6);
+  color: var(--color-white);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.25);
+  transition: var(--transition-fast);
+}
+
+.btn-pwa-install-admin:hover {
+  background: var(--color-white);
+  color: var(--color-dark);
+  border-style: solid;
+  border-color: var(--color-dark);
+  box-shadow: 3px 3px 0px var(--color-dark);
+}
+
 /* --------------------------------------------------------------------------
    2. Navegação em Abas (Estilo App Mobile)
    -------------------------------------------------------------------------- */

@@ -2091,4 +2091,49 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     showLoginScreen();
   }
+
+  // --------------------------------------------------------------------------
+  // PWA (Progressive Web App) & Service Worker no Ateliê (Alex & Noa)
+  // --------------------------------------------------------------------------
+  let deferredAdminInstallPrompt = null;
+  const btnPwaAdmin = document.getElementById('btn-pwa-install-admin');
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredAdminInstallPrompt = e;
+    if (btnPwaAdmin) {
+      btnPwaAdmin.style.display = 'inline-flex';
+    }
+  });
+
+  if (btnPwaAdmin) {
+    btnPwaAdmin.addEventListener('click', async () => {
+      if (!deferredAdminInstallPrompt) return;
+      deferredAdminInstallPrompt.prompt();
+      const choiceResult = await deferredAdminInstallPrompt.userChoice;
+      if (choiceResult && choiceResult.outcome === 'accepted') {
+        btnPwaAdmin.style.display = 'none';
+      }
+      deferredAdminInstallPrompt = null;
+    });
+  }
+
+  window.addEventListener('appinstalled', () => {
+    if (btnPwaAdmin) {
+      btnPwaAdmin.style.display = 'none';
+    }
+    deferredAdminInstallPrompt = null;
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((reg) => {
+          console.log('[PWA Atelie] Service Worker registrado:', reg.scope);
+        })
+        .catch((err) => {
+          console.warn('[PWA Atelie] Falha ao registrar Service Worker:', err);
+        });
+    });
+  }
 });

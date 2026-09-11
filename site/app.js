@@ -1210,4 +1210,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
   initCloudSync();
+
+  // --------------------------------------------------------------------------
+  // 13. PWA (Progressive Web App) & Service Worker (Alex & Noa)
+  // --------------------------------------------------------------------------
+  let deferredInstallPrompt = null;
+  const pwaInstallBtn = document.getElementById('btn-pwa-install');
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (pwaInstallBtn) {
+      pwaInstallBtn.style.display = 'inline-flex';
+    }
+  });
+
+  if (pwaInstallBtn) {
+    pwaInstallBtn.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      const choiceResult = await deferredInstallPrompt.userChoice;
+      if (choiceResult && choiceResult.outcome === 'accepted') {
+        pwaInstallBtn.style.display = 'none';
+      }
+      deferredInstallPrompt = null;
+    });
+  }
+
+  window.addEventListener('appinstalled', () => {
+    if (pwaInstallBtn) {
+      pwaInstallBtn.style.display = 'none';
+    }
+    deferredInstallPrompt = null;
+  });
+
+  // Registro seguro do Service Worker para navegação offline e cache veloz
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((registration) => {
+          console.log('[PWA] Service Worker registrado com sucesso:', registration.scope);
+        })
+        .catch((error) => {
+          console.warn('[PWA] Falha ao registrar Service Worker:', error);
+        });
+    });
+  }
 });

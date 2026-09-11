@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Catálogo de Peças Artesanais (JËZ Collection)
+    // Leitura pública para todos os visitantes da vitrine
+    // Gravação e atualização permitidas para a gestão do ateliê
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Configurações globais da vitrine (ex: peça em destaque no Hero Polaroid)
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Pedidos de Clientes
+    // Qualquer cliente na internet pode registrar um novo pedido ao concluir a compra
+    // Leitura, atualização de status e despacho para o painel do ateliê
+    match /orders/{orderId} {
+      allow create: if true;
+      allow read, update, delete: if true;
+    }
+  }
+}

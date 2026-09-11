@@ -7,6 +7,11 @@
 !/index.html
 !/site/
 !/site/**
+!/.firebaserc
+!/firebase.json
+!/firestore.rules
+!/.github/
+!/.github/**
 
 # Arquivos de sistema e temporarios
 .DS_Store

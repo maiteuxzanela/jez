@@ -8,6 +8,16 @@
   <!-- Metadados de Gestão Interna -->
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#23192d">
+
+  <!-- Progressive Web App (PWA) & Ícones Oficiais (Alex & Noa) -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="JËZ Ateliê">
+  <meta name="application-name" content="JËZ Ateliê">
+  <meta name="mobile-web-app-capable" content="yes">
   
   <!-- Metadados de Segurança & Privacidade (Morgan - Cibersegurança & LGPD) -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
@@ -40,6 +50,10 @@
           <span class="sync-dot"></span>
           <span class="sync-label">Nuvem Ativa</span>
         </span>
+        <button type="button" class="btn-pwa-install-admin" id="btn-pwa-install-admin" title="Instalar aplicativo do Ateliê no dispositivo" style="display: none;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Instalar App</span>
+        </button>
         <a href="index.html" class="btn-back-store" id="btn-back-store" title="Abrir a vitrine da loja online">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
           <span>Ver Loja</span>

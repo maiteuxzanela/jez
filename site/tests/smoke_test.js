@@ -315,6 +315,86 @@ const legacyProduct = { id: 'leg-1', image: 'assets/products/tote_cherry.jpg' };
 const resolvedImages = (Array.isArray(legacyProduct.images) && legacyProduct.images.length > 0) ? legacyProduct.images : [legacyProduct.image];
 assert(resolvedImages.length === 1 && resolvedImages[0] === legacyProduct.image, 'Peças legadas sem array images mantêm fallback perfeito para a capa');
 
+// 19. Validando Transformação PWA, Firebase Hosting & CI/CD Automático (JEZ-022)
+console.log('\n📲 19. Validando PWA, Firebase Hosting e Automação CI/CD (JEZ-022):');
+const PROJECT_ROOT = path.resolve(ROOT_DIR, '..');
+
+// 19.1 Configurações do Firebase
+const firebasercPath = path.join(PROJECT_ROOT, '.firebaserc');
+const firebaseJsonPath = path.join(PROJECT_ROOT, 'firebase.json');
+assert(fs.existsSync(firebasercPath), '.firebaserc existe na raiz do projeto');
+assert(fs.existsSync(firebaseJsonPath), 'firebase.json existe na raiz do projeto');
+
+if (fs.existsSync(firebasercPath)) {
+  const rc = JSON.parse(fs.readFileSync(firebasercPath, 'utf-8'));
+  assert(rc.projects && rc.projects.default === 'jez-collection', '.firebaserc aponta para o projeto jez-collection');
+}
+
+if (fs.existsSync(firebaseJsonPath)) {
+  const fbJson = JSON.parse(fs.readFileSync(firebaseJsonPath, 'utf-8'));
+  assert(fbJson.hosting && fbJson.hosting.public === 'site', 'firebase.json define public como "site"');
+  assert(Array.isArray(fbJson.hosting.headers) && fbJson.hosting.headers.some(h => h.source === '/sw.js'), 'firebase.json define cabeçalhos no-cache para o Service Worker');
+}
+
+// 19.2 Manifesto Web App & Ícones PWA
+const manifestPath = path.join(ROOT_DIR, 'manifest.json');
+assert(fs.existsSync(manifestPath), 'manifest.json existe no diretório site/');
+if (fs.existsSync(manifestPath)) {
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+  assert(manifest.name && manifest.name.includes('JËZ'), 'manifest.json possui nome oficial com trema (JËZ)');
+  assert(manifest.display === 'standalone', 'manifest.json define display standalone para sensação nativa de app');
+  assert(manifest.theme_color === '#23192d' && manifest.background_color === '#23192d', 'manifest.json utiliza cores oficiais da marca (#23192d)');
+  assert(Array.isArray(manifest.icons) && manifest.icons.length >= 3, 'manifest.json possui ícones configurados (192, 512, maskable)');
+}
+
+const pwaIcons = [
+  'icon-192.png',
+  'icon-512.png',
+  'icon-maskable.png',
+  'apple-touch-icon.png'
+];
+pwaIcons.forEach(iconName => {
+  const iconPath = path.join(ROOT_DIR, 'assets', 'icons', iconName);
+  assert(fs.existsSync(iconPath) && fs.statSync(iconPath).size > 1000, `Ícone PWA ${iconName} existe e possui boa qualidade`);
+});
+assert(fs.existsSync(path.join(ROOT_DIR, 'favicon.svg')), 'Favicon SVG vetorial existe em site/');
+
+// 19.3 Service Worker
+const swPath = path.join(ROOT_DIR, 'sw.js');
+assert(fs.existsSync(swPath), 'sw.js existe no diretório site/');
+if (fs.existsSync(swPath)) {
+  const swContent = fs.readFileSync(swPath, 'utf-8');
+  assert(swContent.includes("addEventListener('install'") || swContent.includes('addEventListener("install"'), 'sw.js implementa evento de instalação com pré-cache');
+  assert(swContent.includes("addEventListener('activate'") || swContent.includes('addEventListener("activate"'), 'sw.js implementa evento de ativação e limpeza de cache antigo');
+  assert(swContent.includes("addEventListener('fetch'") || swContent.includes('addEventListener("fetch"'), 'sw.js intercepta requisições com cache inteligente e fallback offline');
+}
+
+// 19.4 Vinculação no HTML & CSS
+const latestIndexHtml = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf-8');
+const latestAtelieHtml = fs.readFileSync(path.join(ROOT_DIR, 'atelie.html'), 'utf-8');
+assert(latestIndexHtml.includes('rel="manifest"') && latestIndexHtml.includes('manifest.json'), 'index.html vincula o manifest.json');
+assert(latestAtelieHtml.includes('rel="manifest"') && latestAtelieHtml.includes('manifest.json'), 'atelie.html vincula o manifest.json');
+assert(latestIndexHtml.includes('apple-touch-icon') && latestAtelieHtml.includes('apple-touch-icon'), 'index.html e atelie.html declaram apple-touch-icon para iOS');
+assert(latestIndexHtml.includes('btn-pwa-install'), 'index.html contém botão de instalação do PWA');
+assert(latestAtelieHtml.includes('btn-pwa-install-admin'), 'atelie.html contém botão de instalação do PWA para o back-office');
+
+// 19.5 Handlers em app.js e admin.js
+const latestAppJs = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf-8');
+const latestAdminJs = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+assert(latestAppJs.includes('serviceWorker') && latestAppJs.includes('beforeinstallprompt'), 'app.js implementa registro do Service Worker e escuta de instalação');
+assert(latestAdminJs.includes('serviceWorker') && latestAdminJs.includes('beforeinstallprompt'), 'admin.js implementa registro do Service Worker e escuta de instalação no Ateliê');
+
+// 19.6 Automação CI/CD no GitHub Actions
+const workflowPath = path.join(PROJECT_ROOT, '.github', 'workflows', 'firebase-hosting-merge.yml');
+assert(fs.existsSync(workflowPath), 'Workflow do GitHub Actions .github/workflows/firebase-hosting-merge.yml existe');
+if (fs.existsSync(workflowPath)) {
+  const workflowContent = fs.readFileSync(workflowPath, 'utf-8');
+  assert(workflowContent.includes('branches:') && workflowContent.includes('main'), 'Workflow CI/CD é acionado automaticamente em pushes na branch main');
+  assert(workflowContent.includes('smoke_test.js'), 'Workflow executa a bateria de testes de regressão antes do deploy');
+  assert(workflowContent.includes('action-hosting-deploy'), 'Workflow utiliza a action oficial de deploy do Firebase Hosting');
+  assert(workflowContent.includes('FIREBASE_SERVICE_ACCOUNT_JEZ_COLLECTION'), 'Workflow referencia a secret oficial de autenticação do Firebase');
+  assert(workflowContent.includes('jez-collection'), 'Workflow define o projectId jez-collection');
+}
 
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);

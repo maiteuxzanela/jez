@@ -225,6 +225,32 @@ a {
   transform: translateY(-2px);
 }
 
+.btn-pwa-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-radius: 3px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1.5px dashed rgba(245, 236, 183, 0.55);
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-pwa-install:hover {
+  background: var(--color-white);
+  color: var(--color-dark);
+  border-style: solid;
+  border-color: var(--color-primary);
+  box-shadow: 3px 3px 0px var(--color-dark);
+  transform: translateY(-2px);
+}
+
 .cart-button {
   position: relative;
   width: 48px;
@@ -1705,6 +1731,16 @@ a {
 
   .btn-instagram span {
     display: none; /* Mantém apenas o ícone no mobile para garantir largura vertical sem corte */
+  }
+
+  .btn-pwa-install {
+    padding: 6px 9px;
+    font-size: 0.78rem;
+    gap: 4px;
+  }
+
+  .btn-pwa-install span {
+    display: none;
   }
 
   .cart-button {
