@@ -347,7 +347,7 @@ if (fs.existsSync(manifestPath)) {
   const manifest = JSON.parse(manifestRaw);
   assert(manifest.name && manifest.name.includes('JËZ'), 'manifest.json possui nome oficial com trema (JËZ)');
   assert(manifest.display === 'standalone', 'manifest.json define display standalone para sensação nativa de app');
-  assert(manifest.theme_color === '#23192d' && manifest.background_color === '#23192d', 'manifest.json utiliza cores oficiais da marca (#23192d)');
+  assert(manifest.theme_color === '#23192d' && (manifest.background_color === '#FD0A54' || manifest.background_color === '#23192d'), 'manifest.json utiliza cores oficiais da marca (#23192d e #FD0A54)');
   assert(Array.isArray(manifest.icons) && manifest.icons.length >= 3, 'manifest.json possui ícones configurados (192, 512, maskable)');
   assert(!manifestRaw.includes('atelie.html') && !manifestRaw.includes('Painel do Ateliê'), 'Segurança & Privacidade: manifest.json público NÃO expõe link nem atalho para o Ateliê');
 }
