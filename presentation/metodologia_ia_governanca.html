@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0">
-  <title>Governança e Eficiência de Tokens - Metodologia de IA</title>
+  <title>Squad de Personas e Matriz de Eficiência - JEZ Collections</title>
   <style>
     * {
       margin: 0;
@@ -17,45 +17,44 @@
       height: 1080px;
       background-color: #0b0713;
       background-image: 
-        radial-gradient(circle at 85% 20%, rgba(56, 189, 248, 0.12) 0%, transparent 40%),
-        radial-gradient(circle at 15% 85%, rgba(253, 10, 84, 0.12) 0%, transparent 45%),
-        radial-gradient(circle at 50% 50%, rgba(121, 40, 202, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 80% 15%, rgba(56, 189, 248, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 20% 85%, rgba(253, 10, 84, 0.12) 0%, transparent 45%),
         linear-gradient(180deg, #0b0713 0%, #120c1f 100%);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: #f1f0f5;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      padding: 32px 48px;
+      padding: 24px 40px;
     }
 
     /* HEADER */
     .header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 22px;
+      align-items: center;
+      margin-bottom: 16px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding-bottom: 16px;
+      padding-bottom: 12px;
     }
 
-    .header-left h1 {
-      font-size: 32px;
-      font-weight: 800;
+    .header-title-wrap h1 {
+      font-size: 26px;
+      font-weight: 900;
       letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #ffffff 30%, #38bdf8 100%);
+      background: linear-gradient(135deg, #ffffff 40%, #38bdf8 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 6px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
-    .header-left p {
-      font-size: 15px;
+    .header-title-wrap p {
+      font-size: 13px;
       color: #a59fb6;
-      font-weight: 500;
+      font-weight: 600;
+      margin-top: 2px;
     }
 
     .header-badges {
@@ -63,60 +62,113 @@
       gap: 10px;
     }
 
-    .badge {
-      padding: 6px 14px;
-      border-radius: 9999px;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
+    .pill {
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
       text-transform: uppercase;
-      display: inline-flex;
+      letter-spacing: 0.5px;
+    }
+
+    .pill-cyan { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); }
+    .pill-magenta { background: rgba(253, 10, 84, 0.15); color: #ff4a80; border: 1px solid rgba(253, 10, 84, 0.35); }
+    .pill-emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); }
+
+    /* SEÇÃO 1: BANNER DO SQUAD 2D (PARTE SUPERIOR) */
+    .squad-banner-card {
+      background: rgba(20, 14, 33, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      position: relative;
+    }
+
+    .squad-banner-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .squad-banner-title {
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #febf97;
+      display: flex;
       align-items: center;
       gap: 6px;
     }
 
-    .badge-cyan {
-      background: rgba(56, 189, 248, 0.15);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.35);
+    .squad-art-frame {
+      width: 100%;
+      height: 300px;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
     }
 
-    .badge-amber {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.35);
+    .squad-art-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 30%;
     }
 
-    .badge-emerald {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.35);
+    .squad-badges-row {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
 
-    /* MAIN 4-QUADRANT GRID */
-    .quadrant-grid {
+    .persona-pill-tag {
+      font-size: 11px;
+      font-weight: 800;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* SEÇÃO 2: MATRIZ DE EFICIÊNCIA (3 BLOCOS VISUAIS NA BASE) */
+    .bottom-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      gap: 22px;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 16px;
       flex: 1;
-      height: calc(1080px - 195px);
+      height: calc(1080px - 510px);
     }
 
-    .card {
-      background: rgba(23, 16, 38, 0.65);
-      backdrop-filter: blur(16px);
+    .matriz-card {
+      background: rgba(23, 16, 38, 0.7);
+      backdrop-filter: blur(14px);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 18px;
-      padding: 22px 26px;
+      border-radius: 16px;
+      padding: 16px 18px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
       position: relative;
       overflow: hidden;
     }
 
-    .card::before {
+    .matriz-card::before {
       content: "";
       position: absolute;
       top: 0;
@@ -125,271 +177,202 @@
       height: 3px;
     }
 
-    .card.q1::before { background: linear-gradient(90deg, #38BDF8, #6366F1); }
-    .card.q2::before { background: linear-gradient(90deg, #FD0A54, #F57576); }
-    .card.q3::before { background: linear-gradient(90deg, #A855F7, #C084FC); }
-    .card.q4::before { background: linear-gradient(90deg, #10B981, #34D399); }
+    .card-funnel::before { background: linear-gradient(90deg, #38BDF8, #6366F1); }
+    .card-hitl::before { background: linear-gradient(90deg, #10B981, #FD0A54); }
+    .card-rule::before { background: linear-gradient(90deg, #A855F7, #FEBF97); }
 
-    .card-header-row {
+    .matriz-card-header {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      margin-bottom: 14px;
-      padding-bottom: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
-    .card-header-title {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .card-header-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .card-title-text h3 {
-      font-size: 16px;
+    .matriz-card-title {
+      font-size: 13px;
       font-weight: 800;
-      color: #ffffff;
-      letter-spacing: -0.2px;
-    }
-
-    .card-title-text span {
-      font-size: 12px;
-      color: #a59fb6;
-      font-weight: 500;
-    }
-
-    .quadrant-pill {
-      font-size: 11px;
-      font-weight: 800;
-      padding: 4px 10px;
-      border-radius: 6px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-    }
-
-    /* QUADRANTE 1: FUNIL DETERMINÍSTICO */
-    .pillar-rule-banner {
-      background: rgba(56, 189, 248, 0.08);
-      border-left: 3px solid #38BDF8;
-      border-radius: 0 8px 8px 0;
-      padding: 8px 14px;
-      font-size: 12px;
-      color: #bae6fd;
-      margin-bottom: 14px;
-      line-height: 1.4;
-    }
-
-    .cases-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      flex: 1;
-    }
-
-    .case-item {
-      background: rgba(32, 22, 53, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 10px;
-      padding: 10px 14px;
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-    }
-
-    .case-icon-box {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      background: rgba(56, 189, 248, 0.2);
-      color: #38bdf8;
+      color: #ffffff;
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 800;
-      margin-top: 2px;
+      gap: 8px;
     }
 
-    .case-content strong {
-      font-size: 13px;
-      color: #ffffff;
-      display: block;
-      margin-bottom: 2px;
-    }
-
-    .case-content p {
-      font-size: 12px;
-      color: #9d96b0;
-      line-height: 1.4;
-    }
-
-    /* QUADRANTE 2: ANTI-PROLIXIDADE */
-    .density-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      flex: 1;
-    }
-
-    .density-box {
-      background: rgba(32, 22, 53, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 10px;
-      padding: 12px;
+    /* BLOCO 1: FUNIL DETERMINÍSTICO */
+    .funnel-steps {
       display: flex;
       flex-direction: column;
+      gap: 8px;
+      flex: 1;
       justify-content: space-between;
     }
 
-    .density-tag-bad {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 800;
-      color: #f87171;
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      padding: 2px 8px;
-      border-radius: 4px;
-      margin-bottom: 6px;
-      width: fit-content;
-    }
-
-    .density-tag-good {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 800;
-      color: #34d399;
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      padding: 2px 8px;
-      border-radius: 4px;
-      margin-bottom: 6px;
-      width: fit-content;
-    }
-
-    .density-desc {
-      font-size: 12px;
-      color: #c4bfd4;
-      line-height: 1.4;
-    }
-
-    /* QUADRANTE 3: SKILLS & PERSONAS */
-    .split-col-box {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      flex: 1;
-    }
-
-    .sub-panel {
-      background: rgba(30, 21, 50, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 10px;
-      padding: 12px 14px;
+    .funnel-stage {
+      background: rgba(32, 22, 53, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      padding: 8px 12px;
       display: flex;
-      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    .sub-panel-title {
-      font-size: 13px;
+    .funnel-stage-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #9d96b0;
+      text-transform: uppercase;
+    }
+
+    .funnel-stage-value {
+      font-size: 12px;
       font-weight: 700;
-      color: #c084fc;
-      margin-bottom: 8px;
+      color: #ffffff;
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
-    .sub-panel ul {
-      list-style: none;
-      font-size: 11px;
-      color: #b5adc9;
-      line-height: 1.5;
-    }
-
-    .sub-panel ul li {
-      margin-bottom: 5px;
-      position: relative;
-      padding-left: 12px;
-    }
-
-    .sub-panel ul li::before {
-      content: "•";
-      position: absolute;
-      left: 2px;
-      color: #c084fc;
-      font-weight: bold;
-    }
-
-    /* QUADRANTE 4: FRONTEIRA HUMANO + IA */
-    .hitl-diagram {
+    .funnel-arrow-down {
       display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #38BDF8;
+      font-size: 11px;
+      font-weight: 900;
+      margin: -4px 0;
+    }
+
+    .funnel-result-box {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      padding: 8px 10px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: #38bdf8;
+    }
+
+    /* BLOCO 2: FRONTEIRA HUMANO + IA */
+    .hitl-split-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
       gap: 12px;
       flex: 1;
     }
 
-    .hitl-side {
-      flex: 1;
+    .hitl-col {
       border-radius: 10px;
-      padding: 12px 14px;
+      padding: 10px 12px;
       display: flex;
       flex-direction: column;
+      justify-content: space-between;
     }
 
-    .hitl-ia {
+    .hitl-col-ia {
       background: rgba(16, 185, 129, 0.08);
       border: 1px solid rgba(16, 185, 129, 0.25);
     }
 
-    .hitl-human {
+    .hitl-col-human {
       background: rgba(253, 10, 84, 0.08);
       border: 1px solid rgba(253, 10, 84, 0.25);
     }
 
-    .hitl-title {
-      font-size: 13px;
+    .hitl-col-header {
+      font-size: 12px;
       font-weight: 800;
+      text-transform: uppercase;
       margin-bottom: 6px;
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
-    .hitl-ia .hitl-title { color: #34d399; }
-    .hitl-human .hitl-title { color: #ff4a80; }
+    .hitl-col-ia .hitl-col-header { color: #34d399; }
+    .hitl-col-human .hitl-col-header { color: #ff4a80; }
 
-    .hitl-bullets {
+    .hitl-micro-list {
       list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
       font-size: 11px;
-      line-height: 1.45;
-      color: #d1d5db;
+      color: #e5e7eb;
+      font-weight: 600;
     }
 
-    .hitl-bullets li {
-      margin-bottom: 4px;
-      padding-left: 12px;
-      position: relative;
+    .hitl-micro-list li {
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
-    .hitl-ia .hitl-bullets li::before { content: "✓"; position: absolute; left: 0; color: #34d399; font-weight: bold; }
-    .hitl-human .hitl-bullets li::before { content: "★"; position: absolute; left: 0; color: #ff4a80; font-weight: bold; }
+    /* BLOCO 3: REGRA DA REPETIÇÃO & SKILLS */
+    .rule-decision-tree {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      justify-content: space-between;
+    }
 
-    /* FOOTER METRICS BAR */
+    .decision-question-box {
+      background: rgba(168, 85, 247, 0.12);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      border-radius: 8px;
+      padding: 8px 12px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: #e9d5ff;
+    }
+
+    .decision-branches {
+      display: flex;
+      gap: 10px;
+    }
+
+    .branch-box {
+      flex: 1;
+      background: rgba(32, 22, 53, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .branch-tag {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      width: fit-content;
+    }
+
+    .branch-tag-no { background: rgba(255, 255, 255, 0.1); color: #ccc; }
+    .branch-tag-yes { background: rgba(253, 10, 84, 0.25); color: #ff4a80; }
+
+    .branch-action {
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.3;
+    }
+
+    /* METRICS FOOTER */
     .metrics-bar {
-      margin-top: 20px;
+      margin-top: 14px;
       background: rgba(18, 12, 31, 0.85);
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 14px;
-      padding: 12px 28px;
+      border-radius: 12px;
+      padding: 10px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -398,32 +381,19 @@
     .metric-item {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .metric-value {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 900;
-      letter-spacing: -0.5px;
-      font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      font-family: ui-monospace, Consolas, monospace;
     }
 
     .metric-label {
-      font-size: 12px;
-      color: #9d96b0;
-      line-height: 1.2;
-    }
-
-    .metric-label strong {
-      display: block;
-      color: #ffffff;
-      font-size: 12px;
-    }
-
-    .metric-divider {
-      width: 1px;
-      height: 32px;
-      background: rgba(255, 255, 255, 0.1);
+      font-size: 11px;
+      color: #a59fb6;
+      font-weight: 700;
     }
   </style>
 </head>
@@ -431,227 +401,156 @@
 
   <!-- HEADER -->
   <header class="header">
-    <div class="header-left">
+    <div class="header-title-wrap">
       <h1>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"></circle>
           <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
           <line x1="12" y1="17" x2="12.01" y2="17"></line>
         </svg>
-        Governança, Gestão de Tokens & Princípios Operacionais
+        O Squad de Personas & Matriz de Eficiência Operacional
       </h1>
-      <p>Otimização de Custos de Contexto, Tarefas Determinísticas & Equilíbrio entre Automação e Julgamento Humano</p>
+      <p>Equipe Especializada de IA • Economia de Tokens • Divisão de Trabalho Humano-Máquina</p>
     </div>
     <div class="header-badges">
-      <span class="badge badge-cyan">Deterministic First</span>
-      <span class="badge badge-amber">Token Economy</span>
-      <span class="badge badge-emerald">Human-in-the-Loop</span>
+      <span class="pill pill-cyan">Deterministic First</span>
+      <span class="pill pill-magenta">Orquestrador Leve</span>
+      <span class="pill pill-emerald">Human-in-the-Loop</span>
     </div>
   </header>
 
-  <!-- 4 QUADRANTES -->
-  <main class="quadrant-grid">
+  <!-- 1. BANNER DO SQUAD 2D -->
+  <section class="squad-banner-card">
+    <div class="squad-banner-top">
+      <span class="squad-banner-title">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+        Equipe de Especialistas — Estilo de Animação 2D Autoral
+      </span>
+      <span style="font-size: 11px; color: #a59fb6; font-weight: 600;">Diretório /personas • Perfis Descolados & Alternativos</span>
+    </div>
+    <div class="squad-art-frame">
+      <img src="personas_squad_art.jpg" alt="Squad de Personas 2D" class="squad-art-img">
+    </div>
+    <div class="squad-badges-row">
+      <div class="persona-pill-tag"><span class="dot" style="background: #7928CA;"></span>Alex (CTO)</div>
+      <div class="persona-pill-tag"><span class="dot" style="background: #A855F7;"></span>Ariel (Art)</div>
+      <div class="persona-pill-tag"><span class="dot" style="background: #FD0A54;"></span>Lumi (UI/UX)</div>
+      <div class="persona-pill-tag"><span class="dot" style="background: #F57576;"></span>Sam (E-Com)</div>
+      <div class="persona-pill-tag"><span class="dot" style="background: #FEBF97;"></span>Cris (Merchant)</div>
+      <div class="persona-pill-tag"><span class="dot" style="background: #38BDF8;"></span>Morgan (Sec)</div>
+      <div class="persona-pill-tag"><span class="dot" style="background: #10B981;"></span>Noa (Perf)</div>
+      <div class="persona-pill-tag"><span class="dot" style="background: #34D399;"></span>Robin (QA)</div>
+    </div>
+  </section>
 
-    <!-- QUADRANTE 1: FUNIL DETERMINÍSTICO -->
-    <section class="card q1">
-      <div class="card-header-row">
-        <div class="card-header-title">
-          <div class="card-header-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-          </div>
-          <div class="card-title-text">
-            <h3>1. O Funil Determinístico de Tokens</h3>
-            <span>Nunca gaste tokens caros onde scripts de 2 linhas resolvem com 100% de exatidão</span>
-          </div>
-        </div>
-        <span class="quadrant-pill" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">Eficiência</span>
+  <!-- 2. MATRIZ DE EFICIÊNCIA (3 CARDS VISUAIS) -->
+  <main class="bottom-grid">
+
+    <!-- FUNIL DETERMINÍSTICO -->
+    <div class="matriz-card card-funnel">
+      <div class="matriz-card-header">
+        <span class="matriz-card-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+          Funil Determinístico
+        </span>
+        <span style="font-size: 10px; font-weight: 800; color: #38BDF8; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px;">ECONOMIA</span>
       </div>
-
-      <div class="pillar-rule-banner">
-        <strong>Princípio Cardinal:</strong> A IA só entra para raciocínio não-linear, abstração e síntese. Toda extração estruturada deve ser resolvida por ferramentas determinísticas prévias.
-      </div>
-
-      <div class="cases-list">
-        <div class="case-item">
-          <div class="case-icon-box">OCR</div>
-          <div class="case-content">
-            <strong>Processamento de Documentos e PDFs via CLI</strong>
-            <p>Utilização de utilitários nativos de OCR / pdftotext para extrair dados tabulares antes de enviar à IA, reduzindo o consumo de tokens em mais de 85%.</p>
-          </div>
+      <div class="funnel-steps">
+        <div class="funnel-stage">
+          <span class="funnel-stage-label">1. Input Bruto</span>
+          <span class="funnel-stage-value">PDFs • Logs • Código</span>
         </div>
-
-        <div class="case-item">
-          <div class="case-icon-box">CLI</div>
-          <div class="case-content">
-            <strong>Validação Estática de Código (node -c & Ripgrep)</strong>
-            <p>Erros de sintaxe e busca de padrões são capturados instantaneamente por compilador de máquina, poupando a janela de contexto de ler milhares de linhas.</p>
-          </div>
+        <div class="funnel-arrow-down">▼ OCR / Compilador Local</div>
+        <div class="funnel-stage">
+          <span class="funnel-stage-label">2. Filtro CLI</span>
+          <span class="funnel-stage-value">pdftotext • node -c • rg</span>
         </div>
-      </div>
-    </section>
-
-    <!-- QUADRANTE 2: ANTI-PROLIXIDADE E ECONOMIA DE CONTEXTO -->
-    <section class="card q2">
-      <div class="card-header-row">
-        <div class="card-header-title">
-          <div class="card-header-icon" style="background: rgba(253, 10, 84, 0.15); color: #FD0A54;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-          </div>
-          <div class="card-title-text">
-            <h3>2. Gestão de Contexto & Anti-Prolixidade</h3>
-            <span>Densidade máxima de informação e combate à entropia na janela de trabalho</span>
-          </div>
-        </div>
-        <span class="quadrant-pill" style="background: rgba(253, 10, 84, 0.15); color: #ff4a80;">Qualidade</span>
-      </div>
-
-      <div class="density-grid">
-        <div class="density-box">
-          <div>
-            <span class="density-tag-bad">Eliminar: Formalismos e Prolixidade</span>
-            <div class="density-desc">
-              Descarte imediato de saudações vazias, desculpas prolixas e introduções cosméticas do agente. Cada interação deve focar estritamente na entrega técnica de valor.
-            </div>
-          </div>
-          <div style="font-size: 11px; color: #fca5a5; font-family: monospace; margin-top: 6px;">
-            - 30% a 40% em tokens conversacionais
-          </div>
-        </div>
-
-        <div class="density-box">
-          <div>
-            <span class="density-tag-good">Adotar: Comunicação por Contratos</span>
-            <div class="density-desc">
-              Respostas orientadas a diffs pontuais, schemas JSON estritos e checklists de aceitação. Reduz alucinações e acelera o ciclo de inspeção e merge do código.
-            </div>
-          </div>
-          <div style="font-size: 11px; color: #6ee7b7; font-family: monospace; margin-top: 6px;">
-            + 100% de clareza e rastreabilidade
-          </div>
+        <div class="funnel-arrow-down">▼ Contexto Enxuto</div>
+        <div class="funnel-result-box">
+          -75% TOKENS • ZERO ALUCINAÇÃO
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- QUADRANTE 3: SKILLS REUTILIZÁVEIS E GESTÃO ORGÂNICA DE PERSONAS -->
-    <section class="card q3">
-      <div class="card-header-row">
-        <div class="card-header-title">
-          <div class="card-header-icon" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
-          </div>
-          <div class="card-title-text">
-            <h3>3. Skills Reutilizáveis & Gestão de Personas</h3>
-            <span>Padronização de rotinas e expansão orgânica do time de especialistas</span>
-          </div>
-        </div>
-        <span class="quadrant-pill" style="background: rgba(168, 85, 247, 0.15); color: #c084fc;">Modularidade</span>
+    <!-- FRONTEIRA HUMANO + IA -->
+    <div class="matriz-card card-hitl">
+      <div class="matriz-card-header">
+        <span class="matriz-card-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          Fronteira Humano + IA
+        </span>
+        <span style="font-size: 10px; font-weight: 800; color: #34D399; background: rgba(16, 185, 129, 0.15); padding: 2px 6px; border-radius: 4px;">DIVISÃO ÓTIMA</span>
       </div>
-
-      <div class="split-col-box">
-        <div class="sub-panel">
-          <div class="sub-panel-title">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-            Skills para Rotinas Repetitivas
-          </div>
-          <ul>
-            <li>Empacotamento de procedimentos operacionais (SOPs).</li>
-            <li>Suíte de testes de regressão automatizada (Robin).</li>
-            <li>Rotinas de compilação, checagem e deploy contínuo.</li>
-            <li>Checklists de conformidade LGPD e segurança.</li>
+      <div class="hitl-split-box">
+        <div class="hitl-col hitl-col-ia">
+          <div class="hitl-col-header">Máquina (95% Operação)</div>
+          <ul class="hitl-micro-list">
+            <li>✓ Código & Firestore</li>
+            <li>✓ 209 Testes CI/CD</li>
+            <li>✓ Transação Atômica</li>
+            <li>✓ PWA & SEO</li>
           </ul>
         </div>
-
-        <div class="sub-panel">
-          <div class="sub-panel-title">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-            Princípio da Repetição de Personas
-          </div>
-          <ul>
-            <li>Orquestrador jamais executa tarefas além de delegar.</li>
-            <li>Se o orquestrador repete um papel técnico mais de 1 vez, formaliza-se uma nova persona na pasta <code>personas/</code>.</li>
-            <li>Garante domínio isolado, especialização e foco.</li>
+        <div class="hitl-col hitl-col-human">
+          <div class="hitl-col-header">Humano (Liderança & Design)</div>
+          <ul class="hitl-micro-list">
+            <li>★ Validação Visual Manual</li>
+            <li>★ Curadoria Estética Fina</li>
+            <li>★ Critérios no Kanban</li>
+            <li>★ Decisão de Produto</li>
           </ul>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- QUADRANTE 4: FRONTEIRA HUMANO + IA -->
-    <section class="card q4">
-      <div class="card-header-row">
-        <div class="card-header-title">
-          <div class="card-header-icon" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-          </div>
-          <div class="card-title-text">
-            <h3>4. A Fronteira Ótima Humano + IA</h3>
-            <span>Onde a máquina acelera e onde a liderança humana é insubstituível</span>
-          </div>
-        </div>
-        <span class="quadrant-pill" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">Equilíbrio</span>
+    <!-- REGRA DA REPETIÇÃO & SKILLS -->
+    <div class="matriz-card card-rule">
+      <div class="matriz-card-header">
+        <span class="matriz-card-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A855F7" stroke-width="2.5"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          Regra de Expansão
+        </span>
+        <span style="font-size: 10px; font-weight: 800; color: #C084FC; background: rgba(168, 85, 247, 0.15); padding: 2px 6px; border-radius: 4px;">MODULARIDADE</span>
       </div>
-
-      <div class="hitl-diagram">
-        <div class="hitl-side hitl-ia">
-          <div class="hitl-title">Automação por IA (95% Operacional)</div>
-          <ul class="hitl-bullets">
-            <li>Geração e refatoração de código com testes.</li>
-            <li>Transações atômicas contra concorrência no Firestore.</li>
-            <li>Otimização técnica de performance, SEO e PWA.</li>
-            <li>Manutenção viva do Kanban e documentação.</li>
-          </ul>
+      <div class="rule-decision-tree">
+        <div class="decision-question-box">
+          Orquestrador precisou executar manualmente > 1 vez?
         </div>
-
-        <div class="hitl-side hitl-human">
-          <div class="hitl-title">Liderança Humana (Juízo Crítico & Design)</div>
-          <ul class="hitl-bullets">
-            <li><strong>Inspeção Visual Humana</strong>: em vez de gastar tokens caros com visão de tela a todo momento, o tempo ganho é usado para o humano validar o design.</li>
-            <li>Curadoria estética fina e sensibilidade de marca autoral.</li>
-            <li>Definição da estratégia de negócio e prioridades do Kanban.</li>
-          </ul>
+        <div class="decision-branches">
+          <div class="branch-box">
+            <span class="branch-tag branch-tag-no">NÃO</span>
+            <span class="branch-action">Executa Pontual</span>
+          </div>
+          <div class="branch-box" style="border-color: rgba(253, 10, 84, 0.35);">
+            <span class="branch-tag branch-tag-yes">SIM</span>
+            <span class="branch-action">Instancia Nova Persona ou Empacota Skill</span>
+          </div>
+        </div>
+        <div style="font-size: 11px; text-align: center; color: #febf97; font-weight: 700; margin-top: 4px;">
+          Resultado: Orquestrador 100% Leve
         </div>
       </div>
-    </section>
+    </div>
 
   </main>
 
   <!-- METRICS FOOTER -->
   <footer class="metrics-bar">
     <div class="metric-item">
-      <div class="metric-value" style="color: #34d399;">209 / 209</div>
-      <div class="metric-label">
-        <strong>Testes Automatizados</strong>
-        100% Passing no CI/CD
-      </div>
+      <span class="metric-value" style="color: #34d399;">209 / 209</span>
+      <span class="metric-label">Testes Aprovados</span>
     </div>
-
-    <div class="metric-divider"></div>
-
     <div class="metric-item">
-      <div class="metric-value" style="color: #38bdf8;">- 75%</div>
-      <div class="metric-label">
-        <strong>Custo de Contexto</strong>
-        Graças a filtros determinísticos
-      </div>
+      <span class="metric-value" style="color: #38bdf8;">- 75%</span>
+      <span class="metric-label">Custo de Tokens</span>
     </div>
-
-    <div class="metric-divider"></div>
-
     <div class="metric-item">
-      <div class="metric-value" style="color: #c084fc;">7 Personas</div>
-      <div class="metric-label">
-        <strong>Especialistas Modulares</strong>
-        Escalabilidade sob demanda
-      </div>
+      <span class="metric-value" style="color: #c084fc;">7 Personas</span>
+      <span class="metric-label">Time Especialista</span>
     </div>
-
-    <div class="metric-divider"></div>
-
     <div class="metric-item">
-      <div class="metric-value" style="color: #ff4a80;">ZERO</div>
-      <div class="metric-label">
-        <strong>Regressões em Produção</strong>
-        Deploy seguro no Firebase
-      </div>
+      <span class="metric-value" style="color: #ff4a80;">ZERO</span>
+      <span class="metric-label">Regressões em Produção</span>
     </div>
   </footer>
 
