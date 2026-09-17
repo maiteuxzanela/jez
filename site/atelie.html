@@ -225,9 +225,15 @@
          SEÇÃO 2: GESTÃO VISUAL DE PEDIDOS
          ==================================================================== -->
     <section class="admin-section" id="section-orders">
-      <div class="section-title-wrap">
-        <h2>Controle Visual de Pedidos</h2>
-        <p>Acompanhe e avance o status dos pedidos dos seus clientes com até 2 toques:</p>
+      <div class="section-title-wrap section-title-with-action">
+        <div class="title-text-group">
+          <h2>Controle Visual de Pedidos</h2>
+          <p>Acompanhe e avance o status dos pedidos dos seus clientes com até 2 toques:</p>
+        </div>
+        <button type="button" class="btn-reset-orders" id="btn-reset-orders" title="Resetar histórico de vendas e pedidos">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          <span>Resetar Vendas</span>
+        </button>
       </div>
 
       <!-- Filtros por Status com Cores Oficiais (Flex Wrap Responsivo Anti-Overlap) -->
@@ -571,6 +577,25 @@
           <button type="submit" class="btn-save-modal" id="btn-save-edit">Salvar Alterações</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal de Confirmação de Reset de Vendas -->
+  <div class="admin-modal-backdrop" id="modal-reset-orders-backdrop" style="display: none;">
+    <div class="admin-modal-card modal-reset-card" id="modal-reset-orders-card">
+      <div class="admin-modal-header" style="justify-content: center; border-bottom: none; padding-bottom: 0;">
+        <h3 class="admin-modal-title" style="color: var(--color-primary);">Resetar Dados de Vendas</h3>
+      </div>
+      <div class="reset-modal-body">
+        <p>Tem certeza de que deseja zerar o histórico de vendas?</p>
+        <p class="reset-modal-note">
+          Esta ação irá limpar todos os pedidos registrados localmente e na base de dados em nuvem. Esta operação não pode ser desfeita.
+        </p>
+      </div>
+      <div class="modal-form-actions" style="justify-content: center; gap: 12px;">
+        <button type="button" class="btn-cancel-modal" id="btn-cancel-reset-orders">Cancelar</button>
+        <button type="button" class="btn-confirm-reset-danger" id="btn-confirm-reset-orders">Sim, Resetar Vendas</button>
+      </div>
     </div>
   </div>
 

@@ -409,6 +409,15 @@ if (fs.existsSync(workflowPath)) {
   assert(workflowContent.includes('jez-collection'), 'Workflow define o projectId jez-collection');
 }
 
+// 20. Validação de Limpeza de Vendas Fake & Reset Seguro no Ateliê (JEZ-023)
+console.log('\n🧹 20. Validando Limpeza de Vendas Fake e Reset Seguro no Ateliê (JEZ-023):');
+assert(fbServiceContent.includes('clearOrders'), 'firebase-service.js implementa método clearOrders para resetar pedidos na nuvem');
+assert(!adminJsRef.includes('defaultSampleOrders') && !adminJsRef.includes('JEZ-8042'), 'admin.js removeu template de vendas fictícias (defaultSampleOrders)');
+assert(adminHtmlRef.includes('id="btn-reset-orders"'), 'atelie.html contém botão discreto #btn-reset-orders');
+assert(adminHtmlRef.includes('id="modal-reset-orders-backdrop"'), 'atelie.html contém modal de confirmação para reset de vendas');
+assert(adminCssContent.includes('.btn-reset-orders') && adminCssContent.includes('.modal-reset-card'), 'admin.css define estilização boutique para o botão de reset e modal');
+assert(adminJsRef.includes('btn-reset-orders') && adminJsRef.includes('modal-reset-orders-backdrop'), 'admin.js implementa controle completo do fluxo de confirmação e reset');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

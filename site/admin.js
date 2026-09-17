@@ -23,68 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const MAX_FAILED_ATTEMPTS = 5;
   const LOCKOUT_DURATION_MS = 5 * 60 * 1000; // 5 minutos de bloqueio temporário por Morgan
 
-  // Pedidos Iniciais de Demonstração
-  const defaultSampleOrders = [
-    {
-      id: 'JEZ-8042',
-      date: new Date(Date.now() - 3600000 * 2).toISOString(),
-      customer: 'Mariana V. (Belo Horizonte - MG)',
-      items: [{ name: 'Tote Bag Cherry com Laço', quantity: 1, price: 149.90 }],
-      subtotal: 149.90,
-      shipping: 18.50,
-      total: 168.40,
-      status: 'preparar-envio',
-      trackingCode: ''
-    },
-    {
-      id: 'JEZ-8038',
-      date: new Date(Date.now() - 3600000 * 24).toISOString(),
-      customer: 'Camilla F. (São Paulo - SP)',
-      items: [{ name: 'Blusa Teia de Aranha Cropped', quantity: 1, price: 189.90 }],
-      subtotal: 189.90,
-      shipping: 22.90,
-      total: 212.80,
-      status: 'em-producao',
-      leadTimeDays: 8,
-      trackingCode: ''
-    },
-    {
-      id: 'JEZ-8031',
-      date: new Date(Date.now() - 3600000 * 48).toISOString(),
-      customer: 'Letícia R. (Montes Claros - MG)',
-      items: [{ name: 'Bolsa Punk Slouchy com Correntes', quantity: 1, price: 169.90 }],
-      subtotal: 169.90,
-      shipping: 12.00,
-      total: 181.90,
-      status: 'enviado',
-      trackingCode: 'NL893412571BR'
-    },
-    {
-      id: 'JEZ-8025',
-      date: new Date(Date.now() - 3600000 * 72).toISOString(),
-      customer: 'Beatriz M. (Rio de Janeiro - RJ)',
-      items: [{ name: 'Shoulder Bag Coração Granny Square', quantity: 1, price: 139.90 }],
-      subtotal: 139.90,
-      shipping: 24.50,
-      total: 164.40,
-      status: 'aguardando-pagamento',
-      trackingCode: ''
-    },
-    {
-      id: 'JEZ-8012',
-      date: new Date(Date.now() - 3600000 * 120).toISOString(),
-      customer: 'Amanda S. (Curitiba - PR)',
-      items: [
-        { name: 'Top Amarração Frontal + Bandana', quantity: 1, price: 129.90 },
-        { name: 'Chaveiro Amigurumi Baphomet Cute', quantity: 1, price: 42.00 }
-      ],
-      subtotal: 171.90,
-      shipping: 26.00,
-      total: 197.90,
-      status: 'concluido',
-      trackingCode: 'NL872149503BR'
-    }
-  ];
+  // Gestão de Pedidos & Vendas: Conectado em tempo real ao Cloud Firestore
+
 
   // Catálogo Padrão Completo da Loja
   const defaultInitialCatalog = [
@@ -230,13 +170,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadOrders = () => {
     const raw = localStorage.getItem(STORAGE_ORDERS_KEY);
     if (!raw) {
-      localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(defaultSampleOrders));
-      return defaultSampleOrders;
+      return [];
     }
     try {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      // Higienização automática: expurga dados fictícios legados do cache do navegador
+      if (parsed.some(o => o.id && o.id.startsWith('JEZ-80'))) {
+        localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify([]));
+        return [];
+      }
+      return parsed;
     } catch {
-      return defaultSampleOrders;
+      return [];
     }
   };
 
@@ -827,9 +773,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const filtered = currentOrderFilter === 'all' ? orders : orders.filter(o => o.status === currentOrderFilter);
 
     if (filtered.length === 0) {
+      const emptyHtml = currentOrderFilter === 'all'
+        ? `<p style="font-size: 0.95rem; font-weight: 700; color: var(--color-bg-light);">Nenhum pedido registrado ainda.</p>
+           <p style="font-size: 0.82rem; margin-top: 6px; color: rgba(245, 236, 183, 0.65);">Assim que um cliente concluir o pedido na vitrine, ele aparecerá aqui em tempo real.</p>`
+        : `<p style="font-size: 0.95rem; font-weight: 700; color: var(--color-bg-light);">Nenhum pedido encontrado nesta categoria.</p>`;
       container.innerHTML = `
         <div style="text-align: center; padding: 40px 20px; color: rgba(245, 236, 183, 0.75); background: var(--admin-card-bg); border-radius: var(--radius-sm); border: var(--admin-card-border);">
-          <p style="font-size: 0.95rem; font-weight: 700;">Nenhum pedido encontrado nesta categoria.</p>
+          ${emptyHtml}
         </div>
       `;
       return;
@@ -1009,6 +959,60 @@ document.addEventListener('DOMContentLoaded', () => {
       renderOrders();
     });
   });
+
+  // Lógica do Modal de Confirmação para Resetar Vendas (JEZ-023)
+  const btnResetOrders = document.getElementById('btn-reset-orders');
+  const modalResetBackdrop = document.getElementById('modal-reset-orders-backdrop');
+  const btnCancelResetOrders = document.getElementById('btn-cancel-reset-orders');
+  const btnConfirmResetOrders = document.getElementById('btn-confirm-reset-orders');
+
+  const openResetModal = () => {
+    if (modalResetBackdrop) modalResetBackdrop.style.display = 'flex';
+  };
+
+  const closeResetModal = () => {
+    if (modalResetBackdrop) modalResetBackdrop.style.display = 'none';
+  };
+
+  if (btnResetOrders) {
+    btnResetOrders.addEventListener('click', openResetModal);
+  }
+
+  if (btnCancelResetOrders) {
+    btnCancelResetOrders.addEventListener('click', closeResetModal);
+  }
+
+  if (modalResetBackdrop) {
+    modalResetBackdrop.addEventListener('click', (e) => {
+      if (e.target === modalResetBackdrop) closeResetModal();
+    });
+  }
+
+  if (btnConfirmResetOrders) {
+    btnConfirmResetOrders.addEventListener('click', async () => {
+      const originalText = btnConfirmResetOrders.textContent;
+      btnConfirmResetOrders.disabled = true;
+      btnConfirmResetOrders.textContent = 'Resetando...';
+
+      try {
+        if (window.jezFirebase && typeof window.jezFirebase.clearOrders === 'function') {
+          await window.jezFirebase.clearOrders();
+        }
+      } catch (err) {
+        console.warn('[JËZ Cloud] Erro ao limpar pedidos no Firestore:', err);
+      }
+
+      orders = [];
+      localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify([]));
+      renderOrders();
+      updateDashboard();
+      closeResetModal();
+
+      btnConfirmResetOrders.disabled = false;
+      btnConfirmResetOrders.textContent = originalText;
+      showToast('Histórico de vendas resetado com sucesso.');
+    });
+  }
 
   // --------------------------------------------------------------------------
   // 7. Cadastro de Nova Peça com Reenquadramento e Zoom
@@ -1994,7 +1998,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Ouve pedidos em tempo real da nuvem
       window.jezFirebase.onOrdersChange((cloudOrders) => {
-        if (Array.isArray(cloudOrders) && cloudOrders.length > 0) {
+        if (Array.isArray(cloudOrders)) {
           orders = cloudOrders;
           localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(orders));
           renderOrders();

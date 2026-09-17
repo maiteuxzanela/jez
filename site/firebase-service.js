@@ -194,6 +194,14 @@ class JezFirebaseService {
     });
   }
 
+  async clearOrders() {
+    if (!this.db) throw new Error('Firestore não inicializado');
+    const colRef = collection(this.db, 'orders');
+    const snap = await getDocs(colRef);
+    const deletePromises = snap.docs.map(docSnap => deleteDoc(docSnap.ref));
+    await Promise.all(deletePromises);
+  }
+
   // --------------------------------------------------------------------------
   // 3. Peça em Destaque da Vitrine (Hero Polaroid)
   // --------------------------------------------------------------------------
