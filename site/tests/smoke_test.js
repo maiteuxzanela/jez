@@ -30,13 +30,26 @@ console.log('\n🧪 ======================================================');
 console.log('🧪 Iniciando Bateria de Testes de Regressão — JEZ Collection');
 console.log('🧪 ======================================================\n');
 
-// 1. Integridade dos Arquivos Estruturais
-console.log('📁 1. Validando Arquivos Essenciais do Repositório:');
+// 1. Integridade dos Arquivos Estruturais & Sintaxe JavaScript
+console.log('📁 1. Validando Arquivos Essenciais do Repositório & Compilação:');
+const { execSync } = require('child_process');
 const requiredFiles = ['index.html', 'styles.css', 'app.js', 'atelie.html', 'admin.css', 'admin.js'];
 requiredFiles.forEach(file => {
   const filePath = path.join(ROOT_DIR, file);
   assert(fs.existsSync(filePath) && fs.statSync(filePath).size > 100, `Arquivo ${file} existe e possui conteúdo`);
 });
+try {
+  execSync(`node -c "${path.join(ROOT_DIR, 'app.js')}"`);
+  assert(true, 'app.js compila sem nenhum erro de sintaxe (node -c)');
+} catch (e) {
+  assert(false, `app.js falhou na compilação: ${e.message}`);
+}
+try {
+  execSync(`node -c "${path.join(ROOT_DIR, 'admin.js')}"`);
+  assert(true, 'admin.js compila sem nenhum erro de sintaxe (node -c)');
+} catch (e) {
+  assert(false, `admin.js falhou na compilação: ${e.message}`);
+}
 
 // 2. Integridade dos Tokens Visuais (Design System Lumi)
 console.log('\n🎨 2. Validando Tokens Oficiais da Paleta em styles.css:');

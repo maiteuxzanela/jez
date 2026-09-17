@@ -190,8 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const def = defaultProducts.find(d => d.id === p.id);
             if (def && def.images) {
               updated = true;
-              return { ...p, images: def.images };
+              p.images = def.images;
             }
+          }
           if (p.stockQty === undefined || p.stockQty === null) {
             const def = defaultProducts.find(d => d.id === p.id);
             if (def && def.stockQty !== undefined) {
@@ -361,8 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   // 5. Renderização do Catálogo de Produtos (Blindado contra XSS)
   // --------------------------------------------------------------------------
-  const renderCatalog = () => {
-    products = getProducts();
+  const renderCatalog = (catalogToUse = null) => {
+    if (catalogToUse && Array.isArray(catalogToUse)) {
+      products = catalogToUse;
+    } else {
+      products = getProducts();
+    }
     productsGrid.innerHTML = '';
 
     const filtered = products.filter(p => {
@@ -377,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     filtered.forEach(p => {
-      const isSoldOut = Boolean(p.isReady || p.stockQty !== undefined) && Number(p.stockQty !== undefined ? p.stockQty : 1) <= 0;
+      const isSoldOut = Boolean(p.isReady) && Number(p.stockQty !== undefined ? p.stockQty : 1) <= 0;
       const card = document.createElement('article');
       card.className = `product-card ${isSoldOut ? 'is-sold-out' : ''}`;
       card.id = `card-${escapeHtml(p.id)}`;
@@ -666,7 +671,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
-    const isSoldOut = Boolean(product.isReady || product.stockQty !== undefined) && Number(product.stockQty !== undefined ? product.stockQty : 1) <= 0;
+    const isSoldOut = Boolean(product.isReady) && Number(product.stockQty !== undefined ? product.stockQty : 1) <= 0;
     if (isSoldOut) {
       showToast(`A peça "${product.name}" está esgotada no momento.`);
       return;
@@ -899,7 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    const isSoldOut = Boolean(product.isReady || product.stockQty !== undefined) && Number(product.stockQty !== undefined ? product.stockQty : 1) <= 0;
+    const isSoldOut = Boolean(product.isReady) && Number(product.stockQty !== undefined ? product.stockQty : 1) <= 0;
 
     const modalImgWrap = document.getElementById('modal-img-wrap');
     if (modalImgWrap) {
@@ -1185,7 +1190,7 @@ document.addEventListener('DOMContentLoaded', () => {
   modalBtnAddCart.addEventListener('click', () => {
     if (currentModalProductId) {
       const prod = products.find(p => p.id === currentModalProductId);
-      const isSoldOut = prod && Boolean(prod.isReady || prod.stockQty !== undefined) && Number(prod.stockQty !== undefined ? prod.stockQty : 1) <= 0;
+      const isSoldOut = prod && Boolean(prod.isReady) && Number(prod.stockQty !== undefined ? prod.stockQty : 1) <= 0;
       if (isSoldOut) {
         showToast('Esta peça está esgotada no momento.');
         return;
@@ -1392,14 +1397,16 @@ document.addEventListener('DOMContentLoaded', () => {
       window.jezFirebase.onProductsChange((cloudProducts) => {
         if (Array.isArray(cloudProducts) && cloudProducts.length > 0) {
           const sorted = sortProductsByCuratedOrder(cloudProducts);
-          products = sorted
+          const mapped = sorted
             .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
             .map(p => ({
               ...p,
               isReady: p.status ? p.status === 'ready' : (p.isReady !== undefined ? p.isReady : true),
               stockQty: p.stockQty !== undefined && p.stockQty !== null ? Number(p.stockQty) : (p.status === 'ready' || (p.status !== 'order' && p.isReady) ? 1 : 0)
             }));
-          renderCatalog();
+          localStorage.setItem('jez_catalog', JSON.stringify(mapped));
+          products = mapped;
+          renderCatalog(products);
           renderHeroFeaturedCard();
         }
       });
