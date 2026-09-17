@@ -708,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
       itemRow.className = 'recent-order-item';
       itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(35, 25, 45, 0.6); border: 1px dashed rgba(254, 191, 151, 0.25); border-radius: 4px; font-size: 0.82rem;';
       
-      const statusMeta = getStatusMeta(order.status);
+      const statusMeta = getStatusMeta(order.status, order);
       const safeId = escapeHtml(order.id);
       const safeCustomer = escapeHtml((order.customer || '').split(' ')[0]);
       const safeStatus = escapeHtml(order.status);
@@ -727,11 +727,79 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  // --------------------------------------------------------------------------
+  // 5.1 Identificação de Modalidade de Produção (Pronta Entrega vs Sob Encomenda)
+  // --------------------------------------------------------------------------
+  const isItemCustomProduction = (item) => {
+    if (!item) return false;
+
+    // 1. Verificação explícita no item
+    if (item.isReady === false || item.status === 'order' || (item.leadTimeDays && Number(item.leadTimeDays) > 0)) {
+      return true;
+    }
+    if (item.isReady === true || item.status === 'ready') {
+      return false;
+    }
+
+    // 2. Consulta de referência cruzada no catálogo do ateliê
+    if (catalog && Array.isArray(catalog)) {
+      const match = catalog.find(p => {
+        if (item.id && p.id === item.id) return true;
+        if (p.name && item.name) {
+          const normP = p.name.trim().toLowerCase();
+          const normI = item.name.trim().toLowerCase();
+          return normP === normI || normP.includes(normI) || normI.includes(normP);
+        }
+        return false;
+      });
+
+      if (match) {
+        if (match.status === 'order' || (!match.isReady && match.status !== 'ready') || (match.leadTimeDays && Number(match.leadTimeDays) > 0)) {
+          return true;
+        }
+        if (match.status === 'ready' || (match.isReady && match.status !== 'order')) {
+          return false;
+        }
+      }
+    }
+
+    // 3. Fallback textual pelo nome
+    if (item.name && typeof item.name === 'string') {
+      const lower = item.name.toLowerCase();
+      if (lower.includes('encomenda') || lower.includes('tear') || lower.includes('produção') || lower.includes('producao')) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const isOrderCustomProduction = (order) => {
+    if (!order) return false;
+    if (order.hasCustomProduction !== undefined) {
+      return Boolean(order.hasCustomProduction);
+    }
+    if (order.modality === 'order') return true;
+    if (order.modality === 'ready') return false;
+
+    if (!order.items || !Array.isArray(order.items) || order.items.length === 0) {
+      return false;
+    }
+
+    return order.items.some(item => isItemCustomProduction(item));
+  };
+
   // Metadados de Status dos Pedidos
-  const getStatusMeta = (status) => {
+  const getStatusMeta = (status, order = null) => {
     switch (status) {
-      case 'aguardando-pagamento':
-        return { label: 'Aguardando Pagamento', nextLabel: 'Confirmar Pix (Preparar Envio)', nextStatus: 'preparar-envio' };
+      case 'aguardando-pagamento': {
+        const isCustom = order ? isOrderCustomProduction(order) : false;
+        return {
+          label: 'Aguardando Pagamento',
+          nextLabel: isCustom ? 'Enviar para o Tear (Produção)' : 'Confirmar Pix (Preparar Envio)',
+          nextStatus: isCustom ? 'em-producao' : 'preparar-envio'
+        };
+      }
       case 'em-producao':
         return { label: 'Em Produção', nextLabel: 'Peça Concluída (Preparar Envio)', nextStatus: 'preparar-envio' };
       case 'preparar-envio':
@@ -750,6 +818,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   const renderOrders = () => {
     orders = loadOrders();
+    catalog = loadCatalog();
     const container = document.getElementById('orders-list-container');
     container.innerHTML = '';
 
@@ -788,14 +857,21 @@ document.addEventListener('DOMContentLoaded', () => {
     filtered.forEach(order => {
       const card = document.createElement('div');
       card.className = 'order-card';
-      const statusMeta = getStatusMeta(order.status);
+      const isCustomOrder = isOrderCustomProduction(order);
+      const statusMeta = getStatusMeta(order.status, order);
 
-      const itemsHtml = order.items.map(i => `
-        <div style="display: flex; justify-content: space-between;">
-          <span>• ${escapeHtml(i.quantity)}x ${escapeHtml(i.name)}</span>
-          <span style="font-weight: 700;">${formatCurrency((Number(i.price) || 0) * (Number(i.quantity) || 1))}</span>
-        </div>
-      `).join('');
+      const itemsHtml = order.items.map(i => {
+        const itemIsCustom = isItemCustomProduction(i);
+        const modalityBadge = itemIsCustom
+          ? `<span style="font-size: 0.65rem; padding: 1px 6px; border-radius: 3px; background: rgba(234, 88, 12, 0.2); color: #fb923c; border: 1px solid rgba(234, 88, 12, 0.35); font-weight: 600; margin-left: 6px;">Sob Encomenda</span>`
+          : `<span style="font-size: 0.65rem; padding: 1px 6px; border-radius: 3px; background: rgba(37, 99, 235, 0.2); color: #60a5fa; border: 1px solid rgba(37, 99, 235, 0.35); font-weight: 600; margin-left: 6px;">Pronta Entrega</span>`;
+        return `
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 2px;">
+            <span style="display: flex; align-items: center; flex-wrap: wrap;">• ${escapeHtml(i.quantity)}x ${escapeHtml(i.name)} ${modalityBadge}</span>
+            <span style="font-weight: 700;">${formatCurrency((Number(i.price) || 0) * (Number(i.quantity) || 1))}</span>
+          </div>
+        `;
+      }).join('');
 
       const safeOrderId = escapeHtml(order.id);
       const safeCustomer = escapeHtml(order.customer);
@@ -859,14 +935,17 @@ document.addEventListener('DOMContentLoaded', () => {
         <!-- Ações de Transição de Status em 2 toques -->
         <div class="order-status-actions">
           <div class="status-action-row">
-            ${order.status === 'aguardando-pagamento' ? `
-              <button class="btn-status-change" data-id="${order.id}" data-newstatus="preparar-envio" style="background: #2563eb; color: #fff; border-color: #2563eb;">
-                Confirmar Pix (Preparar Envio)
-              </button>
-              <button class="btn-status-change" data-id="${order.id}" data-newstatus="em-producao" style="background: #ea580c; color: #fff; border-color: #ea580c;">
-                Enviar para o Tear (Produção)
-              </button>
-            ` : ''}
+            ${order.status === 'aguardando-pagamento' ? (
+              isCustomOrder ? `
+                <button class="btn-status-change" data-id="${order.id}" data-newstatus="em-producao" style="background: #ea580c; color: #fff; border-color: #ea580c; width: 100%; justify-content: center;">
+                  Enviar para o Tear (Produção)
+                </button>
+              ` : `
+                <button class="btn-status-change" data-id="${order.id}" data-newstatus="preparar-envio" style="background: #2563eb; color: #fff; border-color: #2563eb; width: 100%; justify-content: center;">
+                  Confirmar Pix (Preparar Envio)
+                </button>
+              `
+            ) : ''}
 
             ${order.status === 'em-producao' ? `
               <button class="btn-status-change" data-id="${order.id}" data-newstatus="preparar-envio" style="background: #2563eb; color: #fff; border-color: #2563eb;">

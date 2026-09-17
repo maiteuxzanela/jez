@@ -420,6 +420,16 @@ assert(adminHtmlRef.includes('id="modal-reset-orders-backdrop"'), 'atelie.html c
 assert(adminCssContent.includes('.btn-reset-orders') && adminCssContent.includes('.modal-reset-card'), 'admin.css define estilização boutique para o botão de reset e modal');
 assert(adminJsRef.includes('btn-reset-orders') && adminJsRef.includes('modal-reset-orders-backdrop'), 'admin.js implementa controle completo do fluxo de confirmação e reset');
 
+// 21. Validação dos Botões de Ação Condicionados à Modalidade (Pronta Entrega vs Sob Encomenda)
+console.log('\n🎯 21. Validando Botões de Ação por Modalidade (Pronta Entrega vs Sob Encomenda):');
+const updatedAdminJs = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+const updatedAppJs = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf-8');
+assert(updatedAdminJs.includes('isItemCustomProduction') && updatedAdminJs.includes('isOrderCustomProduction'), 'admin.js implementa identificação robusta da modalidade do pedido');
+assert(updatedAdminJs.includes('isCustomOrder ?') && updatedAdminJs.includes('data-newstatus="em-producao"') && updatedAdminJs.includes('data-newstatus="preparar-envio"'), 'admin.js submete os botões de aguardando-pagamento estritamente à modalidade');
+assert(updatedAdminJs.includes('Sob Encomenda</span>') && updatedAdminJs.includes('Pronta Entrega</span>'), 'admin.js exibe badges de identificação visual nos itens do pedido');
+assert(updatedAppJs.includes('hasCustomProduction') && updatedAppJs.includes('isReady:'), 'app.js persiste metadados de modalidade ao registrar novos pedidos');
+assert(!emojiRegex.test(updatedAdminJs), 'admin.js preserva rigorosamente ZERO emojis após atualização');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

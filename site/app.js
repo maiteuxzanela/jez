@@ -919,6 +919,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Registra pedido em tempo real no localStorage para o Painel da Jéssica
     const newOrderId = 'JEZ-' + Math.floor(1000 + Math.random() * 9000);
+    const hasCustomItems = cart.some(i => i.isReady === false || (i.leadTimeDays && Number(i.leadTimeDays) > 0));
     const newOrder = {
       id: newOrderId,
       date: new Date().toISOString(),
@@ -926,7 +927,15 @@ document.addEventListener('DOMContentLoaded', () => {
       contact: safeContact,
       address: fullAddress,
       cep: formattedCep,
-      items: cart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
+      items: cart.map(i => ({
+        id: i.id || '',
+        name: i.name,
+        quantity: i.quantity,
+        price: i.price,
+        isReady: i.isReady !== undefined ? Boolean(i.isReady) : true,
+        leadTimeDays: i.leadTimeDays ? Number(i.leadTimeDays) : 0
+      })),
+      hasCustomProduction: hasCustomItems,
       subtotal: subtotal,
       shipping: shippingCost,
       total: total,
