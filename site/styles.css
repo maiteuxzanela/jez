@@ -700,13 +700,37 @@ a {
 
 /* Peça Esgotada: Permanece na vitrine com elegância, em tons de cinza e com compra desabilitada */
 .product-card.is-sold-out {
-  opacity: 0.82;
+  opacity: 0.88;
 }
 
+/* Aplica escala de cinza em todas as fotos do card esgotado */
 .product-card.is-sold-out .product-image-wrap img,
 .product-card.is-sold-out .product-image-wrap picture img {
   filter: grayscale(100%);
-  opacity: 0.78;
+}
+
+/* Foto principal esgotada visível com opacidade suave */
+.product-card.is-sold-out .product-img-primary,
+.product-card.is-sold-out .product-image-wrap picture img {
+  opacity: 0.82;
+}
+
+/* Foto secundária esgotada oculta por padrão (evita sobreposição indesejada no card) */
+.product-card.is-sold-out .product-img-secondary {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Ao passar o mouse, a foto secundária da peça esgotada surge suavemente exatamente como nas outras peças */
+.product-card.is-sold-out:hover .product-img-secondary {
+  opacity: 0.85;
+  transform: scale(1.06);
+}
+
+.product-card.is-sold-out:hover .has-secondary-image .product-img-primary,
+.product-card.is-sold-out:hover .has-secondary-image picture img {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .product-card.is-sold-out .product-name {
@@ -725,9 +749,26 @@ a {
   opacity: 0.75;
 }
 
-.modal-img-wrap.is-sold-out img {
-  filter: grayscale(100%);
+/* Modal Quick View da peça esgotada: foto em destaque com grayscale e drop-shadow */
+.modal-img-wrap.is-sold-out img#modal-img {
+  filter: grayscale(100%) drop-shadow(0 12px 26px rgba(0, 0, 0, 0.4));
+  opacity: 0.90;
+}
+
+/* Fundo desfocado do modal (modal-img-blur): preserva o blur artístico de 24px com tons de cinza */
+.modal-img-wrap.is-sold-out .modal-img-blur {
+  filter: blur(24px) grayscale(100%) brightness(0.75);
   opacity: 0.85;
+}
+
+/* Miniaturas do modal da peça esgotada */
+.modal-img-wrap.is-sold-out .modal-thumb img {
+  filter: grayscale(100%);
+  opacity: 0.75;
+}
+
+.modal-img-wrap.is-sold-out .modal-thumb.active img {
+  opacity: 1;
 }
 
 .quick-view-overlay-btn {
@@ -2087,6 +2128,11 @@ a {
     pointer-events: none;
     user-select: none;
     z-index: 1;
+  }
+
+  .modal-img-wrap.is-sold-out .modal-img-blur {
+    filter: blur(20px) grayscale(100%) brightness(0.75);
+    opacity: 0.85;
   }
 
   .modal-img-overlay {

@@ -466,6 +466,8 @@ assert(updatedAdminJs.includes('Esgotada (0 un.)'), 'admin.js renderiza badge "E
 // C. Vitrine, Estilização Grayscale e Badges na Loja (styles.css & app.js)
 assert(updatedStyles.includes('.badge-sold-out') && updatedStyles.includes('grayscale(100%)'), 'styles.css define filtro grayscale(100%) e badge-sold-out para peças esgotadas');
 assert(updatedStyles.includes('.btn-add-cart.is-disabled') || updatedStyles.includes('.btn-add-cart:disabled'), 'styles.css estiliza botão de compra desabilitado para peças esgotadas');
+assert(updatedStyles.includes('.product-card.is-sold-out .product-img-secondary') && updatedStyles.includes('opacity: 0'), 'styles.css oculta foto secundária em card esgotado evitando sobreposição');
+assert(updatedStyles.includes('.modal-img-wrap.is-sold-out .modal-img-blur') && updatedStyles.includes('blur(24px)'), 'styles.css preserva blur de 24px no fundo do modal de peça esgotada');
 assert(updatedAppJs.includes('badge-sold-out') && updatedAppJs.includes('is-sold-out'), 'app.js atribui classe is-sold-out e etiqueta Esgotada na vitrine');
 assert(updatedAppJs.includes('checkoutWithStockCheck') && updatedAppJs.includes('ESTOQUE_ESGOTADO:'), 'app.js invoca checkoutWithStockCheck e trata feedback amigável de concorrência esgotada');
 assert(updatedAppJs.includes('Limite de estoque') || updatedAppJs.includes('esgotada no momento'), 'app.js bloqueia adição ao carrinho caso o estoque seja excedido');
