@@ -821,6 +821,16 @@ document.addEventListener('DOMContentLoaded', () => {
               <span style="line-height: 1.3;">${escapeHtml(order.address)}${order.cep ? ` — CEP ${escapeHtml(order.cep)}` : ''}</span>
             </div>
           ` : ''}
+          ${order.contact ? `
+            <div style="color: rgba(245, 236, 183, 0.9); font-size: 0.74rem; border-top: 1px dashed rgba(254, 191, 151, 0.25); padding-top: 4px; margin-top: 2px; display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;">
+              <span><strong style="color: var(--color-accent);">Contato:</strong> ${escapeHtml(order.contact)}</span>
+              ${order.contact.replace(/\D/g, '').length >= 10 ? `
+                <a href="https://wa.me/55${order.contact.replace(/\D/g, '').replace(/^55/, '')}" target="_blank" rel="noopener" style="color: #4ade80; text-decoration: underline; font-weight: 700; font-size: 0.72rem;">Conversar no WhatsApp</a>
+              ` : (order.contact.includes('@') ? `
+                <a href="mailto:${escapeHtml(order.contact)}" style="color: #60a5fa; text-decoration: underline; font-weight: 700; font-size: 0.72rem;">Enviar E-mail</a>
+              ` : '')}
+            </div>
+          ` : ''}
           ${order.shipping > 0 ? `
             <div style="display: flex; justify-content: space-between; color: rgba(245, 236, 183, 0.75); font-size: 0.74rem; border-top: 1px dashed rgba(254, 191, 151, 0.25); padding-top: 4px; margin-top: 2px;">
               <span>Frete Correios:</span>
@@ -880,7 +890,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <button type="button" class="btn-status-change" data-id="${safeOrderId}" data-newstatus="concluido" style="background: #16a34a; color: #fff; border-color: #16a34a;">
                 Marcar como Entregue ao Cliente
               </button>
-              <button type="button" class="btn-copy-msg" data-id="${safeOrderId}" data-tracking="${escapeHtml(order.trackingCode)}" style="background: rgba(254, 191, 151, 0.15); border: 1px dashed var(--color-accent); color: var(--color-bg-light); padding: 6px 10px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; cursor: pointer;">
+              <button type="button" class="btn-copy-msg" data-id="${safeOrderId}" data-tracking="${escapeHtml(order.trackingCode)}" data-phone="${order.contact ? escapeHtml(order.contact.replace(/\D/g, '')) : ''}" style="background: rgba(254, 191, 151, 0.15); border: 1px dashed var(--color-accent); color: var(--color-bg-light); padding: 6px 10px; border-radius: 3px; font-size: 0.72rem; font-weight: 700; cursor: pointer;">
                 Copiar Msg WhatsApp
               </button>
             ` : ''}
@@ -920,10 +930,18 @@ document.addEventListener('DOMContentLoaded', () => {
     container.querySelectorAll('.btn-copy-msg').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const code = sanitizeTrackingCode(e.currentTarget.getAttribute('data-tracking'));
+        const clientPhone = e.currentTarget.getAttribute('data-phone');
         const safeEncoded = encodeURIComponent(code);
         const msg = `Olá! Sua encomenda da JËZ collection já foi postada nos Correios com muito carinho!\nCódigo de rastreamento: ${code || 'Enviado'}\nAcompanhe pelo link: https://rastreamento.correios.com.br/app/index.php?codigo=${safeEncoded}`;
         navigator.clipboard.writeText(msg).then(() => {
-          showToast('Mensagem de rastreio copiada para o WhatsApp!');
+          if (clientPhone && clientPhone.length >= 10) {
+            showToast('Mensagem copiada! Abrindo WhatsApp da cliente...');
+            setTimeout(() => {
+              window.open(`https://wa.me/55${clientPhone.replace(/^55/, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+            }, 600);
+          } else {
+            showToast('Mensagem de rastreio copiada para o WhatsApp!');
+          }
         });
       });
     });

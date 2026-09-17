@@ -249,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Elementos de Dados do Cliente no Carrinho (Sam & Morgan)
   const customerInfoBox = document.getElementById('customer-info-box');
   const customerNameInput = document.getElementById('customer-name');
+  const customerContactInput = document.getElementById('customer-contact');
   const customerStreetInput = document.getElementById('customer-street');
   const customerNumberInput = document.getElementById('customer-number');
   const customerCityInput = document.getElementById('customer-city');
@@ -505,6 +506,20 @@ document.addEventListener('DOMContentLoaded', () => {
       if (customerDataHint) {
         customerDataHint.className = 'customer-data-hint';
         customerDataHint.textContent = 'Informe seu Nome e Sobrenome para identificação.';
+      }
+      return false;
+    }
+
+    const rawContact = customerContactInput ? customerContactInput.value.trim() : '';
+    const safeContact = sanitizeCustomerInput(rawContact, 80);
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeContact);
+    const digitsOnly = safeContact.replace(/\D/g, '');
+    const isPhone = digitsOnly.length >= 10;
+    if (!isEmail && !isPhone) {
+      btnCheckout.disabled = true;
+      if (customerDataHint) {
+        customerDataHint.className = 'customer-data-hint';
+        customerDataHint.textContent = 'Informe um WhatsApp com DDD válido ou e-mail de contato.';
       }
       return false;
     }
@@ -879,6 +894,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rawCep = cepInput.value.replace(/\D/g, '');
     const formattedCep = cepInput.value.trim() || (rawCep.length === 8 ? `${rawCep.slice(0, 5)}-${rawCep.slice(5)}` : '');
     const safeCustomerName = sanitizeCustomerInput(customerNameInput ? customerNameInput.value : '', 80) || 'Cliente';
+    const safeContact = sanitizeCustomerInput(customerContactInput ? customerContactInput.value : '', 80);
     const safeStreet = sanitizeCustomerInput(customerStreetInput ? customerStreetInput.value : '', 120);
     const safeNumber = sanitizeCustomerInput(customerNumberInput ? customerNumberInput.value : '', 40);
     const safeCity = sanitizeCustomerInput(customerCityInput ? customerCityInput.value : '', 60);
@@ -894,6 +910,9 @@ document.addEventListener('DOMContentLoaded', () => {
       message += `Frete estimado: ${formatCurrency(shippingCost)}\n`;
     }
     message += `*Total: ${formatCurrency(total)}*\n\n`;
+    if (safeContact) {
+      message += `Contato: ${safeContact}\n`;
+    }
     const pinIcon = String.fromCodePoint(0x1F4CD);
     message += `${pinIcon} Endereço de envio: ${fullAddress} — CEP ${formattedCep}\n\n`;
     message += `Como posso efetuar o pagamento via Pix?`;
@@ -904,6 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
       id: newOrderId,
       date: new Date().toISOString(),
       customer: safeCustomerName,
+      contact: safeContact,
       address: fullAddress,
       cep: formattedCep,
       items: cart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price })),
@@ -961,6 +981,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Monitoramento das Entradas de Dados do Cliente
   if (customerNameInput) {
     customerNameInput.addEventListener('input', updateCheckoutReadiness);
+  }
+  if (customerContactInput) {
+    customerContactInput.addEventListener('input', updateCheckoutReadiness);
   }
   if (customerStreetInput) {
     customerStreetInput.addEventListener('input', () => {

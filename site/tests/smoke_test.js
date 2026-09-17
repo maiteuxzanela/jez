@@ -230,7 +230,7 @@ assert(!htmlRef.includes('5538999999999') && !appJsRef.includes('5538999999999')
 // 16. Validação dos Dados de Envio no Carrinho & WhatsApp Personalizado (JEZ-020 - Sam, Morgan & Lumi)
 console.log('\n📦 16. Validando Coleta de Dados de Envio no Carrinho e Mensagem WhatsApp (JEZ-020):');
 assert(htmlRef.includes('id="customer-info-box"'), 'index.html possui o container #customer-info-box no Drawer da sacola');
-assert(htmlRef.includes('id="customer-name"') && htmlRef.includes('id="customer-street"'), 'Campos de nome e logradouro presentes no formulário de entrega');
+assert(htmlRef.includes('id="customer-name"') && htmlRef.includes('id="customer-contact"') && htmlRef.includes('id="customer-street"'), 'Campos de nome, contato (WhatsApp/e-mail) e logradouro presentes no formulário de entrega');
 assert(htmlRef.includes('id="customer-number"') && htmlRef.includes('id="customer-city"'), 'Campos de número/complemento e cidade/UF presentes no formulário');
 assert(htmlRef.includes('id="customer-data-hint"'), 'Mensagem informativa de validação #customer-data-hint presente');
 assert(htmlRef.includes('connect-src') && htmlRef.includes('https://viacep.com.br'), 'CSP de index.html autoriza requisições seguras à API ViaCEP');
@@ -256,11 +256,13 @@ assert(cleanSpacing === 'Maria da Silva', 'Sanitização preserva caracteres leg
 assert(appJsRef.includes('updateCheckoutReadiness'), 'app.js implementa verificação dinâmica de prontidão do checkout');
 assert(appJsRef.includes('lookupAddressByCep'), 'app.js implementa consulta e preenchimento automático por CEP');
 assert(appJsRef.includes('btnCheckout.disabled = true'), 'Botão de checkout permanece bloqueado preventivamente quando dados estão pendentes');
+assert(appJsRef.includes('contact: safeContact') && appJsRef.includes('customerContactInput'), 'app.js valida e salva WhatsApp ou e-mail de contato no payload de pedidos');
 
 // Estrutura da Mensagem de WhatsApp e Gravação de Pedido com Endereço
 assert(appJsRef.includes('Olá Jéssica! Me chamo') && appJsRef.includes('Endereço de envio:'), 'app.js formata a mensagem de WhatsApp conforme o template aprovado pela Jéssica');
 assert(appJsRef.includes('address: fullAddress') && appJsRef.includes('cep: formattedCep'), 'app.js salva endereço completo e CEP no payload de jez_orders');
 assert(adminJsRef.includes('order.address') && adminJsRef.includes('Endereço de Entrega:'), 'admin.js renderiza o endereço de entrega do cliente nos cards de pedidos do Ateliê');
+assert(adminJsRef.includes('order.contact') && adminJsRef.includes('Contato:'), 'admin.js renderiza o WhatsApp ou e-mail de contato do cliente nos cards de pedidos do Ateliê');
 
 // 17. Validação da Integração com Firebase Cloud Firestore (JEZ-021 - Alex, Morgan & Cris)
 console.log('\n🔥 17. Validando Integração com Firebase Cloud Firestore (JEZ-021):');
