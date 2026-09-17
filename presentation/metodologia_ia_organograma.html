@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0">
+  <title>Organograma - Metodologia de IA</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      width: 1920px;
+      height: 1080px;
+      background-color: #0b0713;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(253, 10, 84, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 90% 15%, rgba(121, 40, 202, 0.15) 0%, transparent 45%),
+        radial-gradient(circle at 50% 85%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+        linear-gradient(180deg, #0b0713 0%, #120c1f 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #f1f0f5;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 32px 48px;
+    }
+
+    /* HEADER */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 18px;
+    }
+
+    .header-left h1 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 30%, #febf97 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-left p {
+      font-size: 15px;
+      color: #a59fb6;
+      font-weight: 500;
+    }
+
+    .header-badges {
+      display: flex;
+      gap: 10px;
+    }
+
+    .badge {
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-primary {
+      background: rgba(253, 10, 84, 0.15);
+      color: #ff4a80;
+      border: 1px solid rgba(253, 10, 84, 0.35);
+    }
+
+    .badge-purple {
+      background: rgba(147, 51, 234, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(147, 51, 234, 0.35);
+    }
+
+    .badge-emerald {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    /* MAIN GRID */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 340px 1fr 380px;
+      gap: 28px;
+      flex: 1;
+      height: calc(1080px - 140px);
+    }
+
+    /* CARDS GENÉRICOS */
+    .card {
+      background: rgba(23, 16, 38, 0.65);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      position: relative;
+    }
+
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #c7c0db;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tag-count {
+      font-size: 11px;
+      font-family: monospace;
+      padding: 2px 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      color: #ddd;
+    }
+
+    /* COLUNA 1: CONTEXTO */
+    .col-context {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .file-card {
+      background: rgba(32, 22, 53, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      transition: all 0.2s;
+    }
+
+    .file-name {
+      font-family: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: #febf97;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .file-desc {
+      font-size: 12px;
+      color: #9d96b0;
+      line-height: 1.4;
+    }
+
+    .context-flow-indicator {
+      margin-top: auto;
+      background: linear-gradient(135deg, rgba(253, 10, 84, 0.15), rgba(121, 40, 202, 0.15));
+      border: 1px dashed rgba(253, 10, 84, 0.35);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      font-size: 12px;
+      color: #fca5a5;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    /* COLUNA 2: DOIS NÍVEIS (ORQUESTRADOR + ESPECIALISTAS) */
+    .col-agents {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ORCHESTRATOR CARD */
+    .orchestrator-card {
+      background: linear-gradient(135deg, rgba(38, 23, 64, 0.9) 0%, rgba(26, 17, 43, 0.9) 100%);
+      border: 1px solid rgba(192, 132, 252, 0.4);
+      border-radius: 16px;
+      padding: 18px 24px;
+      box-shadow: 0 8px 24px rgba(121, 40, 202, 0.2);
+    }
+
+    .orchestrator-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .orchestrator-info {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .orchestrator-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #7928CA, #FD0A54);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 900;
+      color: white;
+      box-shadow: 0 4px 12px rgba(253, 10, 84, 0.4);
+    }
+
+    .orchestrator-title h2 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .orchestrator-title span {
+      font-size: 13px;
+      color: #c084fc;
+      font-weight: 600;
+    }
+
+    .golden-rule-box {
+      background: rgba(253, 10, 84, 0.12);
+      border-left: 3px solid #FD0A54;
+      padding: 8px 14px;
+      border-radius: 0 8px 8px 0;
+      font-size: 12px;
+      color: #fecdd3;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .golden-rule-box strong {
+      color: #ffffff;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .delegation-connector {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #8b5cf6;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin: -6px 0;
+    }
+
+    .delegation-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.5), transparent);
+    }
+
+    /* SUBAGENTS GRID */
+    .subagents-section {
+      flex: 1;
+      background: rgba(20, 14, 33, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 16px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .subagents-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      flex: 1;
+    }
+
+    .subagent-card {
+      background: rgba(30, 21, 50, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .subagent-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+    }
+
+    .subagent-card.front::before { background: #FD0A54; }
+    .subagent-card.ecom::before { background: #F57576; }
+    .subagent-card.admin::before { background: #FEBF97; }
+    .subagent-card.sec::before { background: #38BDF8; }
+    .subagent-card.art::before { background: #A855F7; }
+    .subagent-card.perf::before { background: #10B981; }
+
+    .subagent-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .subagent-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      color: white;
+    }
+
+    .subagent-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .subagent-role {
+      font-size: 11px;
+      color: #a59fb6;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .subagent-bullets {
+      font-size: 11px;
+      color: #c4bfd4;
+      line-height: 1.4;
+      list-style: none;
+    }
+
+    .subagent-bullets li {
+      position: relative;
+      padding-left: 12px;
+      margin-bottom: 3px;
+    }
+
+    .subagent-bullets li::before {
+      content: "•";
+      position: absolute;
+      left: 2px;
+      color: #FD0A54;
+      font-weight: bold;
+    }
+
+    /* COLUNA 3: PORTÃO DE QUALIDADE & CI/CD */
+    .col-quality {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* TESTER HIGHLIGHT (ROBIN) */
+    .tester-card {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(20, 35, 30, 0.7) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 14px;
+      padding: 16px;
+      position: relative;
+    }
+
+    .tester-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .tester-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #34d399;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .test-stat-pill {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #6ee7b7;
+      font-family: monospace;
+    }
+
+    .tester-desc {
+      font-size: 11px;
+      color: #a7f3d0;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+
+    .test-checks {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      color: #d1fae5;
+    }
+
+    .test-check-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .check-svg {
+      width: 14px;
+      height: 14px;
+      stroke: #34d399;
+    }
+
+    /* SUPERVISOR / AUDITOR CARD */
+    .supervisor-card {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(35, 28, 20, 0.7) 100%);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .supervisor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .supervisor-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #fbbf24;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .next-level-pill {
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fde68a;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .supervisor-desc {
+      font-size: 11px;
+      color: #fde68a;
+      line-height: 1.4;
+      margin-bottom: 6px;
+    }
+
+    .decision-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .decision-box {
+      flex: 1;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .decision-pass {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #6ee7b7;
+    }
+
+    .decision-redo {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    /* CI/CD & GIT */
+    .cicd-card {
+      background: rgba(23, 16, 38, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-top: auto;
+    }
+
+    .cicd-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .cicd-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      color: #c7c0db;
+    }
+
+    .cicd-bullet {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #febf97;
+    }
+
+    /* FOOTER */
+    .footer-bar {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: #8c859f;
+    }
+
+    .footer-highlight {
+      color: #ffffff;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <h1>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FD0A54" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+        Metodologia de Engenharia com Agentes de IA
+      </h1>
+      <p>Arquitetura Hierárquica em 2 Níveis, Governança por Contratos & Portão de Qualidade Contínuo • Case JEZ Collections</p>
+    </div>
+    <div class="header-badges">
+      <span class="badge badge-purple">Topologia em 2 Níveis</span>
+      <span class="badge badge-primary">Zero Regressão</span>
+      <span class="badge badge-emerald">209 Testes Automatizados</span>
+    </div>
+  </header>
+
+  <!-- MAIN 3-COLUMN GRID -->
+  <main class="main-grid">
+
+    <!-- COLUNA 1: CONTEXTO & ARQUIVOS FUNDAMENTAIS -->
+    <section class="card col-context">
+      <div class="card-title-row">
+        <span class="card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FEBF97" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+          Camada de Contexto
+        </span>
+        <span class="tag-count">4 Fontes</span>
+      </div>
+
+      <div class="file-card">
+        <div class="file-name">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FEBF97" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
+          SPEC.md
+        </div>
+        <div class="file-desc">Especificação Técnica Oficial: regras de negócio, modelo de dados Firestore, rotas e requisitos de produto.</div>
+      </div>
+
+      <div class="file-card">
+        <div class="file-name">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FD0A54" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
+          AGENTS.md
+        </div>
+        <div class="file-desc">Contrato de Colaboração: diretrizes éticas inegociáveis (zero emojis, paleta oficial) e prompts mestres.</div>
+      </div>
+
+      <div class="file-card">
+        <div class="file-name">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+          KANBAN.md
+        </div>
+        <div class="file-desc">Single Source of Truth: épicos decompostos, status em tempo real e Critérios de Aceite por ticket.</div>
+      </div>
+
+      <div class="file-card">
+        <div class="file-name">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C084FC" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          personas/
+        </div>
+        <div class="file-desc">Modularidade de Perfis: documentação individual de cada agente com papéis, escopo e autoridade técnica.</div>
+      </div>
+
+      <div class="context-flow-indicator">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        Injeção Contínua de Contexto
+      </div>
+    </section>
+
+    <!-- COLUNA 2: ESTRUTURA EM 2 NÍVEIS (ORQUESTRADOR + ESPECIALISTAS) -->
+    <section class="col-agents">
+      
+      <!-- NÍVEL 1: ORQUESTRADOR -->
+      <div class="orchestrator-card">
+        <div class="orchestrator-header">
+          <div class="orchestrator-info">
+            <div class="orchestrator-avatar">A</div>
+            <div class="orchestrator-title">
+              <h2>Alex — Orquestrador Geral (CTO)</h2>
+              <span>Chief Technology Officer & Lead Solutions Architect</span>
+            </div>
+          </div>
+          <span class="badge badge-purple">Nível 1 • Coordenação</span>
+        </div>
+
+        <div class="golden-rule-box">
+          <strong>Regra Inegociável da Liderança de IA:</strong>
+          O Orquestrador foca 100% em planejamento, estratégia e delegação. Se o orquestrador precisar executar manualmente uma tarefa especializada mais de uma vez, instancia-se imediatamente uma nova persona dedicada.
+        </div>
+      </div>
+
+      <!-- CONECTOR DE DELEGAÇÃO -->
+      <div class="delegation-connector">
+        <div class="delegation-line"></div>
+        <span>Delegação Técnica de Alta Fidelidade</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+        <div class="delegation-line"></div>
+      </div>
+
+      <!-- NÍVEL 2: SUBAGENTS ESPECIALISTAS -->
+      <div class="subagents-section">
+        <div class="card-title-row" style="margin-bottom: 10px;">
+          <span class="card-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C084FC" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            Nível 2 — Time de Subagents Especialistas (Execução Especializada)
+          </span>
+          <span class="tag-count">6 Domínios Técnicos</span>
+        </div>
+
+        <div class="subagents-grid">
+          
+          <!-- LUMI -->
+          <div class="subagent-card front">
+            <div class="subagent-top">
+              <div class="subagent-icon" style="background: #FD0A54;">LU</div>
+              <div>
+                <div class="subagent-name">Lumi</div>
+                <div class="subagent-role">UI/UX & Frontend Boutique</div>
+              </div>
+            </div>
+            <ul class="subagent-bullets">
+              <li>Design Tokens & Paleta Oficial</li>
+              <li>Microinterações táteis mobile</li>
+              <li>Fidelidade extrema ao layout</li>
+            </ul>
+          </div>
+
+          <!-- SAM -->
+          <div class="subagent-card ecom">
+            <div class="subagent-top">
+              <div class="subagent-icon" style="background: #F57576;">SA</div>
+              <div>
+                <div class="subagent-name">Sam</div>
+                <div class="subagent-role">E-Commerce & Conversão</div>
+              </div>
+            </div>
+            <ul class="subagent-bullets">
+              <li>Fluxo de Checkout & Frete CEP</li>
+              <li>Integração Pix & Mercado Pago</li>
+              <li>Conexão direta com WhatsApp</li>
+            </ul>
+          </div>
+
+          <!-- CRIS -->
+          <div class="subagent-card admin">
+            <div class="subagent-top">
+              <div class="subagent-icon" style="background: #D97706;">CR</div>
+              <div>
+                <div class="subagent-name">Cris</div>
+                <div class="subagent-role">Back-Office & Artesã</div>
+              </div>
+            </div>
+            <ul class="subagent-bullets">
+              <li>Painel Ateliê mobile da Jéssica</li>
+              <li>Gestão ágil de acervo e fotos</li>
+              <li>Fluxo de produção e envios</li>
+            </ul>
+          </div>
+
+          <!-- MORGAN -->
+          <div class="subagent-card sec">
+            <div class="subagent-top">
+              <div class="subagent-icon" style="background: #0284C7;">MO</div>
+              <div>
+                <div class="subagent-name">Morgan</div>
+                <div class="subagent-role">Cibersegurança & LGPD</div>
+              </div>
+            </div>
+            <ul class="subagent-bullets">
+              <li>Sanitização XSS & Headers CSP</li>
+              <li>Transações atômicas Firestore</li>
+              <li>Proteção e sigilo de dados</li>
+            </ul>
+          </div>
+
+          <!-- ARIEL -->
+          <div class="subagent-card art">
+            <div class="subagent-top">
+              <div class="subagent-icon" style="background: #7C3AED;">AR</div>
+              <div>
+                <div class="subagent-name">Ariel</div>
+                <div class="subagent-role">Direção de Arte & Craft</div>
+              </div>
+            </div>
+            <ul class="subagent-bullets">
+              <li>Identidade visual Zine / Alt-Cute</li>
+              <li>Combate ao design genérico de IA</li>
+              <li>Texturas táteis e etiquetas têxteis</li>
+            </ul>
+          </div>
+
+          <!-- NOA -->
+          <div class="subagent-card perf">
+            <div class="subagent-top">
+              <div class="subagent-icon" style="background: #059669;">NO</div>
+              <div>
+                <div class="subagent-name">Noa</div>
+                <div class="subagent-role">Performance, SEO & PWA</div>
+              </div>
+            </div>
+            <ul class="subagent-bullets">
+              <li>Core Web Vitals (< 2s 4G)</li>
+              <li>Compressão WebP e Service Worker</li>
+              <li>PWA instalável & Metatags OG</li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
+
+    <!-- COLUNA 3: PORTÃO DE QUALIDADE, AUDITORIA & CI/CD -->
+    <section class="card col-quality">
+      <div class="card-title-row">
+        <span class="card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34D399" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          Portão de Qualidade
+        </span>
+        <span class="tag-count">Auditoria Contínua</span>
+      </div>
+
+      <!-- TESTER ATIVO: ROBIN -->
+      <div class="tester-card">
+        <div class="tester-header">
+          <span class="tester-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Robin (QA & Regression)
+          </span>
+          <span class="test-stat-pill">209 Testes 100%</span>
+        </div>
+        <div class="tester-desc">
+          Guardião inegociável contra quebra de funcionalidades. Bloqueia qualquer entrega que cause regressões no sistema.
+        </div>
+        <div class="test-checks">
+          <div class="test-check-item">
+            <svg class="check-svg" viewBox="0 0 24 24" fill="none" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Validação de sintaxe prévia (node -c)
+          </div>
+          <div class="test-check-item">
+            <svg class="check-svg" viewBox="0 0 24 24" fill="none" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Integridade de checkout, carrinho e CSP
+          </div>
+          <div class="test-check-item">
+            <svg class="check-svg" viewBox="0 0 24 24" fill="none" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Conformidade com diretriz anti-emoji
+          </div>
+        </div>
+      </div>
+
+      <!-- EVOLUÇÃO: SUPERVISOR / AUDITOR -->
+      <div class="supervisor-card">
+        <div class="supervisor-header">
+          <span class="supervisor-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            Supervisor (Judge / Auditor)
+          </span>
+          <span class="next-level-pill">Próximo Nível</span>
+        </div>
+        <div class="supervisor-desc">
+          Recebe os Critérios de Aceite objetivos do Kanban e avalia formalmente a entrega do subagente antes de liberar ao humano:
+        </div>
+        <div class="decision-row">
+          <div class="decision-box decision-pass">
+            APROVADO<br><span style="font-size: 9px; opacity: 0.8;">Atende 100% dos critérios</span>
+          </div>
+          <div class="decision-box decision-redo">
+            REFAZER COM MOTIVO<br><span style="font-size: 9px; opacity: 0.8;">Feedback técnico objetivo</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CI/CD & REPOSITÓRIO -->
+      <div class="cicd-card">
+        <div class="card-title-row" style="margin-bottom: 8px;">
+          <span class="card-title" style="font-size: 12px; color: #a59fb6;">Pipeline de Versionamento & Deploy</span>
+        </div>
+        <div class="cicd-steps">
+          <div class="cicd-step">
+            <div class="cicd-bullet">1</div>
+            <div><strong>Git & GitHub</strong>: Commits atômicos por ticket</div>
+          </div>
+          <div class="cicd-step">
+            <div class="cicd-bullet">2</div>
+            <div><strong>GitHub Actions</strong>: 209 testes executados no CI</div>
+          </div>
+          <div class="cicd-step">
+            <div class="cicd-bullet">3</div>
+            <div><strong>Firebase Hosting</strong>: Deploy contínuo com zero downtime</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer-bar">
+    <div>
+      <span class="footer-highlight">Metodologia Criada & Praticada pela Candidata</span> • Case Oficial JEZ Collections (Live em jez-collection.web.app)
+    </div>
+    <div>
+      Princípio Chave: <strong style="color: #febf97;">Delegar Estrategicamente • Testar Rigorosamente • Evoluir Personas sob Demanda</strong>
+    </div>
+  </footer>
+
+</body>
+</html>

@@ -12,6 +12,8 @@
 !/firestore.rules
 !/.github/
 !/.github/**
+!/presentation/
+!/presentation/**
 
 # Arquivos de sistema e temporarios
 .DS_Store
