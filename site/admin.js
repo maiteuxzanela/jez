@@ -264,6 +264,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return { ...p, images: def.images };
           }
         }
+        if (p.stockQty === undefined || p.stockQty === null) {
+          const def = defaultInitialCatalog.find(d => d.id === p.id);
+          if (def && def.stockQty !== undefined) {
+            p.stockQty = def.stockQty;
+            updated = true;
+          } else if (p.isReady || p.status === 'ready') {
+            p.stockQty = 1;
+            updated = true;
+          } else {
+            p.stockQty = 0;
+            updated = true;
+          }
+        }
         return p;
       });
       const sorted = sortCatalogByCuratedOrder(hydrated);
@@ -1213,6 +1226,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Alternância Pronta Entrega vs Sob Encomenda
   const modalityOptions = document.querySelectorAll('.modality-option');
   const leadTimeField = document.getElementById('order-leadtime-field');
+  const readyStockField = document.getElementById('ready-stock-field');
 
   modalityOptions.forEach(opt => {
     opt.addEventListener('click', () => {
@@ -1223,8 +1237,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (radio.value === 'order') {
         leadTimeField.style.display = 'block';
+        if (readyStockField) readyStockField.style.display = 'none';
       } else {
         leadTimeField.style.display = 'none';
+        if (readyStockField) readyStockField.style.display = 'block';
       }
     });
   });
@@ -1240,6 +1256,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const rawPrice = parseFloat(document.getElementById('product-price-input').value);
     const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
     const modality = document.querySelector('input[name="product-modality"]:checked').value;
+    const rawStock = parseInt(document.getElementById('product-stock-input')?.value, 10);
+    const stockQty = modality === 'ready' ? Math.max(0, isNaN(rawStock) ? 1 : rawStock) : 0;
     const rawLeadTime = parseInt(document.getElementById('product-leadtime-input').value, 10);
     const leadTimeDays = modality === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
     const dimensions = sanitizeText(document.getElementById('product-dimensions-input').value, 150) || 'Medidas artesanais sob encomenda';
@@ -1271,7 +1289,7 @@ document.addEventListener('DOMContentLoaded', () => {
       images: allImages,
       status: modality, // 'ready' ou 'order'
       isReady: modality === 'ready',
-      stockQty: modality === 'ready' ? 1 : 0,
+      stockQty: stockQty,
       leadTimeDays: leadTimeDays,
       dimensions,
       materials,
@@ -1367,7 +1385,12 @@ document.addEventListener('DOMContentLoaded', () => {
         statusBadgeHtml = `<span class="btn-status-badge order" title="Produzida sob encomenda">Sob Encomenda</span>`;
         toggleActionHtml = `<button class="btn-action-edit" data-action="suspend" data-id="${piece.id}">Suspender</button>`;
       } else {
-        statusBadgeHtml = `<span class="btn-status-badge ready" title="Pronta para postagem">Pronta Entrega</span>`;
+        const currentStock = (piece.stockQty !== undefined && piece.stockQty !== null) ? Number(piece.stockQty) : 1;
+        if (currentStock <= 0) {
+          statusBadgeHtml = `<span class="btn-status-badge soldout" title="Estoque esgotado na loja">Esgotada (0 un.)</span>`;
+        } else {
+          statusBadgeHtml = `<span class="btn-status-badge ready" title="Pronta para postagem">Pronta Entrega (${currentStock} un.)</span>`;
+        }
         toggleActionHtml = `<button class="btn-action-edit" data-action="suspend" data-id="${piece.id}">Suspender</button>`;
       }
 
@@ -1652,11 +1675,22 @@ document.addEventListener('DOMContentLoaded', () => {
       opt.classList.toggle('active', r.value === status);
     });
 
+    const editStockWrap = document.getElementById('edit-stock-wrap');
+    const editStockInput = document.getElementById('edit-product-stock');
+    if (editStockInput) {
+      editStockInput.value = (piece.stockQty !== undefined && piece.stockQty !== null) ? piece.stockQty : (piece.isReady ? 1 : 0);
+    }
+
     if (status === 'order') {
       editLeadtimeWrap.style.display = 'block';
+      if (editStockWrap) editStockWrap.style.display = 'none';
       document.getElementById('edit-product-leadtime').value = piece.leadTimeDays || 7;
+    } else if (status === 'ready') {
+      editLeadtimeWrap.style.display = 'none';
+      if (editStockWrap) editStockWrap.style.display = 'block';
     } else {
       editLeadtimeWrap.style.display = 'none';
+      if (editStockWrap) editStockWrap.style.display = 'none';
     }
 
     // Exibe modal primeiro para que dimensões do viewport sejam computadas corretamente
@@ -1699,10 +1733,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const radio = opt.querySelector('input[type="radio"]');
       radio.checked = true;
 
+      const editStockWrap = document.getElementById('edit-stock-wrap');
       if (radio.value === 'order') {
         editLeadtimeWrap.style.display = 'block';
+        if (editStockWrap) editStockWrap.style.display = 'none';
+      } else if (radio.value === 'ready') {
+        editLeadtimeWrap.style.display = 'none';
+        if (editStockWrap) editStockWrap.style.display = 'block';
       } else {
         editLeadtimeWrap.style.display = 'none';
+        if (editStockWrap) editStockWrap.style.display = 'none';
       }
     });
   });
@@ -1821,6 +1861,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = statusRadio ? statusRadio.value : 'ready';
     const rawLeadTime = parseInt(document.getElementById('edit-product-leadtime').value, 10);
     const leadTimeDays = status === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
+    const rawStock = parseInt(document.getElementById('edit-product-stock')?.value, 10);
+    const stockQty = status === 'ready' ? Math.max(0, isNaN(rawStock) ? 1 : rawStock) : 0;
     const dimensions = sanitizeText(document.getElementById('edit-product-dimensions').value, 150);
     const materials = sanitizeText(document.getElementById('edit-product-materials').value, 200);
     const description = sanitizeText(document.getElementById('edit-product-desc').value, 800);
@@ -1848,6 +1890,7 @@ document.addEventListener('DOMContentLoaded', () => {
           price,
           status,
           isReady: status === 'ready',
+          stockQty,
           leadTimeDays,
           dimensions,
           materials,

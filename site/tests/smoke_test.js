@@ -430,6 +430,34 @@ assert(updatedAdminJs.includes('Sob Encomenda</span>') && updatedAdminJs.include
 assert(updatedAppJs.includes('hasCustomProduction') && updatedAppJs.includes('isReady:'), 'app.js persiste metadados de modalidade ao registrar novos pedidos');
 assert(!emojiRegex.test(updatedAdminJs), 'admin.js preserva rigorosamente ZERO emojis após atualização');
 
+// 22. Validação do Controle de Estoque, Esgotamento Visual & Proteção contra Concorrência (JEZ-028)
+console.log('\n📦 22. Validando Controle de Estoque, Esgotamento Visual e Proteção contra Concorrência (JEZ-028):');
+const updatedFbService = fs.readFileSync(path.join(ROOT_DIR, 'firebase-service.js'), 'utf-8');
+const updatedStyles = fs.readFileSync(path.join(ROOT_DIR, 'styles.css'), 'utf-8');
+const updatedAdminCss = fs.readFileSync(path.join(ROOT_DIR, 'admin.css'), 'utf-8');
+const updatedAtelieHtml = fs.readFileSync(path.join(ROOT_DIR, 'atelie.html'), 'utf-8');
+
+// A. Transação Atômica e Concorrência no Firebase Service
+assert(updatedFbService.includes('runTransaction') && updatedFbService.includes('checkoutWithStockCheck'), 'firebase-service.js implementa checkoutWithStockCheck utilizando runTransaction do Firestore');
+assert(updatedFbService.includes('ESTOQUE_ESGOTADO:') && updatedFbService.includes('currentStock < requestedQty'), 'firebase-service.js aborta transação atômica caso o estoque disponível seja insuficiente');
+assert(updatedFbService.includes('transaction.update(update.ref') && updatedFbService.includes('stockQty: update.newStock'), 'firebase-service.js atualiza atomicamente o estoque na coleção products');
+
+// B. Interface e Campos de Estoque no Ateliê (atelie.html & admin.css & admin.js)
+assert(updatedAtelieHtml.includes('id="product-stock-input"') && updatedAtelieHtml.includes('id="ready-stock-field"'), 'atelie.html possui campo dinâmico de quantidade em estoque no cadastro de peças');
+assert(updatedAtelieHtml.includes('id="edit-product-stock"') && updatedAtelieHtml.includes('id="edit-stock-wrap"'), 'atelie.html possui campo de estoque no modal de edição de peças');
+assert(updatedAdminCss.includes('.btn-status-badge.soldout'), 'admin.css define estilização para o badge de status "Esgotada"');
+assert(updatedAdminJs.includes('product-stock-input') && updatedAdminJs.includes('stockQty: stockQty'), 'admin.js coleta e salva stockQty na criação de novas peças');
+assert(updatedAdminJs.includes('edit-product-stock'), 'admin.js permite editar a quantidade de estoque no acervo');
+assert(updatedAdminJs.includes('Esgotada (0 un.)'), 'admin.js renderiza badge "Esgotada (0 un.)" quando o estoque zera');
+
+// C. Vitrine, Estilização Grayscale e Badges na Loja (styles.css & app.js)
+assert(updatedStyles.includes('.badge-sold-out') && updatedStyles.includes('grayscale(100%)'), 'styles.css define filtro grayscale(100%) e badge-sold-out para peças esgotadas');
+assert(updatedStyles.includes('.btn-add-cart.is-disabled') || updatedStyles.includes('.btn-add-cart:disabled'), 'styles.css estiliza botão de compra desabilitado para peças esgotadas');
+assert(updatedAppJs.includes('badge-sold-out') && updatedAppJs.includes('is-sold-out'), 'app.js atribui classe is-sold-out e etiqueta Esgotada na vitrine');
+assert(updatedAppJs.includes('checkoutWithStockCheck') && updatedAppJs.includes('ESTOQUE_ESGOTADO:'), 'app.js invoca checkoutWithStockCheck e trata feedback amigável de concorrência esgotada');
+assert(updatedAppJs.includes('Limite de estoque') || updatedAppJs.includes('esgotada no momento'), 'app.js bloqueia adição ao carrinho caso o estoque seja excedido');
+assert(!emojiRegex.test(updatedFbService) && !emojiRegex.test(updatedAppJs) && !updatedStyles.includes('emoji'), 'Todos os arquivos atualizados cumprem a diretriz anti-emoji');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

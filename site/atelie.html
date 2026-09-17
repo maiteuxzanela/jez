@@ -369,6 +369,13 @@
             </label>
           </div>
 
+          <!-- Campo dinâmico de estoque para pronta entrega -->
+          <div class="ready-stock-field" id="ready-stock-field">
+            <label class="form-label" for="product-stock-input">Quantidade em Estoque (Pronta Entrega)</label>
+            <input type="number" id="product-stock-input" class="craft-input" value="1" min="0" max="999">
+            <small class="field-hint">Unidades físicas disponíveis. Ao zerar, a peça permanece na vitrine em tons de cinza com a etiqueta "Esgotada".</small>
+          </div>
+
           <!-- Campo dinâmico de dias para encomenda -->
           <div class="order-leadtime-field" id="order-leadtime-field" style="display: none;">
             <label class="form-label" for="product-leadtime-input">Prazo de Produção (Dias Úteis)</label>
@@ -550,6 +557,13 @@
         <div class="form-group" id="edit-leadtime-wrap" style="display: none;">
           <label class="form-label" for="edit-product-leadtime">Prazo de Produção (Dias Úteis)</label>
           <input type="number" id="edit-product-leadtime" class="craft-input" min="1" max="60" value="7">
+        </div>
+
+        <!-- Estoque em Unidades (Pronta Entrega) -->
+        <div class="form-group" id="edit-stock-wrap">
+          <label class="form-label" for="edit-product-stock">Estoque Disponível (Unidades)</label>
+          <input type="number" id="edit-product-stock" class="craft-input" min="0" max="999" value="1">
+          <small class="field-hint">Ao atingir 0 unidades, a peça permanece visível na loja em tons de cinza e com etiqueta "Esgotada".</small>
         </div>
 
         <!-- Medidas e Materiais -->

@@ -17,7 +17,8 @@ import {
   onSnapshot,
   serverTimestamp,
   query,
-  orderBy
+  orderBy,
+  runTransaction
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 
 import { firebaseConfig } from './firebase-config.js';
@@ -182,6 +183,72 @@ class JezFirebaseService {
     };
     await setDoc(docRef, payload);
     return safeId;
+  }
+
+  // Finalização transacional com validação atômica de estoque contra concorrência (JEZ-028)
+  async checkoutWithStockCheck(orderData, cartItems) {
+    if (!this.db) {
+      const safeId = await this.createOrder(orderData);
+      return { success: true, orderId: safeId, deductedItems: [] };
+    }
+
+    return await runTransaction(this.db, async (transaction) => {
+      const itemsToDeduct = [];
+
+      for (const item of cartItems) {
+        if (!item.id) continue;
+        const prodRef = doc(this.db, 'products', item.id);
+        const prodSnap = await transaction.get(prodRef);
+
+        if (prodSnap.exists()) {
+          const prodData = prodSnap.data();
+          // Verifica se a peça tem controle de estoque (pronta entrega ou stockQty definido)
+          if (prodData.isReady || prodData.stockQty !== undefined) {
+            const currentStock = Number(prodData.stockQty !== undefined ? prodData.stockQty : 1);
+            const requestedQty = Number(item.quantity) || 1;
+
+            if (currentStock < requestedQty) {
+              const err = new Error(`ESTOQUE_ESGOTADO:${prodData.name || item.name}:${currentStock}`);
+              err.code = 'ESTOQUE_ESGOTADO';
+              err.productName = prodData.name || item.name;
+              err.availableStock = currentStock;
+              throw err;
+            }
+
+            itemsToDeduct.push({
+              ref: prodRef,
+              newStock: Math.max(0, currentStock - requestedQty),
+              id: item.id
+            });
+          }
+        }
+      }
+
+      // Decrementa o estoque atômicamente com bloqueio de concorrência
+      for (const update of itemsToDeduct) {
+        transaction.update(update.ref, {
+          stockQty: update.newStock,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      // Grava o pedido
+      const safeId = orderData.id || ('JEZ-' + Math.floor(1000 + Math.random() * 9000));
+      const orderRef = doc(this.db, 'orders', safeId);
+      const payload = {
+        ...orderData,
+        id: safeId,
+        date: orderData.date || new Date().toISOString(),
+        serverCreatedAt: serverTimestamp()
+      };
+      transaction.set(orderRef, payload);
+
+      return {
+        success: true,
+        orderId: safeId,
+        deductedItems: itemsToDeduct.map(i => ({ id: i.id, newStock: i.newStock }))
+      };
+    });
   }
 
   async updateOrderStatus(orderId, newStatus, trackingCode = '') {

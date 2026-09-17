@@ -1289,6 +1289,16 @@
   border-color: var(--color-accent);
 }
 
+.btn-status-badge.soldout {
+  background: #334155;
+  color: #f8fafc;
+  border-color: #64748b;
+}
+
+.ready-stock-field {
+  margin-top: 10px;
+}
+
 .btn-action-edit {
   background: rgba(254, 191, 151, 0.15);
   border: 1px dashed var(--color-accent);

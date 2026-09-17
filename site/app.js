@@ -192,6 +192,18 @@ document.addEventListener('DOMContentLoaded', () => {
               updated = true;
               return { ...p, images: def.images };
             }
+          if (p.stockQty === undefined || p.stockQty === null) {
+            const def = defaultProducts.find(d => d.id === p.id);
+            if (def && def.stockQty !== undefined) {
+              p.stockQty = def.stockQty;
+              updated = true;
+            } else if (p.isReady || p.status === 'ready') {
+              p.stockQty = 1;
+              updated = true;
+            } else {
+              p.stockQty = 0;
+              updated = true;
+            }
           }
           return p;
         });
@@ -206,10 +218,15 @@ document.addEventListener('DOMContentLoaded', () => {
       // Filtra estritamente peças que NÃO estejam suspensas nem excluídas
       return sorted
         .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
-        .map(p => ({
-          ...p,
-          isReady: p.status ? p.status === 'ready' : (p.isReady !== undefined ? p.isReady : true)
-        }));
+        .map(p => {
+          const isReady = p.status ? p.status === 'ready' : (p.isReady !== undefined ? p.isReady : true);
+          const stockQty = p.stockQty !== undefined && p.stockQty !== null ? Number(p.stockQty) : (isReady ? 1 : 0);
+          return {
+            ...p,
+            isReady,
+            stockQty
+          };
+        });
     } catch {
       return defaultProducts;
     }
@@ -360,8 +377,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     filtered.forEach(p => {
+      const isSoldOut = Boolean(p.isReady || p.stockQty !== undefined) && Number(p.stockQty !== undefined ? p.stockQty : 1) <= 0;
       const card = document.createElement('article');
-      card.className = 'product-card';
+      card.className = `product-card ${isSoldOut ? 'is-sold-out' : ''}`;
       card.id = `card-${escapeHtml(p.id)}`;
 
       const safeId = escapeHtml(p.id);
@@ -375,9 +393,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const hasSecondary = productImages.length > 1;
       const secondaryImage = hasSecondary ? sanitizeImageUrl(productImages[1]) : '';
 
-      const badgeHtml = p.isReady
-        ? `<span class="product-badge badge-ready">Pronta Entrega</span>`
-        : `<span class="product-badge badge-order">Sob Encomenda (${safeLeadTime}d)</span>`;
+      let badgeHtml = '';
+      if (isSoldOut) {
+        badgeHtml = `<span class="product-badge badge-sold-out">Esgotada</span>`;
+      } else if (p.isReady) {
+        badgeHtml = `<span class="product-badge badge-ready">Pronta Entrega</span>`;
+      } else {
+        badgeHtml = `<span class="product-badge badge-order">Sob Encomenda (${safeLeadTime}d)</span>`;
+      }
 
       const isLocalAsset = safeImage.startsWith('assets/');
       const webpCandidate = isLocalAsset ? safeImage.replace(/\.(jpg|jpeg|png)$/i, '.webp') : '';
@@ -391,6 +414,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const secondaryMarkup = hasSecondary
         ? `<img src="${secondaryImage}" class="product-img-secondary" alt="${safeName} - Detalhe" loading="lazy" width="400" height="400">`
         : '';
+
+      const btnBuyHtml = isSoldOut
+        ? `<button type="button" class="btn-add-cart is-disabled" id="btn-add-${safeId}" disabled aria-disabled="true" data-id="${safeId}">
+            Esgotada
+          </button>`
+        : `<button type="button" class="btn-add-cart" id="btn-add-${safeId}" data-action="add-cart" data-id="${safeId}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+            Comprar
+          </button>`;
 
       card.innerHTML = `
         <div class="product-image-wrap ${hasSecondary ? 'has-secondary-image' : ''}" data-action="quickview" data-id="${safeId}">
@@ -407,10 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <p class="product-meta">${safeMaterials}</p>
           <div class="product-footer">
             <div class="product-price">${formatCurrency(p.price)}</div>
-            <button type="button" class="btn-add-cart" id="btn-add-${safeId}" data-action="add-cart" data-id="${safeId}">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-              Comprar
-            </button>
+            ${btnBuyHtml}
           </div>
         </div>
       `;
@@ -637,7 +666,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
+    const isSoldOut = Boolean(product.isReady || product.stockQty !== undefined) && Number(product.stockQty !== undefined ? product.stockQty : 1) <= 0;
+    if (isSoldOut) {
+      showToast(`A peça "${product.name}" está esgotada no momento.`);
+      return;
+    }
+
+    const availableStock = (product.stockQty !== undefined && product.stockQty !== null) ? Number(product.stockQty) : (product.isReady ? 1 : 999);
     const existingIndex = cart.findIndex(item => item.id === productId);
+    const currentQtyInCart = existingIndex > -1 ? cart[existingIndex].quantity : 0;
+
+    if (product.isReady && currentQtyInCart + 1 > availableStock) {
+      showToast(`Limite de estoque: apenas ${availableStock} unidade(s) disponível(is) para pronta entrega.`);
+      return;
+    }
+
     if (existingIndex > -1) {
       cart[existingIndex].quantity += 1;
     } else {
@@ -647,6 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
         price: product.price,
         image: product.image,
         isReady: product.isReady,
+        stockQty: product.stockQty,
         leadTimeDays: product.leadTimeDays || 0,
         quantity: 1
       });
@@ -661,6 +705,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const changeQuantity = (productId, delta) => {
     const index = cart.findIndex(item => item.id === productId);
     if (index === -1) return;
+
+    if (delta > 0) {
+      const product = products.find(p => p.id === productId);
+      if (product && product.isReady) {
+        const availableStock = (product.stockQty !== undefined && product.stockQty !== null) ? Number(product.stockQty) : 1;
+        if (cart[index].quantity + delta > availableStock) {
+          showToast(`Limite de estoque: apenas ${availableStock} unidade(s) disponível(is).`);
+          return;
+        }
+      }
+    }
 
     cart[index].quantity += delta;
     if (cart[index].quantity <= 0) {
@@ -844,9 +899,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    const isSoldOut = Boolean(product.isReady || product.stockQty !== undefined) && Number(product.stockQty !== undefined ? product.stockQty : 1) <= 0;
+
     const modalImgWrap = document.getElementById('modal-img-wrap');
     if (modalImgWrap) {
       modalImgWrap.classList.toggle('has-gallery', currentModalPhotos.length > 1);
+      modalImgWrap.classList.toggle('is-sold-out', isSoldOut);
     }
 
     selectModalPhoto(0);
@@ -859,12 +917,33 @@ document.addEventListener('DOMContentLoaded', () => {
     modalDimensions.textContent = product.dimensions;
     modalMaterials.textContent = product.materials;
 
-    if (product.isReady) {
+    if (isSoldOut) {
+      modalBadge.className = 'product-badge badge-sold-out';
+      modalBadge.textContent = 'Esgotada';
+      if (modalBtnAddCart) {
+        modalBtnAddCart.disabled = true;
+        modalBtnAddCart.classList.add('is-disabled');
+        modalBtnAddCart.setAttribute('aria-disabled', 'true');
+        modalBtnAddCart.innerHTML = 'Peça Esgotada';
+      }
+    } else if (product.isReady) {
       modalBadge.className = 'product-badge badge-ready';
       modalBadge.textContent = 'Pronta Entrega';
+      if (modalBtnAddCart) {
+        modalBtnAddCart.disabled = false;
+        modalBtnAddCart.classList.remove('is-disabled');
+        modalBtnAddCart.removeAttribute('aria-disabled');
+        modalBtnAddCart.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg> Comprar Peça`;
+      }
     } else {
       modalBadge.className = 'product-badge badge-order';
       modalBadge.textContent = `Feito sob Encomenda (${product.leadTimeDays} dias úteis)`;
+      if (modalBtnAddCart) {
+        modalBtnAddCart.disabled = false;
+        modalBtnAddCart.classList.remove('is-disabled');
+        modalBtnAddCart.removeAttribute('aria-disabled');
+        modalBtnAddCart.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg> Comprar Peça`;
+      }
     }
 
     // Botão de WhatsApp direcionado para a peça
@@ -885,10 +964,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   // 9. Checkout & Finalização
   // --------------------------------------------------------------------------
-  btnCheckout.addEventListener('click', () => {
+  btnCheckout.addEventListener('click', async () => {
     if (!updateCheckoutReadiness()) {
       showToast('Por favor, preencha seu nome e endereço completo para finalizar.');
       return;
+    }
+
+    if (!cart || cart.length === 0) {
+      showToast('Sua sacola está vazia.');
+      return;
+    }
+
+    // Pré-verificação local de estoque antes de chamar a nuvem
+    for (const item of cart) {
+      const prod = products.find(p => p.id === item.id);
+      if (prod && (prod.isReady || prod.stockQty !== undefined)) {
+        const stock = prod.stockQty !== undefined ? Number(prod.stockQty) : 1;
+        if (stock <= 0) {
+          showToast(`A peça "${prod.name}" esgotou no momento. Remova-a da sacola para prosseguir.`);
+          return;
+        }
+        if (item.quantity > stock) {
+          showToast(`Quantidade solicitada de "${prod.name}" (${item.quantity}) excede o estoque disponível (${stock}).`);
+          return;
+        }
+      }
     }
 
     const rawCep = cepInput.value.replace(/\D/g, '');
@@ -917,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', () => {
     message += `${pinIcon} Endereço de envio: ${fullAddress} — CEP ${formattedCep}\n\n`;
     message += `Como posso efetuar o pagamento via Pix?`;
 
-    // Registra pedido em tempo real no localStorage para o Painel da Jéssica
+    // Registra pedido
     const newOrderId = 'JEZ-' + Math.floor(1000 + Math.random() * 9000);
     const hasCustomItems = cart.some(i => i.isReady === false || (i.leadTimeDays && Number(i.leadTimeDays) > 0));
     const newOrder = {
@@ -942,29 +1042,95 @@ document.addEventListener('DOMContentLoaded', () => {
       status: 'aguardando-pagamento',
       trackingCode: ''
     };
+
+    // Bloqueia botão durante verificação de concorrência
+    btnCheckout.disabled = true;
+    const originalBtnText = btnCheckout.innerHTML;
+    btnCheckout.textContent = 'Verificando estoque...';
+
     try {
-      const currentOrders = JSON.parse(localStorage.getItem('jez_orders') || '[]');
-      currentOrders.unshift(newOrder);
-      localStorage.setItem('jez_orders', JSON.stringify(currentOrders));
-    } catch (e) {
-      console.error(e);
-    }
+      // 1. Verificação de concorrência atômica no Cloud Firestore (runTransaction)
+      if (window.jezFirebase && typeof window.jezFirebase.checkoutWithStockCheck === 'function') {
+        await window.jezFirebase.checkoutWithStockCheck(newOrder, cart);
+      } else if (window.jezFirebase && typeof window.jezFirebase.createOrder === 'function') {
+        await window.jezFirebase.createOrder(newOrder);
+      }
 
-    // Sincroniza pedido em tempo real com o Cloud Firestore (Fase 2 - JEZ-021)
-    if (window.jezFirebase && typeof window.jezFirebase.createOrder === 'function') {
-      window.jezFirebase.createOrder(newOrder).catch(err => {
-        console.warn('[JËZ Cloud] Pedido salvo localmente, pendente de sync em nuvem:', err.message);
-      });
-    }
+      // 2. Subtrai estoque no armazenamento local (localStorage)
+      try {
+        const catalogRaw = localStorage.getItem('jez_catalog');
+        if (catalogRaw) {
+          const catList = JSON.parse(catalogRaw);
+          cart.forEach(cartItem => {
+            const prod = catList.find(p => p.id === cartItem.id);
+            if (prod && (prod.isReady || prod.status === 'ready' || prod.stockQty !== undefined)) {
+              const current = prod.stockQty !== undefined ? Number(prod.stockQty) : 1;
+              prod.stockQty = Math.max(0, current - cartItem.quantity);
+            }
+          });
+          localStorage.setItem('jez_catalog', JSON.stringify(catList));
+        }
+      } catch (stockErr) {
+        console.warn('Erro ao atualizar estoque local:', stockErr);
+      }
 
-    const phone = '553892322411'; // WhatsApp da Jéssica (+55 38 9232-2411)
-    const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    
-    // Abre a confirmação e direcionamento
-    showToast('Redirecionando para o fechamento do pedido via WhatsApp / Pix...');
-    setTimeout(() => {
-      window.open(whatsappUrl, '_blank');
-    }, 700);
+      // 3. Salva pedido localmente no histórico
+      try {
+        const currentOrders = JSON.parse(localStorage.getItem('jez_orders') || '[]');
+        currentOrders.unshift(newOrder);
+        localStorage.setItem('jez_orders', JSON.stringify(currentOrders));
+      } catch (e) {
+        console.error(e);
+      }
+
+      // 4. Limpa sacola e atualiza vitrine
+      cart = [];
+      saveCart();
+      updateCartUI();
+      closeDrawer();
+      products = getProducts();
+      renderCatalog();
+
+      const phone = '553892322411'; // WhatsApp da Jéssica (+55 38 9232-2411)
+      const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+      
+      showToast('Pedido confirmado! Redirecionando para o WhatsApp da Jéssica...');
+      setTimeout(() => {
+        window.open(whatsappUrl, '_blank');
+      }, 700);
+
+    } catch (err) {
+      console.error('[JËZ Checkout]', err);
+      if (err.message && err.message.startsWith('ESTOQUE_ESGOTADO:')) {
+        const parts = err.message.split(':');
+        const soldPieceName = parts[1] || 'Uma das peças';
+        const remainingStock = parseInt(parts[2] || '0', 10);
+        if (remainingStock <= 0) {
+          showToast(`A peça "${soldPieceName}" acabou de ser comprada por outro cliente e está esgotada no momento.`);
+        } else {
+          showToast(`Apenas ${remainingStock} unidade(s) de "${soldPieceName}" restante(s) em estoque.`);
+        }
+        // Atualiza vitrine imediatamente com os dados frescos
+        if (window.jezFirebase && typeof window.jezFirebase.fetchProducts === 'function') {
+          window.jezFirebase.fetchProducts().then(prods => {
+            if (prods && prods.length) {
+              localStorage.setItem('jez_catalog', JSON.stringify(prods));
+              products = getProducts();
+              renderCatalog();
+            }
+          }).catch(() => {});
+        } else {
+          products = getProducts();
+          renderCatalog();
+        }
+      } else {
+        showToast('Ocorreu um erro ao validar o pedido. Tente novamente em instantes.');
+      }
+    } finally {
+      btnCheckout.disabled = false;
+      btnCheckout.innerHTML = originalBtnText;
+      updateCheckoutReadiness();
+    }
   });
 
   // --------------------------------------------------------------------------
@@ -1018,6 +1184,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   modalBtnAddCart.addEventListener('click', () => {
     if (currentModalProductId) {
+      const prod = products.find(p => p.id === currentModalProductId);
+      const isSoldOut = prod && Boolean(prod.isReady || prod.stockQty !== undefined) && Number(prod.stockQty !== undefined ? prod.stockQty : 1) <= 0;
+      if (isSoldOut) {
+        showToast('Esta peça está esgotada no momento.');
+        return;
+      }
       addToCart(currentModalProductId);
       closeModal();
     }
@@ -1224,7 +1396,8 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
             .map(p => ({
               ...p,
-              isReady: p.status ? p.status === 'ready' : (p.isReady !== undefined ? p.isReady : true)
+              isReady: p.status ? p.status === 'ready' : (p.isReady !== undefined ? p.isReady : true),
+              stockQty: p.stockQty !== undefined && p.stockQty !== null ? Number(p.stockQty) : (p.status === 'ready' || (p.status !== 'order' && p.isReady) ? 1 : 0)
             }));
           renderCatalog();
           renderHeroFeaturedCard();
