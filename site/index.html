@@ -172,7 +172,12 @@
                     imgEl.alt = 'Destaque: ' + p.name;
                   }
                   if (webpEl) {
-                    webpEl.srcset = p.webp || (p.image && p.image.startsWith('assets/') ? p.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : '');
+                    var targetWebp = p.webp || (p.image && p.image.startsWith('assets/') ? p.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : '');
+                    if (targetWebp) {
+                      webpEl.srcset = targetWebp;
+                    } else {
+                      webpEl.removeAttribute('srcset');
+                    }
                   }
                 }
               } catch(e) {}
@@ -491,6 +496,6 @@
 
   <!-- Scripts de Sincronização em Nuvem (Firebase) e Lógica da Loja -->
   <script type="module" src="firebase-service.js"></script>
-  <script type="module" src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

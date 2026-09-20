@@ -14,6 +14,9 @@
 !/.github/**
 !/presentation/
 !/presentation/**
+!/AGENTS.md
+!/.agents/
+!/.agents/**
 
 # Arquivos de sistema e temporarios
 .DS_Store

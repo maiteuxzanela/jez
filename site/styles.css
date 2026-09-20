@@ -718,6 +718,7 @@ a {
 }
 
 /* Foto secundária esgotada oculta por padrão (evita sobreposição indesejada no card) */
+.product-card.is-sold-out:not(:hover) .product-img-secondary,
 .product-card.is-sold-out .product-img-secondary {
   opacity: 0;
   pointer-events: none;
@@ -1103,7 +1104,8 @@ a {
 
 .shipping-input:focus {
   outline: none;
-  border-color: var(--color-primary);
+  border-color: var(--color-dark);
+  box-shadow: 0 0 0 2px rgba(35, 25, 45, 0.15);
 }
 
 .btn-calc-shipping {
@@ -1169,8 +1171,8 @@ a {
 
 .customer-input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(253, 10, 84, 0.15);
+  border-color: var(--color-dark);
+  box-shadow: 0 0 0 2px rgba(35, 25, 45, 0.15);
 }
 
 .form-field-grid-2 {

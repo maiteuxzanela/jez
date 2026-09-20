@@ -6,17 +6,7 @@
  * Diretrizes: Rigorosamente ZERO EMOJIS, paleta oficial da JEZ, enquadramento 1:1
  * ==========================================================================
  */
-
-import { jezFirebase } from './js/services/firebase.js';
-import {
-  defaultInitialCatalog as modularDefaultCatalog,
-  defaultCatalogOrder as modularCatalogOrder,
-  sortProductsByCuratedOrder,
-  isItemCustomProduction as modularIsItemCustomProduction,
-  isOrderCustomProduction as modularIsOrderCustomProduction
-} from './js/services/products.js';
-
-document.addEventListener('DOMContentLoaded', () => {
+const initAdmin = () => {
   // --------------------------------------------------------------------------
   // 1. Chaves de Armazenamento Local e Constantes de Segurança
   // --------------------------------------------------------------------------
@@ -2142,7 +2132,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    if (window.jezFirebase) {
+    let bound = false;
+    const bindSync = () => {
+      if (!window.jezFirebase || bound) return false;
+      bound = true;
+
       window.jezFirebase.onConnectionChange(updateBadge);
 
       // Ouve pedidos em tempo real da nuvem
@@ -2166,10 +2160,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      // Ouve destaque da vitrine em tempo real da nuvem
+      if (typeof window.jezFirebase.onFeaturedChange === 'function') {
+        window.jezFirebase.onFeaturedChange((cloudFeaturedId) => {
+          if (cloudFeaturedId) {
+            localStorage.setItem('jez_featured_product_id', cloudFeaturedId);
+            const searchInput = document.getElementById('catalog-search-input');
+            renderCatalog(searchInput ? searchInput.value.trim() : '');
+            updateDashboard();
+          }
+        });
+      }
+
       // Semeia o acervo inicial no Firestore caso o banco esteja novo/vazio
       window.jezFirebase.seedInitialProductsIfEmpty(defaultInitialCatalog);
-    } else {
+      return true;
+    };
+
+    if (!bindSync()) {
       updateBadge(false);
+      window.addEventListener('jez-cloud-status', () => {
+        bindSync();
+      });
     }
   };
 
@@ -2309,4 +2321,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
   }
-});
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAdmin);
+} else {
+  initAdmin();
+}

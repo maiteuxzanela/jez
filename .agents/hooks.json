@@ -1,0 +1,11 @@
+{
+  "robin-qa-guard": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python3 '/mnt/94CCB337CCB3130A/JEZ collections/.agents/scripts/robin_guard.py'",
+        "timeout": 120
+      }
+    ]
+  }
+}

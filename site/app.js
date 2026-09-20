@@ -5,39 +5,7 @@
  * Supervisionado por: Alex (CTO)
  * ==========================================================================
  */
-
-import { jezFirebase } from './js/services/firebase.js';
-import {
-  defaultProducts as modularDefaultProducts,
-  defaultCatalogOrder as modularCatalogOrder,
-  sortProductsByCuratedOrder as modularSortProducts,
-  isProductSoldOut,
-  filterActiveProducts
-} from './js/services/products.js';
-import {
-  JESSICA_WHATSAPP,
-  sanitizeCustomerInput as modularSanitizeCustomer,
-  validateCustomerContact as modularValidateContact,
-  fetchAddressByCep as modularFetchAddress,
-  formatWhatsAppOrderMessage as modularFormatWhatsApp
-} from './js/services/orders.js';
-import {
-  createProductCardElement,
-  escapeHtml as modularEscapeHtml,
-  sanitizeImageUrl as modularSanitizeImage,
-  formatCurrency as modularFormatCurrency
-} from './js/components/product-card.js';
-import { QuickViewGallery } from './js/components/quick-view.js';
-import {
-  loadLocalCart as modularLoadCart,
-  saveLocalCart as modularSaveCart,
-  calculateCartTotals as modularCalcTotals,
-  checkStockAvailability,
-  calculateShippingQuote,
-  validateCheckoutFields
-} from './js/components/cart.js';
-
-document.addEventListener('DOMContentLoaded', () => {
+const initApp = () => {
   // --------------------------------------------------------------------------
   // 1. Catálogo Real de Peças Artesanais (Acervo Instagram @_jezcollection)
   // --------------------------------------------------------------------------
@@ -1350,12 +1318,29 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   const heroFeaturedCard = document.getElementById('hero-featured-card');
 
-  const renderHeroFeaturedCard = () => {
+  const renderHeroFeaturedCard = (currentProductsList = null) => {
     if (!heroFeaturedCard) return;
 
-    const allProducts = getProducts();
-    const featuredId = localStorage.getItem('jez_featured_product_id') || 'tote-cherry';
-    const featuredProduct = allProducts.find(p => p.id === featuredId) || allProducts[0];
+    const allProducts = (Array.isArray(currentProductsList) && currentProductsList.length > 0)
+      ? currentProductsList
+      : ((products && products.length > 0) ? products : getProducts());
+
+    // 1. Verifica se alguma peça possui flag explícita de destaque vinda do banco (isFeatured / featured)
+    const featuredByFlag = allProducts.find(p => p.isFeatured === true || p.featured === true);
+
+    // 2. ID salvo em localStorage ou sincronizado do Firebase config/featured
+    const savedFeaturedId = localStorage.getItem('jez_featured_product_id');
+
+    // 3. Resolução da peça em destaque: flag explícita > id configurado > tote-cherry > primeira peça do catálogo
+    let featuredProduct = null;
+    if (featuredByFlag) {
+      featuredProduct = featuredByFlag;
+    } else if (savedFeaturedId) {
+      featuredProduct = allProducts.find(p => p.id === savedFeaturedId);
+    }
+    if (!featuredProduct) {
+      featuredProduct = allProducts.find(p => p.id === 'tote-cherry') || allProducts[0];
+    }
 
     if (!featuredProduct) return;
 
@@ -1373,8 +1358,12 @@ document.addEventListener('DOMContentLoaded', () => {
       imgEl.src = sanitizeImageUrl(featuredProduct.image);
       imgEl.alt = `Destaque: ${featuredProduct.name}`;
     }
-    if (webpEl && featuredProduct.image.startsWith('assets/')) {
-      webpEl.srcset = featuredProduct.image.replace(/\.(jpg|jpeg|png)$/i, '.webp');
+    if (webpEl) {
+      if (featuredProduct.image && typeof featuredProduct.image === 'string' && featuredProduct.image.startsWith('assets/')) {
+        webpEl.srcset = featuredProduct.image.replace(/\.(jpg|jpeg|png)$/i, '.webp');
+      } else {
+        webpEl.removeAttribute('srcset');
+      }
     }
 
     try {
@@ -1384,7 +1373,7 @@ document.addEventListener('DOMContentLoaded', () => {
         price: featuredProduct.price,
         formattedPrice: formatCurrency(featuredProduct.price),
         image: sanitizeImageUrl(featuredProduct.image),
-        webp: featuredProduct.image.startsWith('assets/') ? featuredProduct.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : ''
+        webp: (featuredProduct.image && typeof featuredProduct.image === 'string' && featuredProduct.image.startsWith('assets/')) ? featuredProduct.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : ''
       }));
     } catch(e) {}
   };
@@ -1424,7 +1413,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Sincronização em Nuvem (Firebase Cloud Firestore — JEZ-021)
   const initCloudSync = () => {
-    if (window.jezFirebase) {
+    let bound = false;
+    const bindSync = () => {
+      if (!window.jezFirebase || bound) return false;
+      bound = true;
+
       window.jezFirebase.onProductsChange((cloudProducts) => {
         if (Array.isArray(cloudProducts) && cloudProducts.length > 0) {
           const sorted = sortProductsByCuratedOrder(cloudProducts);
@@ -1438,7 +1431,7 @@ document.addEventListener('DOMContentLoaded', () => {
           localStorage.setItem('jez_catalog', JSON.stringify(mapped));
           products = mapped;
           renderCatalog(products);
-          renderHeroFeaturedCard();
+          renderHeroFeaturedCard(products);
         }
       });
 
@@ -1447,8 +1440,15 @@ document.addEventListener('DOMContentLoaded', () => {
       window.jezFirebase.onFeaturedChange((featuredId) => {
         if (featuredId) {
           localStorage.setItem('jez_featured_product_id', featuredId);
-          renderHeroFeaturedCard();
+          renderHeroFeaturedCard(products);
         }
+      });
+      return true;
+    };
+
+    if (!bindSync()) {
+      window.addEventListener('jez-cloud-status', () => {
+        bindSync();
       });
     }
   };
@@ -1519,4 +1519,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
   }
-});
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}

@@ -534,8 +534,8 @@ const updatedSwRaw = fs.readFileSync(path.join(ROOT_DIR, 'sw.js'), 'utf-8');
 assert(updatedSwRaw.includes('jez-boutique-cache-v2.2.0'), 'sw.js atualizou CACHE_NAME para v2.2.0');
 assert(updatedSwRaw.includes('./css/tokens.css'), 'sw.js inclui tokens.css no pré-cache');
 assert(updatedSwRaw.includes('./js/services/firebase.js') && updatedSwRaw.includes('./js/components/cart.js'), 'sw.js inclui a nova malha de módulos em STATIC_ASSETS');
-assert(indexHtmlRaw.includes('type="module" src="app.js"'), 'index.html carrega app.js nativamente como módulo ES6');
-assert(atelieHtmlRaw.includes('type="module" src="admin.js"'), 'atelie.html carrega admin.js nativamente como módulo ES6');
+assert(indexHtmlRaw.includes('src="app.js"'), 'index.html carrega app.js nativamente para compatibilidade local e web');
+assert(atelieHtmlRaw.includes('src="admin.js"'), 'atelie.html carrega admin.js nativamente para compatibilidade local e web');
 
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
