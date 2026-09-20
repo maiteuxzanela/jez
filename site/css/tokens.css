@@ -1,0 +1,60 @@
+/**
+ * ==========================================================================
+ * JEZ Collection — Tokens Oficiais de Design System
+ * Arquitetura: Alex (CTO) | Design Boutique: Lumi | Identidade: Ariel
+ * ==========================================================================
+ */
+
+:root {
+  /* Paleta Oficial JEZ Collection */
+  --color-dark: #23192d;          /* Deep Aubergine / Berinjela Profundo */
+  --color-primary: #FD0A54;       /* Vibrant Magenta / Rosa Choque Neon */
+  --color-secondary: #F57576;     /* Warm Coral / Salmão Coral */
+  --color-accent: #FEBF97;        /* Soft Peach / Pêssego Aconchegante */
+  --color-bg-light: #F5ECB7;      /* Buttercream / Manteiga Suave */
+  
+  /* Superfícies e Tons Neutros Complementares */
+  --color-white: #ffffff;
+  --color-card-bg: #fffdfc;
+  --color-surface-translucent: rgba(245, 236, 183, 0.88);
+  --color-dark-glass: rgba(35, 25, 45, 0.75);
+  --color-dark-subtle: #41334f;
+  --color-muted-text: #6e617a;
+  --color-border-light: rgba(35, 25, 45, 0.1);
+  --color-border-accent: rgba(253, 10, 84, 0.2);
+
+  /* Status Colors & Badges */
+  --color-success: #28a745;
+  --color-badge-ready: #1b8a5a;
+  --color-badge-order: #d96528;
+  --color-badge-sold-out: #475569;
+
+  /* Tipografia Oficial */
+  --font-logo: 'Bodoni Moda', 'Playfair Display', Georgia, serif;
+  --font-display: 'Playfair Display', 'Bodoni Moda', Georgia, serif;
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Sombras & Profundidade */
+  --shadow-sm: 0 2px 8px rgba(35, 25, 45, 0.06);
+  --shadow-md: 0 8px 24px rgba(35, 25, 45, 0.09);
+  --shadow-lg: 0 16px 40px rgba(35, 25, 45, 0.14);
+  --shadow-glow: 0 0 20px rgba(253, 10, 84, 0.35);
+
+  /* Curvaturas / Border-Radius */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-full: 9999px;
+
+  /* Transições Suaves */
+  --transition-fast: 0.18s ease;
+  --transition-normal: 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Variáveis Dedicadas ao Painel do Ateliê */
+  --admin-card-bg: #2d2038;
+  --admin-card-border: 1.5px dashed rgba(254, 191, 151, 0.45);
+  --admin-card-text: var(--color-bg-light);
+  --admin-input-bg: #23192d;
+}

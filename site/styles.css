@@ -4,8 +4,10 @@
    CTO & Architecture: Alex
    ========================================================================== */
 
+@import url('./css/tokens.css');
+
 /* --------------------------------------------------------------------------
-   1. Design Tokens & CSS Variables
+   1. Design Tokens & CSS Variables (Tokens Unificados em css/tokens.css)
    -------------------------------------------------------------------------- */
 :root {
   /* Paleta Oficial JEZ Collection */

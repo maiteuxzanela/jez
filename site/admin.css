@@ -6,6 +6,8 @@
  * ==========================================================================
  */
 
+@import url('./css/tokens.css');
+
 :root {
   --admin-card-bg: #2d2038;
   --admin-card-border: 1.5px dashed rgba(254, 191, 151, 0.45);

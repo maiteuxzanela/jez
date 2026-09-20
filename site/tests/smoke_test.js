@@ -473,6 +473,70 @@ assert(updatedAppJs.includes('checkoutWithStockCheck') && updatedAppJs.includes(
 assert(updatedAppJs.includes('Limite de estoque') || updatedAppJs.includes('esgotada no momento'), 'app.js bloqueia adição ao carrinho caso o estoque seja excedido');
 assert(!emojiRegex.test(updatedFbService) && !emojiRegex.test(updatedAppJs) && !updatedStyles.includes('emoji'), 'Todos os arquivos atualizados cumprem a diretriz anti-emoji');
 
+// 23. Validando Arquitetura Modular do Frontend e Tokens de CSS (Ponto 4 - Alex & Lumi)
+console.log('\n🏛️ 23. Validando Arquitetura Modular do Frontend e Tokens de CSS (Ponto 4):');
+const tokensCssPath = path.join(ROOT_DIR, 'css', 'tokens.css');
+assert(fs.existsSync(tokensCssPath), 'site/css/tokens.css existe e centraliza os tokens de design system');
+
+const tokensContent = fs.readFileSync(tokensCssPath, 'utf-8');
+const brandTokens = ['#23192d', '#FD0A54', '#F57576', '#FEBF97', '#F5ECB7'];
+brandTokens.forEach(t => {
+  assert(tokensContent.toLowerCase().includes(t.toLowerCase()), `tokens.css contém a cor oficial da marca ${t}`);
+});
+assert(tokensContent.includes('--admin-card-bg') && tokensContent.includes('--admin-card-border'), 'tokens.css unifica os tokens dedicados do Ateliê');
+
+assert(stylesContent.includes("import url('./css/tokens.css')") || stylesContent.includes('import url("./css/tokens.css")') || stylesContent.includes('tokens.css'), 'styles.css importa tokens.css');
+const adminCssRaw = fs.readFileSync(path.join(ROOT_DIR, 'admin.css'), 'utf-8');
+assert(adminCssRaw.includes("import url('./css/tokens.css')") || adminCssRaw.includes('import url("./css/tokens.css")') || adminCssRaw.includes('tokens.css'), 'admin.css importa tokens.css');
+
+const indexHtmlRaw = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf-8');
+const atelieHtmlRaw = fs.readFileSync(path.join(ROOT_DIR, 'atelie.html'), 'utf-8');
+assert(indexHtmlRaw.includes('css/tokens.css'), 'index.html vincula link de css/tokens.css');
+assert(atelieHtmlRaw.includes('css/tokens.css'), 'atelie.html vincula link de css/tokens.css');
+
+const modularServices = [
+  'js/services/firebase.js',
+  'js/services/products.js',
+  'js/services/orders.js'
+];
+modularServices.forEach(modPath => {
+  const fullModPath = path.join(ROOT_DIR, modPath);
+  assert(fs.existsSync(fullModPath), `${modPath} existe na camada de serviços`);
+  try {
+    execSync(`node -c "${fullModPath}"`);
+    assert(true, `${modPath} compila sem erros sintáticos (node -c)`);
+  } catch (err) {
+    assert(false, `${modPath} falhou na compilação: ${err.message}`);
+  }
+  const content = fs.readFileSync(fullModPath, 'utf-8');
+  assert(!emojiRegex.test(content), `${modPath} cumpre rigorosamente a política anti-emoji`);
+});
+
+const modularComponents = [
+  'js/components/cart.js',
+  'js/components/product-card.js',
+  'js/components/quick-view.js'
+];
+modularComponents.forEach(compPath => {
+  const fullCompPath = path.join(ROOT_DIR, compPath);
+  assert(fs.existsSync(fullCompPath), `${compPath} existe na camada de componentes`);
+  try {
+    execSync(`node -c "${fullCompPath}"`);
+    assert(true, `${compPath} compila sem erros sintáticos (node -c)`);
+  } catch (err) {
+    assert(false, `${compPath} falhou na compilação: ${err.message}`);
+  }
+  const content = fs.readFileSync(fullCompPath, 'utf-8');
+  assert(!emojiRegex.test(content), `${compPath} cumpre rigorosamente a política anti-emoji`);
+});
+
+const updatedSwRaw = fs.readFileSync(path.join(ROOT_DIR, 'sw.js'), 'utf-8');
+assert(updatedSwRaw.includes('jez-boutique-cache-v2.2.0'), 'sw.js atualizou CACHE_NAME para v2.2.0');
+assert(updatedSwRaw.includes('./css/tokens.css'), 'sw.js inclui tokens.css no pré-cache');
+assert(updatedSwRaw.includes('./js/services/firebase.js') && updatedSwRaw.includes('./js/components/cart.js'), 'sw.js inclui a nova malha de módulos em STATIC_ASSETS');
+assert(indexHtmlRaw.includes('type="module" src="app.js"'), 'index.html carrega app.js nativamente como módulo ES6');
+assert(atelieHtmlRaw.includes('type="module" src="admin.js"'), 'atelie.html carrega admin.js nativamente como módulo ES6');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

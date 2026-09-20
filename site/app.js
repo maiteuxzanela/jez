@@ -6,6 +6,37 @@
  * ==========================================================================
  */
 
+import { jezFirebase } from './js/services/firebase.js';
+import {
+  defaultProducts as modularDefaultProducts,
+  defaultCatalogOrder as modularCatalogOrder,
+  sortProductsByCuratedOrder as modularSortProducts,
+  isProductSoldOut,
+  filterActiveProducts
+} from './js/services/products.js';
+import {
+  JESSICA_WHATSAPP,
+  sanitizeCustomerInput as modularSanitizeCustomer,
+  validateCustomerContact as modularValidateContact,
+  fetchAddressByCep as modularFetchAddress,
+  formatWhatsAppOrderMessage as modularFormatWhatsApp
+} from './js/services/orders.js';
+import {
+  createProductCardElement,
+  escapeHtml as modularEscapeHtml,
+  sanitizeImageUrl as modularSanitizeImage,
+  formatCurrency as modularFormatCurrency
+} from './js/components/product-card.js';
+import { QuickViewGallery } from './js/components/quick-view.js';
+import {
+  loadLocalCart as modularLoadCart,
+  saveLocalCart as modularSaveCart,
+  calculateCartTotals as modularCalcTotals,
+  checkStockAvailability,
+  calculateShippingQuote,
+  validateCheckoutFields
+} from './js/components/cart.js';
+
 document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   // 1. Catálogo Real de Peças Artesanais (Acervo Instagram @_jezcollection)

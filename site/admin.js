@@ -7,6 +7,15 @@
  * ==========================================================================
  */
 
+import { jezFirebase } from './js/services/firebase.js';
+import {
+  defaultInitialCatalog as modularDefaultCatalog,
+  defaultCatalogOrder as modularCatalogOrder,
+  sortProductsByCuratedOrder,
+  isItemCustomProduction as modularIsItemCustomProduction,
+  isOrderCustomProduction as modularIsOrderCustomProduction
+} from './js/services/products.js';
+
 document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   // 1. Chaves de Armazenamento Local e Constantes de Segurança

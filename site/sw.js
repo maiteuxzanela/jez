@@ -3,19 +3,26 @@
 // Arquitetura: Alex (CTO) | Performance: Noa | Cibersegurança: Morgan
 // ==========================================================================
 
-const CACHE_NAME = 'jez-boutique-cache-v2.1.1';
+const CACHE_NAME = 'jez-boutique-cache-v2.2.0';
 
 // Recursos essenciais para funcionamento offline e carregamento instantâneo
 const STATIC_ASSETS = [
   './',
   './index.html',
   './atelie.html',
+  './css/tokens.css',
   './styles.css',
   './admin.css',
   './app.js',
   './admin.js',
   './firebase-config.js',
   './firebase-service.js',
+  './js/services/firebase.js',
+  './js/services/products.js',
+  './js/services/orders.js',
+  './js/components/cart.js',
+  './js/components/product-card.js',
+  './js/components/quick-view.js',
   './manifest.json',
   './manifest-atelie.json',
   './favicon.svg',
