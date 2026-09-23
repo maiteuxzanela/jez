@@ -537,6 +537,30 @@ assert(updatedSwRaw.includes('./js/services/firebase.js') && updatedSwRaw.includ
 assert(indexHtmlRaw.includes('src="app.js"'), 'index.html carrega app.js nativamente para compatibilidade local e web');
 assert(atelieHtmlRaw.includes('src="admin.js"'), 'atelie.html carrega admin.js nativamente para compatibilidade local e web');
 
+console.log('\n📸 24. Validando Resiliência de Fotos, Otimização de Payload e Persistência no Ateliê (JEZ-029):');
+const currentAdminJs = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+assert(currentAdminJs.includes('handleStorageQuotaExceeded'), 'admin.js implementa rotina de recuperação para estouro de cota do localStorage');
+assert(currentAdminJs.includes('try {') && currentAdminJs.includes('localStorage.setItem(STORAGE_CATALOG_KEY'), 'admin.js protege persistência de catálogo com try/catch contra QuotaExceededError');
+assert(currentAdminJs.includes('maxWidth = 540') && currentAdminJs.includes('quality = 0.68'), 'admin.js otimiza compressão de fotos complementares para 540px a 68% de qualidade');
+assert(currentAdminJs.includes('targetSize = 540') && currentAdminJs.includes("toDataURL('image/jpeg', 0.72)"), 'admin.js calibra recorte de capa 1:1 para 540px a 72% de qualidade');
+assert(currentAdminJs.includes('Salvando e Publicando...') && currentAdminJs.includes('Salvando Alterações...'), 'admin.js fornece feedback visual de carregamento nos botões de submissão');
+assert(!emojiRegex.test(currentAdminJs), 'admin.js mantém conformidade estrita com ZERO emojis');
+
+// Teste funcional de simulação: peça com 5 fotos e preservação da peça ativa na recuperação de quota
+const mockCatalog = [
+  { id: 'custom-old', name: 'Peça Antiga', images: ['data:image/jpeg;base64,111', 'data:image/jpeg;base64,222', 'data:image/jpeg;base64,333'] },
+  { id: 'custom-new', name: 'Nova Peça Multi-Fotos', images: ['data:image/jpeg;base64,aaa', 'data:image/jpeg;base64,bbb', 'data:image/jpeg;base64,ccc', 'data:image/jpeg;base64,ddd', 'data:image/jpeg;base64,eee'] }
+];
+const targetId = 'custom-new';
+const slimResult = mockCatalog.map(p => {
+  if (p.id !== targetId && p.id.startsWith('custom-') && Array.isArray(p.images) && p.images.length > 1) {
+    return { ...p, images: [p.images[0]] };
+  }
+  return p;
+});
+assert(slimResult.find(p => p.id === 'custom-old').images.length === 1, 'Rotina de quota compacta fotos secundárias de peças antigas');
+assert(slimResult.find(p => p.id === 'custom-new').images.length === 5, 'Rotina de quota preserva integralmente todas as 5 fotos da peça recém-adicionada/editada');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

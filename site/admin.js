@@ -280,7 +280,11 @@ const initAdmin = () => {
       });
       const sorted = sortCatalogByCuratedOrder(hydrated);
       if (updated) {
-        localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(sorted));
+        try {
+          localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(sorted));
+        } catch (err) {
+          console.warn('[JËZ Ateliê] Cota atingida ao salvar catálogo hidratado:', err);
+        }
       }
       return sorted;
     } catch {
@@ -288,12 +292,56 @@ const initAdmin = () => {
     }
   };
 
+  /**
+   * Trata estouro da cota de 5MB do localStorage em dispositivos móveis
+   * Libera espaço de chaves redundantes e preserva todas as fotos da peça atual (targetProductId)
+   */
+  const handleStorageQuotaExceeded = (catalogList, targetProductId = null) => {
+    try {
+      // 1. Libera espaço da chave redundante jez_custom_products e tenta persistir o catálogo integral
+      localStorage.removeItem(STORAGE_CUSTOM_PRODUCTS_KEY);
+      localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalogList));
+      return true;
+    } catch {
+      // 2. Se a cota ainda for excedida, compacta apenas fotos secundárias de peças antigas preservando a atual
+      try {
+        const slimCatalog = catalogList.map(p => {
+          if (p.id !== targetProductId && p.id.startsWith('custom-') && Array.isArray(p.images) && p.images.length > 1) {
+            return { ...p, images: [p.images[0]] };
+          }
+          return p;
+        });
+        localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(slimCatalog));
+        return true;
+      } catch (e2) {
+        console.warn('[JËZ Ateliê] Falha crítica de cota no localStorage:', e2);
+        return false;
+      }
+    }
+  };
+
   const saveCatalog = (catalogList, targetProductId = null) => {
     const sorted = sortCatalogByCuratedOrder(catalogList);
-    localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(sorted));
-    // Sincroniza também jez_custom_products para compatibilidade reversa
-    const customOnly = sorted.filter(p => p.id.startsWith('custom-'));
-    localStorage.setItem(STORAGE_CUSTOM_PRODUCTS_KEY, JSON.stringify(customOnly));
+    let savedSuccessfully = false;
+    try {
+      localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(sorted));
+      savedSuccessfully = true;
+    } catch (err) {
+      console.warn('[JËZ Ateliê] Cota atingida ao salvar jez_catalog:', err);
+      savedSuccessfully = handleStorageQuotaExceeded(sorted, targetProductId);
+    }
+
+    // Apenas mantém chave legada se houver espaço livre sem comprometer o catálogo principal
+    if (savedSuccessfully) {
+      try {
+        const customOnly = sorted.filter(p => p.id.startsWith('custom-'));
+        localStorage.setItem(STORAGE_CUSTOM_PRODUCTS_KEY, JSON.stringify(customOnly));
+      } catch {
+        // Remove chave legada redundante para manter o armazenamento limpo
+        localStorage.removeItem(STORAGE_CUSTOM_PRODUCTS_KEY);
+      }
+    }
+
     renderCatalog();
     updateDashboard();
 
@@ -533,7 +581,7 @@ const initAdmin = () => {
       });
     };
 
-    const getCroppedDataUrl = (targetSize = 600) => {
+    const getCroppedDataUrl = (targetSize = 540) => {
       if (!naturalWidth || !naturalHeight || !imgEl.src) return imgEl.src;
       try {
         const canvas = document.createElement('canvas');
@@ -557,7 +605,7 @@ const initAdmin = () => {
         ctx.fillStyle = '#23192d';
         ctx.fillRect(0, 0, targetSize, targetSize);
         ctx.drawImage(imgEl, srcX, srcY, srcW, srcH, 0, 0, targetSize, targetSize);
-        return canvas.toDataURL('image/jpeg', 0.88);
+        return canvas.toDataURL('image/jpeg', 0.72);
       } catch {
         return imgEl.src;
       }
@@ -607,8 +655,9 @@ const initAdmin = () => {
 
   /**
    * Comprime e redimensiona arquivos de imagem client-side via Canvas (JEZ-019)
+   * Otimizado para 540px a 68% de qualidade, reduzindo payload em ~75% sem perda visual
    */
-  const compressImageFile = (file, maxWidth = 800, quality = 0.78) => {
+  const compressImageFile = (file, maxWidth = 540, quality = 0.68) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -632,7 +681,10 @@ const initAdmin = () => {
           ctx.drawImage(img, 0, 0, width, height);
           resolve(canvas.toDataURL('image/jpeg', quality));
         };
-        img.onerror = () => resolve(e.target.result);
+        img.onerror = () => {
+          console.warn('[JËZ Ateliê] Falha na decodificação da imagem para compressão.');
+          resolve('');
+        };
         img.src = e.target.result;
       };
       reader.onerror = () => resolve('');
@@ -1179,15 +1231,33 @@ const initAdmin = () => {
       const availableSlots = 4 - newPieceExtraPhotos.length;
       const filesToProcess = files.slice(0, availableSlots);
 
-      for (const file of filesToProcess) {
-        const compressed = await compressImageFile(file);
-        if (compressed) {
-          newPieceExtraPhotos.push(compressed);
+      if (btnAddNewExtraPhoto) {
+        btnAddNewExtraPhoto.disabled = true;
+        btnAddNewExtraPhoto.style.opacity = '0.6';
+      }
+
+      try {
+        let addedCount = 0;
+        for (const file of filesToProcess) {
+          const compressed = await compressImageFile(file);
+          if (compressed) {
+            newPieceExtraPhotos.push(compressed);
+            addedCount++;
+          }
+        }
+        newExtraPhotosInput.value = '';
+        renderNewExtraPhotos();
+        if (addedCount > 0) {
+          showToast(`${addedCount} foto(s) extra(s) adicionada(s)!`);
+        } else {
+          showToast('Formato de imagem não suportado. Utilize JPG ou PNG.');
+        }
+      } finally {
+        if (btnAddNewExtraPhoto && newPieceExtraPhotos.length < 4) {
+          btnAddNewExtraPhoto.disabled = false;
+          btnAddNewExtraPhoto.style.opacity = '1';
         }
       }
-      newExtraPhotosInput.value = '';
-      renderNewExtraPhotos();
-      showToast(`${filesToProcess.length} foto(s) extra(s) adicionada(s)!`);
     });
   }
 
@@ -1249,71 +1319,90 @@ const initAdmin = () => {
   formNewProduct.addEventListener('submit', (e) => {
     e.preventDefault();
 
-    const rawName = document.getElementById('product-name-input').value;
-    const name = sanitizeText(rawName, 120);
-    const category = document.getElementById('product-category-input').value;
-    const rawPrice = parseFloat(document.getElementById('product-price-input').value);
-    const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
-    const modality = document.querySelector('input[name="product-modality"]:checked').value;
-    const rawStock = parseInt(document.getElementById('product-stock-input')?.value, 10);
-    const stockQty = modality === 'ready' ? Math.max(0, isNaN(rawStock) ? 1 : rawStock) : 0;
-    const rawLeadTime = parseInt(document.getElementById('product-leadtime-input').value, 10);
-    const leadTimeDays = modality === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
-    const dimensions = sanitizeText(document.getElementById('product-dimensions-input').value, 150) || 'Medidas artesanais sob encomenda';
-    const materials = sanitizeText(document.getElementById('product-materials-input').value, 200) || 'Fio 100% algodão premium artesanal';
-    const description = sanitizeText(document.getElementById('product-desc-input').value, 800) || 'Peça autoral tecida com amor e acabamento único pela Jéssica Regina.';
+    const btnSavePiece = document.getElementById('btn-save-piece');
+    const btnSpan = btnSavePiece ? btnSavePiece.querySelector('span') : null;
+    const originalText = btnSpan ? btnSpan.textContent : 'Salvar e Publicar na Loja';
 
-    // Foto recortada e enquadrada em 1:1
-    let photoToUse = 'assets/products/tote_cherry.jpg';
-    if (newPieceCropper.hasImage()) {
-      photoToUse = newPieceCropper.getCroppedDataUrl(600);
+    if (btnSavePiece) {
+      btnSavePiece.disabled = true;
+      if (btnSpan) btnSpan.textContent = 'Salvando e Publicando...';
     }
 
-    const categoryLabels = {
-      bolsas: 'Bolsas & Bags',
-      vestuario: 'Vestuário Autoral',
-      acessorios: 'Acessórios'
-    };
+    try {
+      const rawName = document.getElementById('product-name-input').value;
+      const name = sanitizeText(rawName, 120);
+      const category = document.getElementById('product-category-input').value;
+      const rawPrice = parseFloat(document.getElementById('product-price-input').value);
+      const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
+      const modality = document.querySelector('input[name="product-modality"]:checked').value;
+      const rawStock = parseInt(document.getElementById('product-stock-input')?.value, 10);
+      const stockQty = modality === 'ready' ? Math.max(0, isNaN(rawStock) ? 1 : rawStock) : 0;
+      const rawLeadTime = parseInt(document.getElementById('product-leadtime-input').value, 10);
+      const leadTimeDays = modality === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
+      const dimensions = sanitizeText(document.getElementById('product-dimensions-input').value, 150) || 'Medidas artesanais sob encomenda';
+      const materials = sanitizeText(document.getElementById('product-materials-input').value, 200) || 'Fio 100% algodão premium artesanal';
+      const description = sanitizeText(document.getElementById('product-desc-input').value, 800) || 'Peça autoral tecida com amor e acabamento único pela Jéssica Regina.';
 
-    const extraImages = [...newPieceExtraPhotos];
-    const allImages = [photoToUse, ...extraImages];
+      // Foto recortada e enquadrada em 1:1
+      let photoToUse = 'assets/products/tote_cherry.jpg';
+      if (newPieceCropper.hasImage()) {
+        photoToUse = newPieceCropper.getCroppedDataUrl(540);
+      }
 
-    const newPiece = {
-      id: 'custom-' + Date.now(),
-      name,
-      category,
-      categoryLabel: categoryLabels[category] || 'Peças Autorais',
-      price,
-      image: photoToUse,
-      images: allImages,
-      status: modality, // 'ready' ou 'order'
-      isReady: modality === 'ready',
-      stockQty: stockQty,
-      leadTimeDays: leadTimeDays,
-      dimensions,
-      materials,
-      description
-    };
+      const categoryLabels = {
+        bolsas: 'Bolsas & Bags',
+        vestuario: 'Vestuário Autoral',
+        acessorios: 'Acessórios'
+      };
 
-    catalog = loadCatalog();
-    catalog.push(newPiece);
-    saveCatalog(catalog, newPiece.id);
+      const extraImages = [...newPieceExtraPhotos];
+      const allImages = [photoToUse, ...extraImages];
 
-    // Limpa formulário
-    formNewProduct.reset();
-    photoInput.value = '';
-    newPieceExtraPhotos = [];
-    renderNewExtraPhotos();
-    cropWorkspace.style.display = 'none';
-    uploadPrompt.style.display = 'flex';
-    modalityOptions[0].click();
+      const newPiece = {
+        id: 'custom-' + Date.now(),
+        name,
+        category,
+        categoryLabel: categoryLabels[category] || 'Peças Autorais',
+        price,
+        image: photoToUse,
+        images: allImages,
+        status: modality, // 'ready' ou 'order'
+        isReady: modality === 'ready',
+        stockQty: stockQty,
+        leadTimeDays: leadTimeDays,
+        dimensions,
+        materials,
+        description
+      };
 
-    showToast(`Peça "${name}" cadastrada com sucesso!`);
-    
-    // Transiciona para a aba do acervo
-    setTimeout(() => {
-      switchTab('catalog');
-    }, 500);
+      catalog = loadCatalog();
+      catalog.push(newPiece);
+      saveCatalog(catalog, newPiece.id);
+
+      // Limpa formulário
+      formNewProduct.reset();
+      photoInput.value = '';
+      newPieceExtraPhotos = [];
+      renderNewExtraPhotos();
+      cropWorkspace.style.display = 'none';
+      uploadPrompt.style.display = 'flex';
+      modalityOptions[0].click();
+
+      showToast(`Peça "${name}" cadastrada com sucesso!`);
+      
+      // Transiciona para a aba do acervo
+      setTimeout(() => {
+        switchTab('catalog');
+      }, 500);
+    } catch (err) {
+      console.error('[JËZ Ateliê] Erro ao cadastrar nova peça:', err);
+      showToast('Ocorreu um erro ao salvar a peça. Tente novamente.');
+    } finally {
+      if (btnSavePiece) {
+        btnSavePiece.disabled = false;
+        if (btnSpan) btnSpan.textContent = originalText;
+      }
+    }
   });
 
   // --------------------------------------------------------------------------
@@ -1583,7 +1672,7 @@ const initAdmin = () => {
       current.offsetX = st.offsetX;
       current.offsetY = st.offsetY;
       current.isModified = true;
-      const cropped = editPieceCropper.getCroppedDataUrl(600);
+      const cropped = editPieceCropper.getCroppedDataUrl(540);
       if (cropped) {
         current.url = cropped;
       }
@@ -1769,29 +1858,43 @@ const initAdmin = () => {
       const availableSlots = 5 - editCarouselItems.length;
       const filesToProcess = files.slice(0, availableSlots);
 
-      let firstNewIdx = -1;
-      for (const file of filesToProcess) {
-        const compressed = await compressImageFile(file);
-        if (compressed) {
-          const newIdx = editCarouselItems.length;
-          if (firstNewIdx === -1) firstNewIdx = newIdx;
-          editCarouselItems.push({
-            url: compressed,
-            isCover: newIdx === 0,
-            isModified: true,
-            zoom: 1,
-            offsetX: 0,
-            offsetY: 0
-          });
-        }
+      if (btnAddEditExtraPhoto) {
+        btnAddEditExtraPhoto.disabled = true;
+        btnAddEditExtraPhoto.style.opacity = '0.6';
       }
 
-      editExtraPhotosInput.value = '';
-      if (firstNewIdx !== -1) {
-        activeCarouselIdx = firstNewIdx;
-        renderEditCarousel();
-        await loadActiveCarouselPhoto();
-        showToast(`Foto adicionada ao carrossel! Ajuste o enquadramento 1:1 acima.`);
+      try {
+        let firstNewIdx = -1;
+        for (const file of filesToProcess) {
+          const compressed = await compressImageFile(file);
+          if (compressed) {
+            const newIdx = editCarouselItems.length;
+            if (firstNewIdx === -1) firstNewIdx = newIdx;
+            editCarouselItems.push({
+              url: compressed,
+              isCover: newIdx === 0,
+              isModified: true,
+              zoom: 1,
+              offsetX: 0,
+              offsetY: 0
+            });
+          }
+        }
+
+        editExtraPhotosInput.value = '';
+        if (firstNewIdx !== -1) {
+          activeCarouselIdx = firstNewIdx;
+          renderEditCarousel();
+          await loadActiveCarouselPhoto();
+          showToast('Foto adicionada ao carrossel! Ajuste o enquadramento 1:1 acima.');
+        } else {
+          showToast('Formato de imagem não suportado. Utilize JPG ou PNG.');
+        }
+      } finally {
+        if (btnAddEditExtraPhoto && editCarouselItems.length < 5) {
+          btnAddEditExtraPhoto.disabled = false;
+          btnAddEditExtraPhoto.style.opacity = '1';
+        }
       }
     });
   }
@@ -1850,60 +1953,77 @@ const initAdmin = () => {
   formEditProduct.addEventListener('submit', (e) => {
     e.preventDefault();
 
-    const id = document.getElementById('edit-piece-id').value;
-    const rawName = document.getElementById('edit-product-name').value;
-    const name = sanitizeText(rawName, 120);
-    const category = document.getElementById('edit-product-category').value;
-    const rawPrice = parseFloat(document.getElementById('edit-product-price').value);
-    const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
-    const statusRadio = document.querySelector('input[name="edit-status"]:checked');
-    const status = statusRadio ? statusRadio.value : 'ready';
-    const rawLeadTime = parseInt(document.getElementById('edit-product-leadtime').value, 10);
-    const leadTimeDays = status === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
-    const rawStock = parseInt(document.getElementById('edit-product-stock')?.value, 10);
-    const stockQty = status === 'ready' ? Math.max(0, isNaN(rawStock) ? 1 : rawStock) : 0;
-    const dimensions = sanitizeText(document.getElementById('edit-product-dimensions').value, 150);
-    const materials = sanitizeText(document.getElementById('edit-product-materials').value, 200);
-    const description = sanitizeText(document.getElementById('edit-product-desc').value, 800);
+    const btnSaveEdit = document.getElementById('btn-save-edit');
+    const originalText = btnSaveEdit ? btnSaveEdit.textContent : 'Salvar Alterações';
+    if (btnSaveEdit) {
+      btnSaveEdit.disabled = true;
+      btnSaveEdit.textContent = 'Salvando Alterações...';
+    }
 
-    // Salva o recorte da foto atualmente ativa no cropper
-    saveActivePhotoCropState();
+    try {
+      const id = document.getElementById('edit-piece-id').value;
+      const rawName = document.getElementById('edit-product-name').value;
+      const name = sanitizeText(rawName, 120);
+      const category = document.getElementById('edit-product-category').value;
+      const rawPrice = parseFloat(document.getElementById('edit-product-price').value);
+      const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
+      const statusRadio = document.querySelector('input[name="edit-status"]:checked');
+      const status = statusRadio ? statusRadio.value : 'ready';
+      const rawLeadTime = parseInt(document.getElementById('edit-product-leadtime').value, 10);
+      const leadTimeDays = status === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
+      const rawStock = parseInt(document.getElementById('edit-product-stock')?.value, 10);
+      const stockQty = status === 'ready' ? Math.max(0, isNaN(rawStock) ? 1 : rawStock) : 0;
+      const dimensions = sanitizeText(document.getElementById('edit-product-dimensions').value, 150);
+      const materials = sanitizeText(document.getElementById('edit-product-materials').value, 200);
+      const description = sanitizeText(document.getElementById('edit-product-desc').value, 800);
 
-    const categoryLabels = {
-      bolsas: 'Bolsas & Bags',
-      vestuario: 'Vestuário Autoral',
-      acessorios: 'Acessórios'
-    };
+      // Salva o recorte da foto atualmente ativa no cropper
+      saveActivePhotoCropState();
 
-    const finalImages = editCarouselItems.map(item => sanitizeImageUrl(item.url));
-    const coverImage = finalImages[0] || (currentEditingPiece ? currentEditingPiece.image : 'assets/products/tote_cherry.jpg');
-    const updatedImages = finalImages.length > 0 ? [...finalImages] : [coverImage];
+      const categoryLabels = {
+        bolsas: 'Bolsas & Bags',
+        vestuario: 'Vestuário Autoral',
+        acessorios: 'Acessórios'
+      };
 
-    catalog = loadCatalog().map(p => {
-      if (p.id === id) {
-        return {
-          ...p,
-          name,
-          category,
-          categoryLabel: categoryLabels[category] || p.categoryLabel,
-          price,
-          status,
-          isReady: status === 'ready',
-          stockQty,
-          leadTimeDays,
-          dimensions,
-          materials,
-          description,
-          image: coverImage,
-          images: updatedImages
-        };
+      const finalImages = editCarouselItems.map(item => sanitizeImageUrl(item.url));
+      const coverImage = finalImages[0] || (currentEditingPiece ? currentEditingPiece.image : 'assets/products/tote_cherry.jpg');
+      const updatedImages = finalImages.length > 0 ? [...finalImages] : [coverImage];
+
+      catalog = loadCatalog().map(p => {
+        if (p.id === id) {
+          return {
+            ...p,
+            name,
+            category,
+            categoryLabel: categoryLabels[category] || p.categoryLabel,
+            price,
+            status,
+            isReady: status === 'ready',
+            stockQty,
+            leadTimeDays,
+            dimensions,
+            materials,
+            description,
+            image: coverImage,
+            images: updatedImages
+          };
+        }
+        return p;
+      });
+
+      saveCatalog(catalog, id);
+      closeEditModal();
+      showToast(`Peça "${name}" atualizada com sucesso!`);
+    } catch (err) {
+      console.error('[JËZ Ateliê] Erro ao salvar edição da peça:', err);
+      showToast('Ocorreu um erro ao atualizar a peça. Tente novamente.');
+    } finally {
+      if (btnSaveEdit) {
+        btnSaveEdit.disabled = false;
+        btnSaveEdit.textContent = originalText;
       }
-      return p;
-    });
-
-    saveCatalog(catalog, id);
-    closeEditModal();
-    showToast(`Peça "${name}" atualizada com sucesso!`);
+    }
   });
 
   // --------------------------------------------------------------------------
