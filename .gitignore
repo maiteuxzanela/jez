@@ -17,6 +17,8 @@
 !/AGENTS.md
 !/.agents/
 !/.agents/**
+!/personas/
+!/personas/**
 
 # Arquivos de sistema e temporarios
 .DS_Store
