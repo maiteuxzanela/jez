@@ -98,9 +98,9 @@ Configurado em `~/.gemini/config/mcp_config.json`:
 O orquestrador Alex opera estritamente sob os **Três Níveis de Execução** (Global AGENTS.md §3.1):
 1. **Nível 1 (Auto-Execução Racional):** Dúvidas conceituais, arquitetura e pequenos ajustes de configuração/texto.
 2. **Nível 2 (Delegação Obrigatória à Equipe via Hermes Subagent):** Implementações técnicas em `site/`, estilos CSS, regras de frete/checkout e testes DEVEM ser despachadas para o especialista eleito. Alex **NÃO edita código de produção diretamente**.
-   * Eleição: `openjev_choice(premise="...", options=["lumi", "ariel", "sam", "cris", "morgan", "noa", "robin"])`
-   * Despacho: `openjev_spawn_subagent(persona=selected, task="...", workspace="/mnt/94CCB337CCB3130A/JEZ collections")`
-3. **Nível 3 (Proposição de Nova Persona):** Se a demanda técnica exigir especialidade ausente no roster atual, Alex propõe a persona em `personas/<nome>.md`, registra no catálogo abaixo e despacha via subagente.
+   * Eleição: `openjev_choice(premise="...", options=["lumi", "ariel", "sam", "cris", "morgan", "noa", "robin", "nova_persona_especialista"])`
+   * Despacho: se eleito um especialista existente, despachar via `openjev_spawn_subagent(persona=selected, task="...", workspace="/mnt/94CCB337CCB3130A/JEZ collections")`. Se eleito `"nova_persona_especialista"`, transicionar imediatamente para o **Nível 3**.
+3. **Nível 3 (Proposição de Nova Persona):** Se o choice eleger `"nova_persona_especialista"` ou a demanda técnica exigir especialidade ausente no roster atual, Alex propõe a persona em `personas/<nome>.md`, registra no catálogo abaixo e despacha via subagente.
 
 | Subagente | Arquivo de Persona | Especialidade Principal | Quando Acionar |
 | :--- | :--- | :--- | :--- |
