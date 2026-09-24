@@ -531,7 +531,7 @@ modularComponents.forEach(compPath => {
 });
 
 const updatedSwRaw = fs.readFileSync(path.join(ROOT_DIR, 'sw.js'), 'utf-8');
-assert(updatedSwRaw.includes('jez-boutique-cache-v2.2.0'), 'sw.js atualizou CACHE_NAME para v2.2.0');
+assert(updatedSwRaw.includes('jez-boutique-cache-v2.2.0') || updatedSwRaw.includes('jez-boutique-cache-v2.3.0'), 'sw.js atualizou CACHE_NAME para v2.2.0/v2.3.0');
 assert(updatedSwRaw.includes('./css/tokens.css'), 'sw.js inclui tokens.css no pré-cache');
 assert(updatedSwRaw.includes('./js/services/firebase.js') && updatedSwRaw.includes('./js/components/cart.js'), 'sw.js inclui a nova malha de módulos em STATIC_ASSETS');
 assert(indexHtmlRaw.includes('src="app.js"'), 'index.html carrega app.js nativamente para compatibilidade local e web');
@@ -560,6 +560,35 @@ const slimResult = mockCatalog.map(p => {
 });
 assert(slimResult.find(p => p.id === 'custom-old').images.length === 1, 'Rotina de quota compacta fotos secundárias de peças antigas');
 assert(slimResult.find(p => p.id === 'custom-new').images.length === 5, 'Rotina de quota preserva integralmente todas as 5 fotos da peça recém-adicionada/editada');
+
+console.log('\n🏛️ 25. Validando Decomposição Modular do Ateliê (JEZ-030):');
+const adminModules = [
+  'js/admin/auth.js',
+  'js/admin/cropper.js',
+  'js/admin/image-compression.js',
+  'js/admin/catalog.js',
+  'js/admin/orders.js',
+  'js/admin/dashboard.js'
+];
+adminModules.forEach(modPath => {
+  const fullModPath = path.join(ROOT_DIR, modPath);
+  assert(fs.existsSync(fullModPath), `${modPath} existe na arquitetura modular do Ateliê`);
+  try {
+    execSync(`node -c "${fullModPath}"`);
+    assert(true, `${modPath} compila sem erros sintáticos (node -c)`);
+  } catch (err) {
+    assert(false, `${modPath} falhou na compilação: ${err.message}`);
+  }
+  const content = fs.readFileSync(fullModPath, 'utf-8');
+  assert(!emojiRegex.test(content), `${modPath} cumpre rigorosamente a política anti-emoji`);
+});
+
+assert(updatedSwRaw.includes('./js/admin/auth.js'), 'sw.js inclui auth.js em STATIC_ASSETS');
+assert(updatedSwRaw.includes('./js/admin/cropper.js'), 'sw.js inclui cropper.js em STATIC_ASSETS');
+assert(updatedSwRaw.includes('./js/admin/image-compression.js'), 'sw.js inclui image-compression.js em STATIC_ASSETS');
+assert(updatedSwRaw.includes('./js/admin/catalog.js'), 'sw.js inclui catalog.js em STATIC_ASSETS');
+assert(updatedSwRaw.includes('./js/admin/orders.js'), 'sw.js inclui orders.js em STATIC_ASSETS');
+assert(updatedSwRaw.includes('./js/admin/dashboard.js'), 'sw.js inclui dashboard.js em STATIC_ASSETS');
 
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);

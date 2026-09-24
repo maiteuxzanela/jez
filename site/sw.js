@@ -3,7 +3,7 @@
 // Arquitetura: Alex (CTO) | Performance: Noa | Cibersegurança: Morgan
 // ==========================================================================
 
-const CACHE_NAME = 'jez-boutique-cache-v2.2.0';
+const CACHE_NAME = 'jez-boutique-cache-v2.3.0';
 
 // Recursos essenciais para funcionamento offline e carregamento instantâneo
 const STATIC_ASSETS = [
@@ -23,6 +23,12 @@ const STATIC_ASSETS = [
   './js/components/cart.js',
   './js/components/product-card.js',
   './js/components/quick-view.js',
+  './js/admin/auth.js',
+  './js/admin/cropper.js',
+  './js/admin/image-compression.js',
+  './js/admin/catalog.js',
+  './js/admin/orders.js',
+  './js/admin/dashboard.js',
   './manifest.json',
   './manifest-atelie.json',
   './favicon.svg',
