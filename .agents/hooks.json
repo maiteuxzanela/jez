@@ -3,7 +3,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "python3 '/mnt/94CCB337CCB3130A/JEZ collections/.agents/scripts/robin_guard.py'",
+        "command": "\"/home/maiteuxzanela/projeto JEV/.venv/bin/python\" \"/mnt/94CCB337CCB3130A/JEZ collections/.agents/scripts/robin_guard.py\"",
         "timeout": 120
       }
     ]
