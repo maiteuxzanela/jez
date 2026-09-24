@@ -61,7 +61,7 @@ def main():
         payload = {}
 
     script_dir = Path(__file__).parent.resolve()
-    workspace_dir = (script_dir.parent.parent).resolve()
+    workspace_dir = Path(os.getenv("GUARD_WORKSPACE", script_dir.parent.parent)).resolve()
 
     # Injeta JEV Core no sys.path para os clientes leves e Needle 3
     if str(JEV_CORE_DIR) not in sys.path:
