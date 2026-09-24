@@ -85,14 +85,22 @@ Disponível diretamente no terminal do sistema:
 
 ### B. Servidor MCP (`open-jev`)
 Configurado em `~/.gemini/config/mcp_config.json`:
-* `needle3_search`: Retorna blocos AST relacionais.
-* `openjev_choice`: Elege a persona especialista.
-* `openjev_noul`: Retorna booleano de validação de segurança.
-* `openjev_score`: Retorna nota calibrada de 1.0 a 5.0.
+* `needle3_search`: Retorna blocos AST relacionais cirúrgicos (500 a 1.200 tokens).
+* `openjev_choice`: Elege a persona especialista a partir do roster formal.
+* `openjev_spawn_subagent`: Despacha a tarefa técnica para a persona em contexto isolado (Hermes Agent).
+* `openjev_noul`: Avaliação opcional de segurança (threshold ≥ 0.78).
+* `openjev_score_and_diagnose`: Validação mandatória de entrega (corte ≥ 3.40).
 
 ---
 
 ## 3. Matriz de Especialistas (Subagentes da JEZ Collection)
+
+O orquestrador Alex opera estritamente sob os **Três Níveis de Execução** (Global AGENTS.md §3.1):
+1. **Nível 1 (Auto-Execução Racional):** Dúvidas conceituais, arquitetura e pequenos ajustes de configuração/texto.
+2. **Nível 2 (Delegação Obrigatória à Equipe via Hermes Subagent):** Implementações técnicas em `site/`, estilos CSS, regras de frete/checkout e testes DEVEM ser despachadas para o especialista eleito. Alex **NÃO edita código de produção diretamente**.
+   * Eleição: `openjev_choice(premise="...", options=["lumi", "ariel", "sam", "cris", "morgan", "noa", "robin"])`
+   * Despacho: `openjev_spawn_subagent(persona=selected, task="...", workspace="/mnt/94CCB337CCB3130A/JEZ collections")`
+3. **Nível 3 (Proposição de Nova Persona):** Se a demanda técnica exigir especialidade ausente no roster atual, Alex propõe a persona em `personas/<nome>.md`, registra no catálogo abaixo e despacha via subagente.
 
 | Subagente | Arquivo de Persona | Especialidade Principal | Quando Acionar |
 | :--- | :--- | :--- | :--- |
@@ -115,8 +123,8 @@ Configurado em `~/.gemini/config/mcp_config.json`:
   * `max_tokens`: Entre **500 e 1.200 tokens**.
   * `scope`: Especificar os arquivos alvo para não inflacionar o grafo.
 
-### Protocolo 2: Roteamento Estruturado de Especialista (`choice`)
-- Toda demanda deve ser roteada via `jev choice "..."` para determinar qual especialista deve liderar a solução.
+### Protocolo 2: Roteamento Estruturado de Especialista (`choice` + `spawn_subagent`)
+- Toda demanda técnica de Nível 2 deve ser formalmente roteada via `openjev_choice` e despachada para o especialista eleito via `openjev_spawn_subagent`. Alex não deve centralizar tarefas técnicas de frontend/backend na sua janela.
 
 ### Protocolo 3: Guardrail de Pré-Execução Crítica (`noul`)
 - **Ações Críticas Obrigatórias para Bloqueio:**
