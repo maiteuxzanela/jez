@@ -805,6 +805,15 @@ const initAdmin = () => {
   const adminPasswordInput = document.getElementById('admin-password');
   const btnLoginSubmit = document.getElementById('btn-login-submit');
   const loginErrorBox = document.getElementById('login-error-box');
+  const btnTogglePassword = document.getElementById('btn-toggle-password');
+
+  if (btnTogglePassword && adminPasswordInput) {
+    btnTogglePassword.addEventListener('click', () => {
+      const isPassword = adminPasswordInput.type === 'password';
+      adminPasswordInput.type = isPassword ? 'text' : 'password';
+      btnTogglePassword.setAttribute('aria-label', isPassword ? 'Ocultar chave de acesso' : 'Exibir chave de acesso');
+    });
+  }
 
   const startCountdown = (lockedUntil) => {
     if (lockoutTimerInterval) clearInterval(lockoutTimerInterval);
@@ -944,7 +953,7 @@ const initAdmin = () => {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstallPrompt = e;
-    const btnInstall = document.getElementById('btn-install-atelie-pwa');
+    const btnInstall = document.getElementById('btn-pwa-install-admin') || document.getElementById('btn-install-atelie-pwa');
     if (btnInstall) {
       btnInstall.style.display = 'inline-flex';
       btnInstall.addEventListener('click', () => {
@@ -956,6 +965,28 @@ const initAdmin = () => {
       });
     }
   });
+
+  // Sincronizacao de status na nuvem (Firestore)
+  const updateCloudSyncStatus = (status, text) => {
+    const badge = document.getElementById('cloud-sync-badge');
+    if (!badge) return;
+    badge.className = `cloud-sync-badge status-${status}`;
+    const textEl = badge.querySelector('.sync-text');
+    if (textEl) textEl.textContent = text;
+  };
+
+  if (typeof window !== 'undefined' && window.jezFirebase) {
+    updateCloudSyncStatus('online', 'Nuvem Conectada');
+    if (typeof window.jezFirebase.onProductsChange === 'function') {
+      window.jezFirebase.onProductsChange(remoteProducts => {
+        if (Array.isArray(remoteProducts) && remoteProducts.length > 0) {
+          updateCloudSyncStatus('synced', 'Sincronizado');
+        }
+      });
+    }
+  } else {
+    updateCloudSyncStatus('offline', 'Modo Local');
+  }
 
   // --------------------------------------------------------------------------
   // 14. Inicialização do Ateliê
