@@ -56,7 +56,10 @@ import {
   saveOrders,
   isItemCustomProduction,
   isOrderCustomProduction,
-  getStatusMeta
+  getStatusMeta,
+  filterOrdersList,
+  validateOrderStatusTransition,
+  updateOrderInList
 } from './js/admin/orders.js';
 
 import {
@@ -80,6 +83,9 @@ export {
   isItemCustomProduction,
   isOrderCustomProduction,
   getStatusMeta,
+  filterOrdersList,
+  validateOrderStatusTransition,
+  updateOrderInList,
   calculateDashboardMetrics,
   renderDashboard
 };
@@ -276,7 +282,7 @@ const initAdmin = () => {
     if (document.getElementById('count-purple')) document.getElementById('count-purple').textContent = counts.enviado;
     if (document.getElementById('count-green')) document.getElementById('count-green').textContent = counts.concluido;
 
-    const filtered = currentOrderFilter === 'all' ? orders : orders.filter(o => o.status === currentOrderFilter);
+    const filtered = filterOrdersList(orders, currentOrderFilter);
 
     if (filtered.length === 0) {
       const emptyHtml = currentOrderFilter === 'all'
@@ -322,14 +328,19 @@ const initAdmin = () => {
       let actionButtons = '';
       if (order.status === 'aguardando-pagamento') {
         actionButtons = isCustomOrder ?
-          `<button class="btn-order-action" data-id="${escapeHtml(order.id)}" data-newstatus="em-producao">Enviar para o Tear</button>`
-          : `<button class="btn-order-action" data-id="${escapeHtml(order.id)}" data-newstatus="preparar-envio">Confirmar Pix</button>`;
+          `<button class="btn-status-change btn-order-action status-action-orange" data-id="${escapeHtml(order.id)}" data-newstatus="em-producao">Enviar para o Tear</button>`
+          : `<button class="btn-status-change btn-order-action status-action-blue" data-id="${escapeHtml(order.id)}" data-newstatus="preparar-envio">Confirmar Pix</button>`;
       } else if (order.status === 'em-producao') {
-        actionButtons = `<button class="btn-order-action" data-id="${escapeHtml(order.id)}" data-newstatus="preparar-envio">Peça Concluída</button>`;
+        actionButtons = `<button class="btn-status-change btn-order-action status-action-blue" data-id="${escapeHtml(order.id)}" data-newstatus="preparar-envio">Peça Concluída</button>`;
       } else if (order.status === 'preparar-envio') {
-        actionButtons = `<button class="btn-order-action btn-open-tracking" data-id="${escapeHtml(order.id)}">Postar e Enviar</button>`;
+        actionButtons = `
+          <div class="tracking-input-box" style="align-items: center;">
+            <input type="text" class="tracking-input" placeholder="Rastreio (opcional)" id="track-input-${escapeHtml(order.id)}" style="max-width: 170px;" />
+            <button class="btn-status-change btn-order-action status-action-purple btn-confirm-postar" data-id="${escapeHtml(order.id)}">Postar e Enviar</button>
+          </div>
+        `;
       } else if (order.status === 'enviado') {
-        actionButtons = `<button class="btn-order-action" data-id="${escapeHtml(order.id)}" data-newstatus="concluido">Marcar Entregue</button>`;
+        actionButtons = `<button class="btn-status-change btn-order-action status-action-green" data-id="${escapeHtml(order.id)}" data-newstatus="concluido">Marcar Entregue</button>`;
       }
 
       card.innerHTML = `
@@ -358,34 +369,51 @@ const initAdmin = () => {
       container.appendChild(card);
     });
 
-    // Conecta botões de ação de status
-    container.querySelectorAll('.btn-order-action:not(.btn-open-tracking)').forEach(btn => {
+    // Conecta botões de ação de status direto
+    container.querySelectorAll('.btn-order-action:not(.btn-confirm-postar)').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const id = e.target.getAttribute('data-id');
-        const newStatus = e.target.getAttribute('data-newstatus');
-        updateOrderStatus(id, newStatus);
+        const id = e.currentTarget.getAttribute('data-id');
+        const newStatus = e.currentTarget.getAttribute('data-newstatus');
+        if (id && newStatus) {
+          updateOrderStatus(id, newStatus);
+        }
       });
     });
 
-    // Conecta botões de rastreamento
-    container.querySelectorAll('.btn-open-tracking').forEach(btn => {
+    // Conecta botões de postagem com código de rastreamento
+    container.querySelectorAll('.btn-confirm-postar').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const id = e.target.getAttribute('data-id');
-        openTrackingModal(id);
+        const id = e.currentTarget.getAttribute('data-id');
+        const input = document.getElementById(`track-input-${id}`);
+        const rawCode = input ? input.value : '';
+        const trackingCode = sanitizeTrackingCode(rawCode);
+        updateOrderStatus(id, 'enviado', trackingCode || null);
+      });
+    });
+
+    // Suporte a submissão via Enter no input de rastreamento
+    container.querySelectorAll('.tracking-input').forEach(input => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const id = e.currentTarget.id.replace('track-input-', '');
+          const trackingCode = sanitizeTrackingCode(e.currentTarget.value);
+          updateOrderStatus(id, 'enviado', trackingCode || null);
+        }
       });
     });
   };
 
   const updateOrderStatus = (orderId, newStatus, trackingCode = null) => {
-    orders = loadOrders().map(o => {
-      if (o.id === orderId) {
-        const updated = { ...o, status: newStatus };
-        if (trackingCode) updated.trackingCode = trackingCode;
-        return updated;
-      }
-      return o;
-    });
+    const sanitizedCode = trackingCode ? sanitizeTrackingCode(trackingCode) : null;
+    const currentOrders = loadOrders();
+    const result = updateOrderInList(currentOrders, orderId, newStatus, sanitizedCode);
 
+    if (!result.success) {
+      console.warn(`[JËZ Ateliê] Falha ao atualizar pedido ${orderId}: ${result.reason}`);
+      return result;
+    }
+
+    orders = result.orders;
     saveOrders(orders, () => {
       updateDashboard();
       renderOrders();
@@ -395,12 +423,29 @@ const initAdmin = () => {
     // Sincroniza pedido em nuvem com o Cloud Firestore
     if (typeof window !== 'undefined' && window.jezFirebase && typeof window.jezFirebase.updateOrder === 'function') {
       const payload = { status: newStatus };
-      if (trackingCode) payload.trackingCode = trackingCode;
+      if (sanitizedCode) payload.trackingCode = sanitizedCode;
       window.jezFirebase.updateOrder(orderId, payload).catch(err => {
         console.warn('[JËZ Cloud] Erro ao sincronizar status do pedido:', err.message);
       });
     }
+
+    return { success: true, orderId, newStatus, trackingCode: sanitizedCode };
   };
+
+  // Conecta botões de filtro de status de pedidos
+  document.querySelectorAll('.order-filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      try {
+        document.querySelectorAll('.order-filter-btn').forEach(b => b.classList.remove('active'));
+        const target = e.currentTarget;
+        target.classList.add('active');
+        currentOrderFilter = target.getAttribute('data-status') || 'all';
+        renderOrders();
+      } catch (err) {
+        console.error('[JËZ Ateliê] Erro ao filtrar pedidos:', err);
+      }
+    });
+  });
 
   // --------------------------------------------------------------------------
   // 6. Modal de Rastreamento dos Correios
@@ -1508,16 +1553,57 @@ const initAdmin = () => {
   const tabs = document.querySelectorAll('.nav-tab');
   const sections = document.querySelectorAll('.admin-section');
   const switchTab = (tabId) => {
+    if (!tabId || typeof tabId !== 'string') return;
     tabs.forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === tabId));
     sections.forEach(s => s.classList.toggle('active', s.id === `section-${tabId}`));
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    if (tabId === 'dashboard') updateDashboard();
-    if (tabId === 'orders') renderOrders();
-    if (tabId === 'catalog') renderCatalog();
+    try {
+      if (tabId === 'dashboard') updateDashboard();
+      if (tabId === 'orders') renderOrders();
+      if (tabId === 'catalog') renderCatalog();
+    } catch (e) {
+      console.warn('[JËZ Ateliê] Erro ao alternar para aba:', tabId, e);
+    }
   };
   tabs.forEach(tab => {
-    tab.addEventListener('click', () => switchTab(tab.getAttribute('data-tab')));
+    tab.addEventListener('click', () => {
+      const targetTab = tab.getAttribute('data-tab');
+      if (targetTab) switchTab(targetTab);
+    });
   });
+
+  // Botões de Ação Rápida do Dashboard e Atualização
+  const btnQuickNewPiece = document.getElementById('btn-quick-new-piece');
+  if (btnQuickNewPiece) {
+    btnQuickNewPiece.addEventListener('click', () => switchTab('new-product'));
+  }
+
+  const btnQuickViewOrders = document.getElementById('btn-quick-view-orders');
+  if (btnQuickViewOrders) {
+    btnQuickViewOrders.addEventListener('click', () => switchTab('orders'));
+  }
+
+  const btnSeeAllOrders = document.getElementById('btn-see-all-orders');
+  if (btnSeeAllOrders) {
+    btnSeeAllOrders.addEventListener('click', () => switchTab('orders'));
+  }
+
+  const btnRefreshData = document.getElementById('btn-refresh-data');
+  if (btnRefreshData) {
+    btnRefreshData.addEventListener('click', () => {
+      try {
+        orders = loadOrders();
+        catalog = loadCatalog();
+        updateDashboard();
+        renderOrders();
+        renderCatalog();
+        showToast('Dados do ateliê atualizados!');
+      } catch (err) {
+        console.error('[JËZ Ateliê] Erro ao sincronizar dados locais:', err);
+        showToast('Erro ao atualizar os dados.');
+      }
+    });
+  }
 
   // --------------------------------------------------------------------------
   // 13. Registro do PWA e Notificações (Noa & Alex)

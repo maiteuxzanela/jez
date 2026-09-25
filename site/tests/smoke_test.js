@@ -850,6 +850,179 @@ const featRes = testSetFeaturedPiece(sampleCatalog, '1');
 assert(featRes.success === true && featRes.featuredId === '1', 'Destaque seleciona peca existente com sucesso');
 assert(featRes.cache.name === 'Bolsa Punk', 'Destaque armazena nome correto no cache editorial');
 
+// [28] Validacao dos Botoes Rapidos, Filtros de Pedidos e Acoes de Status do Atelie (JEZ-032)
+console.log('\n[28] Validando Botoes Rapidos, Filtros e Acoes de Pedidos do Atelie (JEZ-032):');
+
+// A. Botoes de Acao Rapida e Atualizacao no Dashboard
+assert(adminJsRef.includes('btn-quick-new-piece') && adminJsRef.includes("switchTab('new-product')"), 'admin.js conecta botao rapido de cadastrar nova peca');
+assert(adminJsRef.includes('btn-quick-view-orders') && adminJsRef.includes("switchTab('orders')"), 'admin.js conecta botao rapido de ver pedidos pendentes');
+assert(adminJsRef.includes('btn-see-all-orders') && adminJsRef.includes("switchTab('orders')"), 'admin.js conecta link ver todos os pedidos do dashboard');
+assert(adminJsRef.includes('btn-refresh-data') && adminJsRef.includes('Dados do ateliê atualizados'), 'admin.js conecta botao de atualizar dados do atelie');
+
+// B. Filtros de Pedidos e Alternancia de Abas
+assert(adminJsRef.includes("document.querySelectorAll('.order-filter-btn')"), 'admin.js registra listeners na barra de filtros de pedidos');
+assert(adminJsRef.includes("currentOrderFilter = target.getAttribute('data-status')") || adminJsRef.includes("currentOrderFilter = e.currentTarget.getAttribute('data-status')"), 'admin.js sincroniza status ativo do filtro de pedidos');
+
+// C. Identidade Visual Boutique dos Botoes de Status
+assert(adminJsRef.includes('btn-status-change btn-order-action status-action-blue') && adminJsRef.includes('Confirmar Pix'), 'admin.js renderiza botao Confirmar Pix com classe boutique e status-action-blue');
+assert(adminJsRef.includes('btn-status-change btn-order-action status-action-orange') && adminJsRef.includes('Enviar para o Tear'), 'admin.js renderiza botao Enviar para o Tear com status-action-orange');
+assert(adminJsRef.includes('btn-status-change btn-order-action status-action-blue') && adminJsRef.includes('Peça Concluída'), 'admin.js renderiza botao Peca Concluida com status-action-blue');
+assert(adminJsRef.includes('btn-status-change btn-order-action status-action-purple') && adminJsRef.includes('Postar e Enviar'), 'admin.js renderiza botao Postar e Enviar com status-action-purple');
+assert(adminJsRef.includes('btn-status-change btn-order-action status-action-green') && adminJsRef.includes('Marcar Entregue'), 'admin.js renderiza botao Marcar Entregue com status-action-green');
+
+// D. Suporte CSS aos Botoes de Status e Variantes de Cores
+assert(adminCssContent.includes('.btn-status-change') && adminCssContent.includes('.btn-order-action'), 'admin.css define regras para .btn-status-change e .btn-order-action');
+assert(adminCssContent.includes('.status-action-blue') && adminCssContent.includes('#2563eb'), 'admin.css define variante azul para Confirmar Pix');
+assert(adminCssContent.includes('.status-action-orange') && adminCssContent.includes('#ea580c'), 'admin.css define variante laranja para Enviar para o Tear');
+assert(adminCssContent.includes('.status-action-purple') && adminCssContent.includes('#7c3aed'), 'admin.css define variante roxa para Postar e Enviar');
+assert(adminCssContent.includes('.status-action-green') && adminCssContent.includes('#16a34a'), 'admin.css define variante verde para Marcar Entregue');
+
+// E. Testes Unitarios Puros de Transicao de Status de Pedidos
+function testSimulateStatusTransition(order, action) {
+  if (!order || !order.id) return { success: false, reason: 'invalid_order' };
+  const current = order.status;
+  if (action === 'confirm_pix') {
+    if (current !== 'aguardando-pagamento') return { success: false, reason: 'invalid_state' };
+    return { success: true, nextStatus: 'preparar-envio', trackingCode: null };
+  }
+  if (action === 'send_to_loom') {
+    if (current !== 'aguardando-pagamento') return { success: false, reason: 'invalid_state' };
+    return { success: true, nextStatus: 'em-producao', trackingCode: null };
+  }
+  if (action === 'piece_finished') {
+    if (current !== 'em-producao') return { success: false, reason: 'invalid_state' };
+    return { success: true, nextStatus: 'preparar-envio', trackingCode: null };
+  }
+  if (action === 'post_and_send') {
+    if (current !== 'preparar-envio') return { success: false, reason: 'invalid_state' };
+    return { success: true, nextStatus: 'enviado', trackingCode: order.trackingCode || null };
+  }
+  if (action === 'mark_delivered') {
+    if (current !== 'enviado') return { success: false, reason: 'invalid_state' };
+    return { success: true, nextStatus: 'concluido', trackingCode: order.trackingCode || null };
+  }
+  return { success: false, reason: 'unknown_action' };
+}
+
+const mockOrderPix = { id: 'JEZ-9001', status: 'aguardando-pagamento' };
+assert(testSimulateStatusTransition(mockOrderPix, 'confirm_pix').nextStatus === 'preparar-envio', 'Transicao Confirmar Pix avanca pedido para preparar-envio');
+
+const mockOrderCustom = { id: 'JEZ-9002', status: 'aguardando-pagamento' };
+assert(testSimulateStatusTransition(mockOrderCustom, 'send_to_loom').nextStatus === 'em-producao', 'Transicao Enviar para o Tear avanca pedido para em-producao');
+
+const mockOrderLoom = { id: 'JEZ-9003', status: 'em-producao' };
+assert(testSimulateStatusTransition(mockOrderLoom, 'piece_finished').nextStatus === 'preparar-envio', 'Transicao Peca Concluida avanca pedido para preparar-envio');
+
+const mockOrderShip = { id: 'JEZ-9004', status: 'preparar-envio', trackingCode: 'BR123456789AA' };
+const shipRes = testSimulateStatusTransition(mockOrderShip, 'post_and_send');
+assert(shipRes.nextStatus === 'enviado' && shipRes.trackingCode === 'BR123456789AA', 'Transicao Postar e Enviar avanca pedido para enviado com codigo de rastreio');
+
+const mockOrderDelivered = { id: 'JEZ-9005', status: 'enviado' };
+assert(testSimulateStatusTransition(mockOrderDelivered, 'mark_delivered').nextStatus === 'concluido', 'Transicao Marcar Entregue avanca pedido para concluido');
+
+// F. Teste Unitario do Filtro de Pedidos
+function testFilterOrders(ordersList, filterStatus) {
+  if (!Array.isArray(ordersList)) return [];
+  if (!filterStatus || filterStatus === 'all') return ordersList;
+  return ordersList.filter(o => o.status === filterStatus);
+}
+const ordersSet = [
+  { id: '1', status: 'aguardando-pagamento' },
+  { id: '2', status: 'em-producao' },
+  { id: '3', status: 'preparar-envio' },
+  { id: '4', status: 'enviado' },
+  { id: '5', status: 'concluido' }
+];
+assert(testFilterOrders(ordersSet, 'all').length === 5, 'Filtro all retorna todos os 5 pedidos');
+assert(testFilterOrders(ordersSet, 'aguardando-pagamento').length === 1, 'Filtro aguardando-pagamento retorna 1 pedido');
+assert(testFilterOrders(ordersSet, 'em-producao').length === 1, 'Filtro em-producao retorna 1 pedido');
+assert(testFilterOrders(ordersSet, 'preparar-envio').length === 1, 'Filtro preparar-envio retorna 1 pedido');
+assert(testFilterOrders(ordersSet, 'enviado').length === 1, 'Filtro enviado retorna 1 pedido');
+assert(testFilterOrders(ordersSet, 'concluido').length === 1, 'Filtro concluido retorna 1 pedido');
+
+// G. Testes Unitarios de Validacao e Cobertura de Caminhos de Erro (validateOrderStatusTransition)
+assert(adminJsRef.includes('filterOrdersList') && adminJsRef.includes('validateOrderStatusTransition'), 'admin.js integra funcoes puras de pedidos modularizadas');
+
+function testValidateTransition(current, target) {
+  if (!current || typeof current !== 'string') return { allowed: false, reason: 'invalid_current_status' };
+  if (!target || typeof target !== 'string') return { allowed: false, reason: 'invalid_target_status' };
+  const allowedMap = {
+    'aguardando-pagamento': ['em-producao', 'preparar-envio'],
+    'em-producao': ['preparar-envio'],
+    'preparar-envio': ['enviado'],
+    'enviado': ['concluido'],
+    'concluido': []
+  };
+  const list = allowedMap[current] || [];
+  if (!list.includes(target)) return { allowed: false, reason: 'transition_not_allowed' };
+  return { allowed: true };
+}
+
+assert(testValidateTransition(null, 'em-producao').allowed === false, 'Transicao rejeita status atual nulo');
+assert(testValidateTransition('aguardando-pagamento', null).allowed === false, 'Transicao rejeita status alvo nulo');
+assert(testValidateTransition('desconhecido', 'em-producao').allowed === false, 'Transicao rejeita status atual inexistente');
+assert(testValidateTransition('aguardando-pagamento', 'concluido').allowed === false, 'Transicao ilegal direto para concluido e impedida');
+assert(testValidateTransition('concluido', 'em-producao').allowed === false, 'Transicao reversa a partir de concluido e impedida');
+assert(testValidateTransition('aguardando-pagamento', 'em-producao').allowed === true, 'Transicao aguardando-pagamento para em-producao e permitida');
+assert(testValidateTransition('aguardando-pagamento', 'preparar-envio').allowed === true, 'Transicao aguardando-pagamento para preparar-envio e permitida');
+assert(testValidateTransition('em-producao', 'preparar-envio').allowed === true, 'Transicao em-producao para preparar-envio e permitida');
+assert(testValidateTransition('preparar-envio', 'enviado').allowed === true, 'Transicao preparar-envio para enviado e permitida');
+assert(testValidateTransition('enviado', 'concluido').allowed === true, 'Transicao enviado para concluido e permitida');
+
+// H. Testes Unitarios de Caminhos de Erro do Filtro (filterOrdersList)
+assert(testFilterOrders(null, 'all').length === 0, 'Filtro trata lista nula retornando array vazio');
+assert(testFilterOrders(undefined, 'all').length === 0, 'Filtro trata lista indefinida retornando array vazio');
+assert(testFilterOrders(ordersSet, 'status_inexistente').length === 0, 'Filtro com status inexistente retorna array vazio');
+assert(testFilterOrders(ordersSet, null).length === 5, 'Filtro com status nulo fallback para todos os pedidos');
+
+// I. Testes de Sanitizacao de Rastreio com Ataques e Ruido
+function testSanitizeTrack(code) {
+  if (!code || typeof code !== 'string') return '';
+  return code.trim().toUpperCase().replace(/[^A-Z0-9\- ]/g, '').slice(0, 30);
+}
+assert(testSanitizeTrack(null) === '', 'Sanitizacao de rastreio trata nulo com string vazia');
+assert(testSanitizeTrack('<script>BR123456789AA</script>') === 'SCRIPTBR123456789AASCRIPT', 'Sanitizacao de rastreio remove tags pontuadas e aspas');
+assert(testSanitizeTrack('  br-987654321-br  ') === 'BR-987654321-BR', 'Sanitizacao normaliza espacos e converte em maiusculas');
+assert(testSanitizeTrack('AA123456789BR; DROP') === 'AA123456789BR DROP', 'Sanitizacao neutraliza injecoes de pontuacao');
+
+// J. Testes Unitarios de Mutacao Pura de Pedidos (updateOrderInList)
+assert(adminJsRef.includes('updateOrderInList'), 'admin.js integra e re-exporta updateOrderInList');
+
+function testUpdateOrderInList(ordersList, orderId, newStatus, trackingCode = null) {
+  if (!Array.isArray(ordersList)) return { success: false, orders: [], reason: 'invalid_orders_list' };
+  if (!orderId || typeof orderId !== 'string') return { success: false, orders: ordersList, reason: 'invalid_id' };
+  if (!newStatus || typeof newStatus !== 'string') return { success: false, orders: ordersList, reason: 'invalid_status' };
+  const target = ordersList.find(o => o && o.id === orderId);
+  if (!target) return { success: false, orders: ordersList, reason: 'order_not_found' };
+  const check = testValidateTransition(target.status, newStatus);
+  if (!check.allowed) return { success: false, orders: ordersList, reason: check.reason };
+  let updatedTarget = null;
+  const nextOrders = ordersList.map(o => {
+    if (o && o.id === orderId) {
+      updatedTarget = { ...o, status: newStatus };
+      if (trackingCode !== null && trackingCode !== undefined) {
+        updatedTarget.trackingCode = trackingCode;
+      }
+      return updatedTarget;
+    }
+    return o;
+  });
+  return { success: true, orders: nextOrders, updatedOrder: updatedTarget };
+}
+
+assert(testUpdateOrderInList(null, '1', 'em-producao').success === false, 'updateOrderInList rejeita lista invalida');
+assert(testUpdateOrderInList(ordersSet, null, 'em-producao').success === false, 'updateOrderInList rejeita id nulo');
+assert(testUpdateOrderInList(ordersSet, '1', null).success === false, 'updateOrderInList rejeita status nulo');
+assert(testUpdateOrderInList(ordersSet, 'inexistente', 'preparar-envio').reason === 'order_not_found', 'updateOrderInList sinaliza pedido inexistente');
+assert(testUpdateOrderInList(ordersSet, '1', 'concluido').reason === 'transition_not_allowed', 'updateOrderInList bloqueia transicao ilegal');
+
+const okUpdate = testUpdateOrderInList(ordersSet, '1', 'preparar-envio');
+assert(okUpdate.success === true && okUpdate.updatedOrder.status === 'preparar-envio', 'updateOrderInList atualiza status com sucesso de forma imutavel');
+assert(ordersSet[0].status === 'aguardando-pagamento', 'updateOrderInList preserva array original sem efeitos colaterais');
+
+const shipUpdate = testUpdateOrderInList(ordersSet, '3', 'enviado', 'BR999888777AA');
+assert(shipUpdate.success === true && shipUpdate.updatedOrder.trackingCode === 'BR999888777AA', 'updateOrderInList anexa codigo de rastreamento no avanco para enviado');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

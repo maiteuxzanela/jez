@@ -140,3 +140,90 @@ export function getStatusMeta(status, order = null, catalog = []) {
       return { label: status, nextLabel: '', nextStatus: '' };
   }
 }
+
+/**
+ * Filtra a lista de pedidos com base no status selecionado
+ * @param {Array} ordersList
+ * @param {string} filterStatus
+ * @returns {Array}
+ */
+export function filterOrdersList(ordersList, filterStatus = 'all') {
+  if (!Array.isArray(ordersList)) return [];
+  if (!filterStatus || typeof filterStatus !== 'string' || filterStatus === 'all') {
+    return ordersList;
+  }
+  return ordersList.filter(o => o && o.status === filterStatus);
+}
+
+/**
+ * Valida se uma transição de status de pedido é coerente e permitida
+ * @param {string} currentStatus
+ * @param {string} targetStatus
+ * @returns {{ allowed: boolean, reason?: string }}
+ */
+export function validateOrderStatusTransition(currentStatus, targetStatus) {
+  if (!currentStatus || typeof currentStatus !== 'string') {
+    return { allowed: false, reason: 'invalid_current_status' };
+  }
+  if (!targetStatus || typeof targetStatus !== 'string') {
+    return { allowed: false, reason: 'invalid_target_status' };
+  }
+
+  const allowedTransitions = {
+    'aguardando-pagamento': ['em-producao', 'preparar-envio'],
+    'em-producao': ['preparar-envio'],
+    'preparar-envio': ['enviado'],
+    'enviado': ['concluido'],
+    'concluido': []
+  };
+
+  const allowed = allowedTransitions[currentStatus] || [];
+  if (!allowed.includes(targetStatus)) {
+    return { allowed: false, reason: 'transition_not_allowed' };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Atualiza o status e/ou código de rastreamento de um pedido em uma lista de forma imutável
+ * @param {Array} ordersList
+ * @param {string} orderId
+ * @param {string} newStatus
+ * @param {string | null} trackingCode
+ * @returns {{ success: boolean, orders: Array, updatedOrder?: object, reason?: string }}
+ */
+export function updateOrderInList(ordersList, orderId, newStatus, trackingCode = null) {
+  if (!Array.isArray(ordersList)) {
+    return { success: false, orders: [], reason: 'invalid_orders_list' };
+  }
+  if (!orderId || typeof orderId !== 'string') {
+    return { success: false, orders: ordersList, reason: 'invalid_id' };
+  }
+  if (!newStatus || typeof newStatus !== 'string') {
+    return { success: false, orders: ordersList, reason: 'invalid_status' };
+  }
+
+  const target = ordersList.find(o => o && o.id === orderId);
+  if (!target) {
+    return { success: false, orders: ordersList, reason: 'order_not_found' };
+  }
+
+  const check = validateOrderStatusTransition(target.status, newStatus);
+  if (!check.allowed) {
+    return { success: false, orders: ordersList, reason: check.reason };
+  }
+
+  let updatedTarget = null;
+  const nextOrders = ordersList.map(o => {
+    if (o && o.id === orderId) {
+      updatedTarget = { ...o, status: newStatus };
+      if (trackingCode !== null && trackingCode !== undefined) {
+        updatedTarget.trackingCode = trackingCode;
+      }
+      return updatedTarget;
+    }
+    return o;
+  });
+
+  return { success: true, orders: nextOrders, updatedOrder: updatedTarget };
+}

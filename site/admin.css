@@ -683,25 +683,74 @@
   flex-wrap: wrap;
 }
 
-.btn-status-change {
-  background: #23192d;
-  border: 1px dashed rgba(254, 191, 151, 0.4);
-  padding: 6px 12px;
-  border-radius: 3px;
-  font-size: 0.72rem;
+.btn-status-change,
+.btn-order-action {
+  background: var(--color-dark, #23192d);
+  border: 1.5px dashed rgba(254, 191, 151, 0.45);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.74rem;
   font-weight: 700;
-  color: var(--color-bg-light);
+  color: var(--color-bg-light, #F5ECB7);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
   cursor: pointer;
-  transition: var(--transition-fast);
+  transition: var(--transition-fast, 0.15s ease);
+  text-decoration: none;
+  font-family: inherit;
+  user-select: none;
+  -webkit-appearance: none;
 }
 
-.btn-status-change:hover {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
+.btn-status-change:hover,
+.btn-order-action:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+}
+
+.btn-status-change:active,
+.btn-order-action:active {
+  transform: translateY(0);
+}
+
+.btn-status-change:focus-visible,
+.btn-order-action:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.btn-status-change.status-action-blue,
+.btn-order-action.status-action-blue {
+  background: #2563eb;
+  color: #ffffff;
+  border: 1.5px solid #1d4ed8;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+}
+
+.btn-status-change.status-action-orange,
+.btn-order-action.status-action-orange {
+  background: #ea580c;
+  color: #ffffff;
+  border: 1.5px solid #c2410c;
+  box-shadow: 0 1px 3px rgba(234, 88, 12, 0.3);
+}
+
+.btn-status-change.status-action-purple,
+.btn-order-action.status-action-purple {
+  background: #7c3aed;
+  color: #ffffff;
+  border: 1.5px solid #6d28d9;
+  box-shadow: 0 1px 3px rgba(124, 58, 237, 0.3);
+}
+
+.btn-status-change.status-action-green,
+.btn-order-action.status-action-green {
+  background: #16a34a;
+  color: #ffffff;
+  border: 1.5px solid #15803d;
+  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.3);
 }
 
 /* Campo de Rastreio dos Correios */
