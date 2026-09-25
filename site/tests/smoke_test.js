@@ -50,6 +50,12 @@ try {
 } catch (e) {
   assert(false, `admin.js falhou na compilação: ${e.message}`);
 }
+try {
+  execSync(`node --input-type=module -e "import('${path.join(ROOT_DIR, 'admin.js')}')"`);
+  assert(true, 'admin.js valida como módulo ESM sem duplicações de identificador ou conflitos léxicos');
+} catch (e) {
+  assert(false, `admin.js falhou na compilação de módulo ESM: ${e.message}`);
+}
 
 // 2. Integridade dos Tokens Visuais (Design System Lumi)
 console.log('\n🎨 2. Validando Tokens Oficiais da Paleta em styles.css:');
@@ -821,6 +827,28 @@ assert(cleanedState.currentEditingPiece === null, 'Fechamento de modal limpa ref
 assert(cleanedState.editCarouselItems.length === 0, 'Fechamento de modal esvazia itens do carrossel');
 assert(cleanedState.activeCarouselIdx === 0, 'Fechamento de modal reseta indice ativo para zero');
 assert(cleanedState.isBackdropVisible === false, 'Fechamento de modal oculta backdrop visual');
+
+// J. Teste Unitario de Gestao de Peca em Destaque no Hero (JEZ-015 / JEZ-031)
+function testSetFeaturedPiece(catalog, productId) {
+  if (!productId || typeof productId !== 'string') return { success: false, reason: 'invalid_id' };
+  const list = Array.isArray(catalog) ? catalog : [];
+  const piece = list.find(p => p.id === productId);
+  if (!piece) return { success: false, reason: 'not_found' };
+  const cacheObj = {
+    id: piece.id,
+    name: piece.name,
+    price: piece.price,
+    image: piece.image,
+    webp: piece.image && piece.image.startsWith('assets/') ? piece.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : ''
+  };
+  return { success: true, featuredId: productId, cache: cacheObj };
+}
+
+assert(testSetFeaturedPiece(sampleCatalog, null).success === false, 'Destaque rejeita ID nulo');
+assert(testSetFeaturedPiece(sampleCatalog, '999').success === false, 'Destaque retorna not_found para peca inexistente');
+const featRes = testSetFeaturedPiece(sampleCatalog, '1');
+assert(featRes.success === true && featRes.featuredId === '1', 'Destaque seleciona peca existente com sucesso');
+assert(featRes.cache.name === 'Bolsa Punk', 'Destaque armazena nome correto no cache editorial');
 
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);

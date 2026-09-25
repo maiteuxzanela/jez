@@ -207,17 +207,46 @@ const initAdmin = () => {
   // 4. Gestão de Peça em Destaque no Hero (JEZ-015)
   // --------------------------------------------------------------------------
   const setFeaturedPiece = (productId) => {
+    if (!productId || typeof productId !== 'string') return;
     try {
+      catalog = loadCatalog();
+      const piece = catalog.find(p => p.id === productId);
       localStorage.setItem('jez_featured_product_id', productId);
-      if (typeof window !== 'undefined' && window.jezFirebase && typeof window.jezFirebase.setConfig === 'function') {
-        window.jezFirebase.setConfig('featured', { productId }).catch(err => {
-          console.warn('[JËZ Cloud] Erro ao sincronizar destaque:', err.message);
-        });
+
+      if (piece) {
+        try {
+          localStorage.setItem('jez_featured_product_cache', JSON.stringify({
+            id: piece.id,
+            name: piece.name,
+            price: piece.price,
+            formattedPrice: formatCurrency(piece.price),
+            image: piece.image,
+            webp: piece.image && piece.image.startsWith('assets/') ? piece.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : ''
+          }));
+        } catch (e) {
+          console.warn('[JËZ Ateliê] Falha ao atualizar cache de destaque:', e);
+        }
       }
-      showToast('Peça definida como destaque no Hero com sucesso!');
-      renderCatalog();
+
+      if (typeof window !== 'undefined' && window.jezFirebase) {
+        if (typeof window.jezFirebase.setFeaturedProduct === 'function') {
+          window.jezFirebase.setFeaturedProduct(productId).catch(err => {
+            console.warn('[JËZ Cloud] Erro ao sincronizar destaque:', err.message);
+          });
+        } else if (typeof window.jezFirebase.setConfig === 'function') {
+          window.jezFirebase.setConfig('featured', { productId }).catch(err => {
+            console.warn('[JËZ Cloud] Erro ao sincronizar destaque:', err.message);
+          });
+        }
+      }
+
+      const searchInput = document.getElementById('catalog-search-input');
+      renderCatalog(searchInput ? searchInput.value.trim() : '');
+      const pieceName = piece ? piece.name : 'Peça';
+      showToast(`Peça "${pieceName}" agora é o destaque da vitrine!`);
     } catch (e) {
       console.warn('[JËZ Ateliê] Erro ao salvar peça em destaque:', e);
+      showToast('Ocorreu um erro ao definir o destaque.');
     }
   };
 
@@ -589,32 +618,6 @@ const initAdmin = () => {
         }
       });
     });
-  };
-
-  // Define a peça em destaque no topo da loja virtual
-  const setFeaturedPiece = (id) => {
-    const piece = catalog.find(p => p.id === id);
-    if (!piece) return;
-    localStorage.setItem('jez_featured_product_id', id);
-    try {
-      localStorage.setItem('jez_featured_product_cache', JSON.stringify({
-        id: piece.id,
-        name: piece.name,
-        price: piece.price,
-        formattedPrice: formatCurrency(piece.price),
-        image: piece.image,
-        webp: piece.image && piece.image.startsWith('assets/') ? piece.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : ''
-      }));
-    } catch(e) {}
-
-    // Sincroniza destaque em nuvem (Fase 2 - JEZ-021)
-    if (window.jezFirebase && typeof window.jezFirebase.setFeaturedProduct === 'function') {
-      window.jezFirebase.setFeaturedProduct(id).catch(err => console.warn(err));
-    }
-
-    const searchInput = document.getElementById('catalog-search-input');
-    renderCatalog(searchInput ? searchInput.value.trim() : '');
-    showToast(`Peça "${piece.name}" agora é o destaque da vitrine!`);
   };
 
   // Alterna status rápido da peça
