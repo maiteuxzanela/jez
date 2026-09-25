@@ -447,141 +447,339 @@ const initAdmin = () => {
   }
 
   // --------------------------------------------------------------------------
-  // 8. Renderização do Catálogo no DOM
+  // 8. Gestão e Renderização do Acervo no DOM
   // --------------------------------------------------------------------------
-  const renderCatalog = () => {
+  const renderCatalog = (query = '') => {
     catalog = loadCatalog();
-    const container = document.getElementById('catalog-list-container');
-    if (!container) return;
-    container.innerHTML = '';
+    const grid = document.getElementById('admin-catalog-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
 
-    const featuredId = localStorage.getItem('jez_featured_product_id') || 'bolsa-punk';
+    // Contadores por status
+    const countAll = catalog.length;
+    const countReady = catalog.filter(p => p.status === 'ready' || (p.status !== 'order' && p.status !== 'suspended' && p.isReady)).length;
+    const countOrder = catalog.filter(p => p.status === 'order' || (p.status !== 'ready' && p.status !== 'suspended' && !p.isReady)).length;
     const countSuspended = catalog.filter(p => p.status === 'suspended').length;
+
+    const countAllEl = document.getElementById('cat-count-all');
+    if (countAllEl) countAllEl.textContent = countAll;
+    const countReadyEl = document.getElementById('cat-count-ready');
+    if (countReadyEl) countReadyEl.textContent = countReady;
+    const countOrderEl = document.getElementById('cat-count-order');
+    if (countOrderEl) countOrderEl.textContent = countOrder;
     const countSuspendedEl = document.getElementById('cat-count-suspended');
     if (countSuspendedEl) countSuspendedEl.textContent = countSuspended;
+    const totalCountEl = document.getElementById('total-pieces-count');
+    if (totalCountEl) totalCountEl.textContent = `${countAll} peça(s) no total`;
 
-    const filtered = currentCatalogFilter === 'all'
-      ? catalog
-      : (currentCatalogFilter === 'suspended'
-          ? catalog.filter(p => p.status === 'suspended')
-          : catalog.filter(p => p.category === currentCatalogFilter));
+    // Filtra por status e busca textual
+    let filtered = catalog;
+    if (currentCatalogFilter === 'ready') {
+      filtered = filtered.filter(p => p.status === 'ready' || (p.status !== 'order' && p.status !== 'suspended' && p.isReady));
+    } else if (currentCatalogFilter === 'order') {
+      filtered = filtered.filter(p => p.status === 'order' || (p.status !== 'ready' && p.status !== 'suspended' && !p.isReady));
+    } else if (currentCatalogFilter === 'suspended') {
+      filtered = filtered.filter(p => p.status === 'suspended');
+    }
+
+    if (query) {
+      filtered = filtered.filter(p => (p.name || '').toLowerCase().includes(query.toLowerCase()));
+    }
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: rgba(245, 236, 183, 0.75); background: var(--admin-card-bg); border-radius: var(--radius-sm); border: var(--admin-card-border);">
+          <p style="font-weight: 700;">Nenhuma peça encontrada neste filtro.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const currentFeaturedId = localStorage.getItem('jez_featured_product_id') || 'tote-cherry';
 
     filtered.forEach(piece => {
       const card = document.createElement('div');
-      card.className = 'admin-piece-card';
-      const isFeatured = piece.id === featuredId;
-      const isCustom = piece.id.startsWith('custom-');
-      const isSoldOut = piece.isReady && piece.stockQty === 0;
       const isSuspended = piece.status === 'suspended';
+      const isFeatured = piece.id === currentFeaturedId;
+      card.className = `admin-product-card ${isSuspended ? 'card-suspended' : ''} ${isFeatured ? 'card-featured' : ''}`;
 
-      const stockBadge = isSuspended
-        ? `<span class="badge-status-suspended" style="font-size: 0.68rem; padding: 2px 6px; border-radius: 4px; background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.4); font-weight: 600; margin-left: 6px;">Suspensa</span>`
-        : (isSoldOut
-          ? `<span class="badge-stock-soldout" style="font-size: 0.68rem; padding: 2px 6px; border-radius: 4px; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); font-weight: 700; margin-left: 6px;">Esgotada (0 un.)</span>`
-          : (piece.isReady
-            ? `<span style="font-size: 0.68rem; padding: 2px 6px; border-radius: 4px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); font-weight: 600; margin-left: 6px;">Pronta Entrega (${piece.stockQty || 1} un.)</span>`
-            : `<span style="font-size: 0.68rem; padding: 2px 6px; border-radius: 4px; background: rgba(234, 88, 12, 0.2); color: #fb923c; border: 1px solid rgba(234, 88, 12, 0.4); font-weight: 600; margin-left: 6px;">Sob Encomenda</span>`));
+      let statusBadgeHtml = '';
+      let toggleActionHtml = '';
+      let featuredHtml = '';
 
-      const featuredBtn = isFeatured
-        ? `<span class="badge-featured" style="font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; background: rgba(253, 10, 84, 0.25); color: var(--color-accent); border: 1px solid var(--color-accent); font-weight: 700;">Destaque Hero</span>`
-        : `<button class="btn-set-featured" data-id="${escapeHtml(piece.id)}" style="font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; background: transparent; color: rgba(245, 236, 183, 0.7); border: 1px solid rgba(254, 191, 151, 0.3); cursor: pointer;">Definir Destaque</button>`;
+      if (isFeatured) {
+        featuredHtml = `<span class="badge-featured-piece" title="Peça em destaque na página inicial">Destaque na Vitrine</span>`;
+      } else if (!isSuspended) {
+        featuredHtml = `<button class="btn-action-featured" data-action="feature" data-id="${escapeHtml(piece.id)}" title="Destacar esta peça na vitrine da loja">Destacar na Vitrine</button>`;
+      }
+
+      if (isSuspended) {
+        statusBadgeHtml = `<span class="btn-status-badge suspended" title="Oculta da loja online">Suspensa (Oculta)</span>`;
+        toggleActionHtml = `<button class="btn-action-edit" data-action="reactivate" data-id="${escapeHtml(piece.id)}">Reativar na Loja</button>`;
+      } else if (piece.status === 'order' || (!piece.isReady && piece.status !== 'ready')) {
+        statusBadgeHtml = `<span class="btn-status-badge order" title="Produzida sob encomenda">Sob Encomenda</span>`;
+        toggleActionHtml = `<button class="btn-action-edit" data-action="suspend" data-id="${escapeHtml(piece.id)}">Suspender</button>`;
+      } else {
+        const currentStock = (piece.stockQty !== undefined && piece.stockQty !== null) ? Number(piece.stockQty) : 1;
+        if (currentStock <= 0) {
+          statusBadgeHtml = `<span class="btn-status-badge soldout" title="Estoque esgotado na loja">Esgotada (0 un.)</span>`;
+        } else {
+          statusBadgeHtml = `<span class="btn-status-badge ready" title="Pronta para postagem">Pronta Entrega (${currentStock} un.)</span>`;
+        }
+        toggleActionHtml = `<button class="btn-action-edit" data-action="suspend" data-id="${escapeHtml(piece.id)}">Suspender</button>`;
+      }
+
+      const safeId = escapeHtml(piece.id);
+      const safeName = escapeHtml(piece.name);
+      const safeImage = sanitizeImageUrl(piece.image);
+      const safeLeadTime = parseInt(piece.leadTimeDays, 10) || 7;
 
       card.innerHTML = `
-        <div style="display: flex; gap: 12px; align-items: center;">
-          <img src="${sanitizeImageUrl(piece.image)}" alt="${escapeHtml(piece.name)}" style="width: 56px; height: 56px; object-fit: cover; border-radius: 4px; border: 1px solid rgba(254, 191, 151, 0.2);" />
-          <div style="flex: 1;">
-            <div style="display: flex; align-items: center; flex-wrap: wrap;">
-              <strong style="font-size: 0.9rem; color: var(--color-bg-light);">${escapeHtml(piece.name)}</strong>
-              ${stockBadge}
-            </div>
-            <div style="font-size: 0.8rem; color: var(--color-accent); font-weight: 700; margin-top: 2px;">
-              ${formatCurrency(piece.price)}
-            </div>
+        <img src="${safeImage}" alt="${safeName}" class="admin-product-thumb">
+        <div class="admin-product-details">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;">
+            <span class="admin-product-name" title="${safeName}">${safeName}</span>
+            ${isFeatured ? featuredHtml : ''}
           </div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; border-top: 1px dashed rgba(254, 191, 151, 0.2); padding-top: 8px;">
-          <div>${featuredBtn}</div>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn-edit-piece" data-id="${escapeHtml(piece.id)}" style="font-size: 0.75rem; padding: 4px 10px; border-radius: 4px; background: rgba(254, 191, 151, 0.15); color: var(--color-bg-light); border: 1px solid rgba(254, 191, 151, 0.3); cursor: pointer;">Editar</button>
-            ${isCustom ? `<button class="btn-delete-piece" data-id="${escapeHtml(piece.id)}" style="font-size: 0.75rem; padding: 4px 10px; border-radius: 4px; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor: pointer;">Excluir</button>` : ''}
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="admin-product-price">${formatCurrency(piece.price)}</span>
+            ${piece.images && piece.images.length > 1 ? `
+              <span class="badge-catalog-photos" title="${piece.images.length} fotos cadastradas">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                ${piece.images.length} fotos
+              </span>
+            ` : ''}
+          </div>
+          
+          <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+            ${statusBadgeHtml}
+            ${piece.status === 'order' && piece.leadTimeDays ? `
+              <span style="font-size: 0.68rem; color: rgba(245, 236, 183, 0.7);">${safeLeadTime} dias úteis</span>
+            ` : ''}
+          </div>
+
+          <div class="admin-product-actions">
+            <button class="btn-action-edit" data-action="edit" data-id="${safeId}">Editar</button>
+            ${!isFeatured && !isSuspended ? featuredHtml : ''}
+            ${toggleActionHtml}
+            <button class="btn-action-delete" data-action="delete" data-id="${safeId}">Excluir</button>
           </div>
         </div>
       `;
-      container.appendChild(card);
+
+      grid.appendChild(card);
     });
 
-    // Conecta botões de destaque
-    container.querySelectorAll('.btn-set-featured').forEach(btn => {
+    // Registra eventos das ações do card
+    grid.querySelectorAll('button[data-action]').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const id = e.target.getAttribute('data-id');
-        setFeaturedPiece(id);
-      });
-    });
+        const action = e.currentTarget.getAttribute('data-action');
+        const id = e.currentTarget.getAttribute('data-id');
 
-    // Conecta botões de edição
-    container.querySelectorAll('.btn-edit-piece').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.target.getAttribute('data-id');
-        openEditPieceModal(id);
-      });
-    });
-
-    // Conecta botões de exclusão
-    container.querySelectorAll('.btn-delete-piece').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.target.getAttribute('data-id');
-        deletePiece(id);
+        if (action === 'edit') {
+          openEditModal(id);
+        } else if (action === 'feature') {
+          setFeaturedPiece(id);
+        } else if (action === 'suspend') {
+          setPieceStatus(id, 'suspended');
+        } else if (action === 'reactivate') {
+          setPieceStatus(id, 'ready');
+        } else if (action === 'delete') {
+          deletePiece(id);
+        }
       });
     });
   };
 
-  const deletePiece = (productId) => {
-    if (!confirm('Deseja realmente remover esta peça do catálogo?')) return;
-    catalog = loadCatalog().filter(p => p.id !== productId);
-    saveCatalog(catalog, null, () => {
-      renderCatalog();
-      updateDashboard();
-      showToast('Peça removida com sucesso.');
-    });
-    if (typeof window !== 'undefined' && window.jezFirebase && typeof window.jezFirebase.deleteProduct === 'function') {
-      window.jezFirebase.deleteProduct(productId).catch(err => {
-        console.warn('[JËZ Cloud] Erro ao deletar peça no Firestore:', err.message);
+  // Define a peça em destaque no topo da loja virtual
+  const setFeaturedPiece = (id) => {
+    const piece = catalog.find(p => p.id === id);
+    if (!piece) return;
+    localStorage.setItem('jez_featured_product_id', id);
+    try {
+      localStorage.setItem('jez_featured_product_cache', JSON.stringify({
+        id: piece.id,
+        name: piece.name,
+        price: piece.price,
+        formattedPrice: formatCurrency(piece.price),
+        image: piece.image,
+        webp: piece.image && piece.image.startsWith('assets/') ? piece.image.replace(/\.(jpg|jpeg|png)$/i, '.webp') : ''
+      }));
+    } catch(e) {}
+
+    // Sincroniza destaque em nuvem (Fase 2 - JEZ-021)
+    if (window.jezFirebase && typeof window.jezFirebase.setFeaturedProduct === 'function') {
+      window.jezFirebase.setFeaturedProduct(id).catch(err => console.warn(err));
+    }
+
+    const searchInput = document.getElementById('catalog-search-input');
+    renderCatalog(searchInput ? searchInput.value.trim() : '');
+    showToast(`Peça "${piece.name}" agora é o destaque da vitrine!`);
+  };
+
+  // Alterna status rápido da peça
+  const setPieceStatus = (id, newStatus) => {
+    if (!id || typeof id !== 'string') {
+      console.warn('[JËZ Ateliê] ID inválido fornecido para setPieceStatus.');
+      return;
+    }
+    const validStatuses = ['ready', 'order', 'suspended'];
+    if (!validStatuses.includes(newStatus)) {
+      console.warn('[JËZ Ateliê] Status desconhecido fornecido para setPieceStatus:', newStatus);
+      return;
+    }
+
+    try {
+      const currentList = loadCatalog();
+      const existing = currentList.find(p => p.id === id);
+      if (!existing) {
+        showToast('Peça não encontrada no catálogo local.');
+        return;
+      }
+
+      catalog = currentList.map(p => {
+        if (p.id === id) {
+          return {
+            ...p,
+            status: newStatus,
+            isReady: newStatus === 'ready'
+          };
+        }
+        return p;
       });
+
+      saveCatalog(catalog, id, () => {
+        const searchInput = document.getElementById('catalog-search-input');
+        renderCatalog(searchInput ? searchInput.value.trim() : '');
+        updateDashboard();
+      });
+
+      const statusLabels = {
+        ready: 'Pronta Entrega',
+        order: 'Sob Encomenda',
+        suspended: 'Suspensa (Oculta da loja)'
+      };
+      showToast(`Status alterado para ${statusLabels[newStatus] || newStatus}!`);
+    } catch (err) {
+      console.error('[JËZ Ateliê] Erro ao alternar status da peça:', err);
+      showToast('Ocorreu um erro ao atualizar o status.');
     }
   };
+
+  // Exclusão de Peça
+  const deletePiece = (id) => {
+    if (!id || typeof id !== 'string') {
+      console.warn('[JËZ Ateliê] ID inválido fornecido para deletePiece.');
+      return;
+    }
+
+    try {
+      const currentList = loadCatalog();
+      const piece = currentList.find(p => p.id === id);
+      if (!piece) {
+        showToast('Peça não encontrada para exclusão.');
+        return;
+      }
+
+      const name = piece.name || 'esta peça';
+      if (!confirm(`Deseja realmente excluir "${name}" do acervo?\nEssa ação removerá a peça da vitrine.`)) return;
+
+      catalog = currentList.filter(p => p.id !== id);
+      saveCatalog(catalog, null, () => {
+        const searchInput = document.getElementById('catalog-search-input');
+        renderCatalog(searchInput ? searchInput.value.trim() : '');
+        updateDashboard();
+        showToast('Peça removida do acervo.');
+      });
+
+      if (window.jezFirebase && typeof window.jezFirebase.deleteProduct === 'function') {
+        window.jezFirebase.deleteProduct(id).catch(err => console.warn('[JËZ Cloud] Erro na exclusão em nuvem:', err));
+      }
+
+      if (localStorage.getItem('jez_featured_product_id') === id) {
+        localStorage.setItem('jez_featured_product_id', 'tote-cherry');
+      }
+    } catch (err) {
+      console.error('[JËZ Ateliê] Erro ao excluir peça:', err);
+      showToast('Ocorreu um erro ao excluir a peça.');
+    }
+  };
+
+  // Filtros de status do acervo
+  document.querySelectorAll('.catalog-filter-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.catalog-filter-btn').forEach(b => b.classList.remove('active'));
+      e.currentTarget.classList.add('active');
+      currentCatalogFilter = e.currentTarget.getAttribute('data-filter') || 'all';
+      const searchInput = document.getElementById('catalog-search-input');
+      renderCatalog(searchInput ? searchInput.value.trim() : '');
+    });
+  });
+
+  const catalogSearchInput = document.getElementById('catalog-search-input');
+  if (catalogSearchInput) {
+    catalogSearchInput.addEventListener('input', (e) => {
+      renderCatalog(e.target.value.trim());
+    });
+  }
 
   // --------------------------------------------------------------------------
   // 9. Cadastro de Nova Peça
   // --------------------------------------------------------------------------
-  const newPieceForm = document.getElementById('form-add-piece');
-  const newPiecePhotoInput = document.getElementById('new-photo-input');
+  const photoInput = document.getElementById('product-photo-input');
+  const uploadPrompt = document.getElementById('upload-prompt');
+  const cropWorkspace = document.getElementById('crop-workspace');
+  const btnChangeCropPhoto = document.getElementById('btn-change-crop-photo');
+  const btnAddNewExtraPhoto = document.getElementById('btn-add-new-extra-photo');
   const newExtraPhotosInput = document.getElementById('new-extra-photos-input');
   const newExtraPhotosGrid = document.getElementById('new-extra-photos-grid');
-  const btnSavePiece = document.getElementById('btn-save-piece');
 
-  if (newPiecePhotoInput) {
-    newPiecePhotoInput.addEventListener('change', (e) => {
+  if (photoInput) {
+    photoInput.addEventListener('change', (e) => {
       const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          newPieceCropper.loadImage(evt.target.result);
-          document.getElementById('crop-interface').style.display = 'block';
-        };
-        reader.readAsDataURL(file);
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        if (uploadPrompt) uploadPrompt.style.display = 'none';
+        if (cropWorkspace) cropWorkspace.style.display = 'flex';
+        await newPieceCropper.loadImage(event.target.result);
+        showToast('Foto carregada! Ajuste o enquadramento se desejar.');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (btnChangeCropPhoto && photoInput) {
+    btnChangeCropPhoto.addEventListener('click', () => {
+      photoInput.click();
+    });
+  }
+
+  if (btnAddNewExtraPhoto && newExtraPhotosInput) {
+    btnAddNewExtraPhoto.addEventListener('click', () => {
+      if (newPieceExtraPhotos.length >= 4) {
+        showToast('Limite de 4 fotos extras atingido.');
+        return;
       }
+      newExtraPhotosInput.click();
     });
   }
 
   if (newExtraPhotosInput) {
     newExtraPhotosInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files || []);
-      for (const file of files) {
-        if (newPieceExtraPhotos.length >= 4) break;
+      if (files.length === 0) return;
+
+      const availableSlots = 4 - newPieceExtraPhotos.length;
+      const filesToProcess = files.slice(0, availableSlots);
+
+      for (const file of filesToProcess) {
         const compressed = await compressImageFile(file, 540, 0.68);
         if (compressed) newPieceExtraPhotos.push(compressed);
       }
       renderNewExtraPhotos();
+      newExtraPhotosInput.value = '';
     });
   }
 
@@ -592,7 +790,7 @@ const initAdmin = () => {
       const item = document.createElement('div');
       item.className = 'extra-photo-thumb';
       item.innerHTML = `
-        <img src="${src}" alt="Foto extra ${idx + 1}" />
+        <img src="${sanitizeImageUrl(src)}" alt="Foto extra ${idx + 1}" />
         <button type="button" class="btn-remove-thumb" data-idx="${idx}">&times;</button>
       `;
       newExtraPhotosGrid.appendChild(item);
@@ -606,190 +804,570 @@ const initAdmin = () => {
     });
   };
 
-  if (newPieceForm) {
-    newPieceForm.addEventListener('submit', async (e) => {
+  // Alternância Pronta Entrega vs Sob Encomenda
+  const modalityOptions = document.querySelectorAll('.modality-option');
+  const leadTimeField = document.getElementById('order-leadtime-field');
+  const readyStockField = document.getElementById('ready-stock-field');
+
+  modalityOptions.forEach(opt => {
+    opt.addEventListener('click', () => {
+      modalityOptions.forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      const radio = opt.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+
+      if (radio && radio.value === 'order') {
+        if (leadTimeField) leadTimeField.style.display = 'block';
+        if (readyStockField) readyStockField.style.display = 'none';
+      } else {
+        if (leadTimeField) leadTimeField.style.display = 'none';
+        if (readyStockField) readyStockField.style.display = 'block';
+      }
+    });
+  });
+
+  // Submissão do Formulário de Nova Peça
+  const formNewProduct = document.getElementById('form-new-product');
+  if (formNewProduct) {
+    formNewProduct.addEventListener('submit', (e) => {
       e.preventDefault();
+
       if (!newPieceCropper.hasImage()) {
         showToast('Por favor, selecione uma foto de capa para a peça.');
         return;
       }
 
+      const btnSavePiece = document.getElementById('btn-save-piece');
+      const btnSpan = btnSavePiece ? btnSavePiece.querySelector('span') : null;
+      const originalText = btnSpan ? btnSpan.textContent : 'Salvar e Publicar na Loja';
+
       if (btnSavePiece) {
         btnSavePiece.disabled = true;
-        btnSavePiece.textContent = 'Salvando e Publicando...';
+        if (btnSpan) btnSpan.textContent = 'Salvando e Publicando...';
       }
 
       try {
-        const mainImage = newPieceCropper.getCroppedDataUrl(540);
-        const allImages = [mainImage, ...newPieceExtraPhotos];
-        const isReady = document.getElementById('product-ready-check').checked;
-        const stockInput = document.getElementById('product-stock-input');
-        const stockQty = isReady ? (parseInt(stockInput ? stockInput.value : '1', 10) || 0) : 0;
+        const rawName = document.getElementById('product-name-input').value;
+        const name = sanitizeText(rawName, 120);
+        const category = document.getElementById('product-category-input').value;
+        const rawPrice = parseFloat(document.getElementById('product-price-input').value);
+        const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
+        const modalityRadio = document.querySelector('input[name="product-modality"]:checked');
+        const modality = modalityRadio ? modalityRadio.value : 'ready';
+        const rawStock = parseInt(document.getElementById('product-stock-input')?.value, 10);
+        const stockQty = modality === 'ready' ? Math.max(0, isNaN(rawStock) ? 1 : rawStock) : 0;
+        const rawLeadTime = parseInt(document.getElementById('product-leadtime-input')?.value, 10);
+        const leadTimeDays = modality === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
+        const dimensions = sanitizeText(document.getElementById('product-dimensions-input').value, 150) || 'Medidas artesanais sob encomenda';
+        const materials = sanitizeText(document.getElementById('product-materials-input').value, 200) || 'Fio 100% algodão premium artesanal';
+        const description = sanitizeText(document.getElementById('product-desc-input').value, 800) || 'Peça autoral tecida com amor e acabamento único pela Jéssica Regina.';
+
+        const photoToUse = newPieceCropper.getCroppedDataUrl(540);
+        const categoryLabels = {
+          bolsas: 'Bolsas & Bags',
+          vestuario: 'Vestuário Autoral',
+          acessorios: 'Acessórios'
+        };
+
+        const extraImages = [...newPieceExtraPhotos];
+        const allImages = [photoToUse, ...extraImages];
 
         const newPiece = {
           id: 'custom-' + Date.now(),
-          name: sanitizeText(document.getElementById('product-name-input').value),
-          category: document.getElementById('product-category-select').value,
-          price: parseFloat(document.getElementById('product-price-input').value) || 0,
-          image: mainImage,
+          name,
+          category,
+          categoryLabel: categoryLabels[category] || 'Peças Autorais',
+          price,
+          image: photoToUse,
           images: allImages,
-          isReady,
+          status: modality,
+          isReady: modality === 'ready',
           stockQty: stockQty,
-          status: isReady ? 'ready' : 'order',
-          leadTimeDays: isReady ? 0 : (parseInt(document.getElementById('product-leadtime-input').value, 10) || 7),
-          dimensions: sanitizeText(document.getElementById('product-dimensions-input').value),
-          materials: sanitizeText(document.getElementById('product-materials-input').value),
-          description: sanitizeText(document.getElementById('product-description-input').value)
+          leadTimeDays: leadTimeDays,
+          dimensions,
+          materials,
+          description
         };
 
         catalog = [newPiece, ...loadCatalog()];
         saveCatalog(catalog, newPiece.id, () => {
-          newPieceForm.reset();
+          formNewProduct.reset();
+          if (photoInput) photoInput.value = '';
           newPieceExtraPhotos = [];
           renderNewExtraPhotos();
-          document.getElementById('crop-interface').style.display = 'none';
+          if (cropWorkspace) cropWorkspace.style.display = 'none';
+          if (uploadPrompt) uploadPrompt.style.display = 'flex';
+          if (modalityOptions[0]) modalityOptions[0].click();
+
           renderCatalog();
           updateDashboard();
-          showToast('Peça cadastrada e publicada no catálogo!');
+          showToast(`Peça "${name}" cadastrada com sucesso!`);
+
+          setTimeout(() => {
+            switchTab('catalog');
+          }, 500);
         });
+      } catch (err) {
+        console.error('[JËZ Ateliê] Erro ao cadastrar nova peça:', err);
+        showToast('Ocorreu um erro ao salvar a peça. Tente novamente.');
       } finally {
         if (btnSavePiece) {
           btnSavePiece.disabled = false;
-          btnSavePiece.textContent = 'Salvar e Publicar na Loja';
+          if (btnSpan) btnSpan.textContent = originalText;
         }
       }
     });
   }
 
   // --------------------------------------------------------------------------
-  // 10. Modal de Edição de Peça Existente
+  // 10. Modal de Edição de Peça Existente (Galeria Multi-Fotos - JEZ-019)
   // --------------------------------------------------------------------------
-  const editModalBackdrop = document.getElementById('modal-edit-piece-backdrop');
-  const editPieceForm = document.getElementById('form-edit-piece');
+  const modalEditBackdrop = document.getElementById('modal-edit-backdrop');
+  const btnCloseEditModal = document.getElementById('btn-close-edit-modal');
+  const btnCancelEdit = document.getElementById('btn-cancel-edit');
+  const formEditProduct = document.getElementById('form-edit-product');
+  const editPhotoInput = document.getElementById('edit-photo-input');
+  const editLeadtimeWrap = document.getElementById('edit-leadtime-wrap');
+  const btnAddEditExtraPhoto = document.getElementById('btn-add-edit-extra-photo');
   const editExtraPhotosInput = document.getElementById('edit-extra-photos-input');
   const editExtraPhotosGrid = document.getElementById('edit-extra-photos-grid');
-  const btnSaveEdit = document.getElementById('btn-save-edit');
-  const btnCancelEdit = document.getElementById('btn-cancel-edit');
-  let currentEditingPieceId = null;
 
-  const openEditPieceModal = (productId) => {
-    const piece = loadCatalog().find(p => p.id === productId);
-    if (!piece) return;
-    currentEditingPieceId = productId;
+  let currentEditingPiece = null;
+  let editCarouselItems = [];
+  let activeCarouselIdx = 0;
 
-    document.getElementById('edit-product-id').value = piece.id;
-    document.getElementById('edit-product-name').value = piece.name;
-    document.getElementById('edit-product-price').value = piece.price;
-    document.getElementById('edit-product-category').value = piece.category;
-    document.getElementById('edit-product-ready').checked = Boolean(piece.isReady);
-    const editStockInput = document.getElementById('edit-product-stock');
-    if (editStockInput) editStockInput.value = piece.stockQty !== undefined ? piece.stockQty : 1;
-    document.getElementById('edit-product-leadtime').value = piece.leadTimeDays || 0;
-    document.getElementById('edit-product-dimensions').value = piece.dimensions || '';
-    document.getElementById('edit-product-materials').value = piece.materials || '';
-    document.getElementById('edit-product-description').value = piece.description || '';
+  const loadActiveCarouselPhoto = async () => {
+    if (!editCarouselItems || editCarouselItems.length === 0) return;
+    const current = editCarouselItems[activeCarouselIdx];
+    if (!current) return;
 
-    const currentStatus = piece.status || (piece.isReady ? 'ready' : 'order');
-    const statusRadio = document.querySelector(`input[name="edit-status"][value="${currentStatus}"]`);
-    if (statusRadio) statusRadio.checked = true;
+    const titleLabel = document.getElementById('edit-crop-title-label');
+    if (titleLabel) {
+      titleLabel.textContent = current.isCover
+        ? 'Foto da Peça (Moldura 1:1) — Capa Principal'
+        : `Foto ${activeCarouselIdx + 1} do Carrossel (Moldura 1:1)`;
+    }
 
-    editPieceExtraPhotos = Array.isArray(piece.images) && piece.images.length > 1 ? piece.images.slice(1) : [];
-    renderEditExtraPhotos();
-    editPieceCropper.loadImage(piece.image);
-    if (editModalBackdrop) editModalBackdrop.style.display = 'flex';
+    await editPieceCropper.loadImage(current.url);
+    if (current.isModified && current.zoom) {
+      editPieceCropper.setState({
+        zoom: current.zoom,
+        offsetX: current.offsetX,
+        offsetY: current.offsetY
+      });
+    }
   };
 
-  const closeEditPieceModal = () => {
-    currentEditingPieceId = null;
-    if (editModalBackdrop) editModalBackdrop.style.display = 'none';
-  };
-
-  if (btnCancelEdit) btnCancelEdit.addEventListener('click', closeEditPieceModal);
-
-  if (editExtraPhotosInput) {
-    editExtraPhotosInput.addEventListener('change', async (e) => {
-      const files = Array.from(e.target.files || []);
-      for (const file of files) {
-        if (editPieceExtraPhotos.length >= 4) break;
-        const compressed = await compressImageFile(file, 540, 0.68);
-        if (compressed) editPieceExtraPhotos.push(compressed);
+  const saveActivePhotoCropState = () => {
+    if (!editCarouselItems || !editCarouselItems[activeCarouselIdx]) return;
+    const current = editCarouselItems[activeCarouselIdx];
+    const st = editPieceCropper.getState();
+    const changed = st.zoom !== 1 || st.offsetX !== 0 || st.offsetY !== 0 || current.isModified;
+    if (changed) {
+      current.zoom = st.zoom;
+      current.offsetX = st.offsetX;
+      current.offsetY = st.offsetY;
+      current.isModified = true;
+      const cropped = editPieceCropper.getCroppedDataUrl(540);
+      if (cropped) {
+        current.url = cropped;
       }
-      renderEditExtraPhotos();
+    }
+  };
+
+  const selectCarouselPhoto = async (index) => {
+    if (index === activeCarouselIdx || index < 0 || index >= editCarouselItems.length) return;
+    saveActivePhotoCropState();
+    activeCarouselIdx = index;
+    renderEditCarousel();
+    await loadActiveCarouselPhoto();
+  };
+
+  const renderEditCarousel = () => {
+    if (!editExtraPhotosGrid) return;
+    editExtraPhotosGrid.innerHTML = '';
+
+    editCarouselItems.forEach((item, idx) => {
+      const thumb = document.createElement('div');
+      thumb.className = `extra-photo-thumb ${idx === activeCarouselIdx ? 'active-thumb' : ''} ${item.isCover ? 'is-cover' : ''}`;
+      thumb.setAttribute('data-idx', String(idx));
+      thumb.setAttribute('title', `Foto ${idx + 1} (${item.isCover ? 'Capa' : 'Carrossel'}) — Clique para enquadrar 1:1`);
+
+      const safeUrl = sanitizeImageUrl(item.url);
+      const badgeText = item.isCover ? 'Capa' : `${idx + 1}`;
+      const removeBtn = !item.isCover ? `
+        <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover foto do carrossel" title="Remover foto">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      ` : '';
+
+      thumb.innerHTML = `
+        <img src="${safeUrl}" alt="Foto ${idx + 1}">
+        <span class="carousel-thumb-badge">${badgeText}</span>
+        ${removeBtn}
+      `;
+
+      thumb.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-remove-extra-photo')) return;
+        selectCarouselPhoto(idx);
+      });
+
+      editExtraPhotosGrid.appendChild(thumb);
+    });
+
+    const counterEl = document.getElementById('edit-carousel-counter');
+    if (counterEl) {
+      counterEl.textContent = `${editCarouselItems.length}/5 fotos`;
+    }
+
+    if (btnAddEditExtraPhoto) {
+      if (editCarouselItems.length >= 5) {
+        btnAddEditExtraPhoto.style.opacity = '0.5';
+        btnAddEditExtraPhoto.disabled = true;
+      } else {
+        btnAddEditExtraPhoto.style.opacity = '1';
+        btnAddEditExtraPhoto.disabled = false;
+      }
+    }
+
+    // Mantém editPieceExtraPhotos sincronizado
+    editPieceExtraPhotos = editCarouselItems.slice(1).map(i => i.url);
+  };
+
+  const openEditModal = async (pieceId) => {
+    catalog = loadCatalog();
+    const piece = catalog.find(p => p.id === pieceId);
+    if (!piece) return;
+
+    currentEditingPiece = piece;
+
+    const idInput = document.getElementById('edit-piece-id');
+    if (idInput) idInput.value = piece.id;
+    const nameInput = document.getElementById('edit-product-name');
+    if (nameInput) nameInput.value = piece.name || '';
+    const catInput = document.getElementById('edit-product-category');
+    if (catInput) catInput.value = piece.category || 'bolsas';
+    const priceInput = document.getElementById('edit-product-price');
+    if (priceInput) priceInput.value = piece.price || 0;
+    const dimInput = document.getElementById('edit-product-dimensions');
+    if (dimInput) dimInput.value = piece.dimensions || '';
+    const matInput = document.getElementById('edit-product-materials');
+    if (matInput) matInput.value = piece.materials || '';
+    const descInput = document.getElementById('edit-product-desc');
+    if (descInput) descInput.value = piece.description || '';
+
+    // Status: ready, order, suspended
+    const status = piece.status || (piece.isReady ? 'ready' : 'order');
+    const radio = document.querySelector(`input[name="edit-status"][value="${status}"]`);
+    if (radio) radio.checked = true;
+
+    document.querySelectorAll('.status-radio-option').forEach(opt => {
+      const r = opt.querySelector('input[type="radio"]');
+      opt.classList.toggle('active', r && r.value === status);
+    });
+
+    const editStockWrap = document.getElementById('edit-stock-wrap');
+    const editStockInput = document.getElementById('edit-product-stock');
+    if (editStockInput) {
+      editStockInput.value = (piece.stockQty !== undefined && piece.stockQty !== null) ? piece.stockQty : (piece.isReady ? 1 : 0);
+    }
+
+    if (status === 'order') {
+      if (editLeadtimeWrap) editLeadtimeWrap.style.display = 'block';
+      if (editStockWrap) editStockWrap.style.display = 'none';
+      const leadtimeInput = document.getElementById('edit-product-leadtime');
+      if (leadtimeInput) leadtimeInput.value = piece.leadTimeDays || 7;
+    } else if (status === 'ready') {
+      if (editLeadtimeWrap) editLeadtimeWrap.style.display = 'none';
+      if (editStockWrap) editStockWrap.style.display = 'block';
+    } else {
+      if (editLeadtimeWrap) editLeadtimeWrap.style.display = 'none';
+      if (editStockWrap) editStockWrap.style.display = 'none';
+    }
+
+    if (modalEditBackdrop) modalEditBackdrop.style.display = 'flex';
+
+    // Monta itens do carrossel: capa (0) + extras (1..4)
+    const initialPhotos = (Array.isArray(piece.images) && piece.images.length > 0)
+      ? [...piece.images]
+      : [piece.image || 'assets/products/tote_cherry.jpg'];
+
+    editCarouselItems = initialPhotos.map((url, idx) => ({
+      url: sanitizeImageUrl(url),
+      isCover: idx === 0,
+      isModified: false,
+      zoom: 1,
+      offsetX: 0,
+      offsetY: 0
+    }));
+
+    activeCarouselIdx = 0;
+    renderEditCarousel();
+    await loadActiveCarouselPhoto();
+  };
+
+  const openEditPieceModal = openEditModal;
+
+  const closeEditModal = () => {
+    if (modalEditBackdrop) modalEditBackdrop.style.display = 'none';
+    currentEditingPiece = null;
+    editCarouselItems = [];
+    activeCarouselIdx = 0;
+    if (formEditProduct) {
+      try {
+        formEditProduct.reset();
+      } catch (e) {
+        // Ignora caso elementos já estejam desconectados
+      }
+    }
+  };
+
+  const closeEditPieceModal = closeEditModal;
+
+  if (btnCloseEditModal) btnCloseEditModal.addEventListener('click', closeEditModal);
+  if (btnCancelEdit) btnCancelEdit.addEventListener('click', closeEditModal);
+  if (modalEditBackdrop) {
+    modalEditBackdrop.addEventListener('click', (e) => {
+      if (e.target === modalEditBackdrop) closeEditModal();
     });
   }
 
-  const renderEditExtraPhotos = () => {
-    if (!editExtraPhotosGrid) return;
-    editExtraPhotosGrid.innerHTML = '';
-    editPieceExtraPhotos.forEach((src, idx) => {
-      const item = document.createElement('div');
-      item.className = 'extra-photo-thumb';
-      item.innerHTML = `
-        <img src="${src}" alt="Foto extra ${idx + 1}" />
-        <button type="button" class="btn-remove-thumb" data-idx="${idx}">&times;</button>
-      `;
-      editExtraPhotosGrid.appendChild(item);
+  // Alternar status no modal
+  document.querySelectorAll('.status-radio-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.status-radio-option').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+      const radio = opt.querySelector('input[type="radio"]');
+      if (radio) {
+        radio.checked = true;
+        const editStockWrap = document.getElementById('edit-stock-wrap');
+        if (radio.value === 'order') {
+          if (editLeadtimeWrap) editLeadtimeWrap.style.display = 'block';
+          if (editStockWrap) editStockWrap.style.display = 'none';
+        } else if (radio.value === 'ready') {
+          if (editLeadtimeWrap) editLeadtimeWrap.style.display = 'none';
+          if (editStockWrap) editStockWrap.style.display = 'block';
+        } else {
+          if (editLeadtimeWrap) editLeadtimeWrap.style.display = 'none';
+          if (editStockWrap) editStockWrap.style.display = 'none';
+        }
+      }
     });
-    editExtraPhotosGrid.querySelectorAll('.btn-remove-thumb').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const idx = parseInt(e.target.getAttribute('data-idx'), 10);
-        editPieceExtraPhotos.splice(idx, 1);
-        renderEditExtraPhotos();
-      });
-    });
-  };
+  });
 
-  if (editPieceForm) {
-    editPieceForm.addEventListener('submit', async (e) => {
+  if (btnAddEditExtraPhoto && editExtraPhotosInput) {
+    btnAddEditExtraPhoto.addEventListener('click', () => {
+      if (editCarouselItems.length >= 5) {
+        showToast('Limite de 5 fotos no carrossel atingido.');
+        return;
+      }
+      editExtraPhotosInput.click();
+    });
+
+    editExtraPhotosInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+
+      saveActivePhotoCropState();
+
+      const availableSlots = 5 - editCarouselItems.length;
+      const filesToProcess = files.slice(0, availableSlots);
+
+      if (btnAddEditExtraPhoto) {
+        btnAddEditExtraPhoto.disabled = true;
+        btnAddEditExtraPhoto.style.opacity = '0.6';
+      }
+
+      try {
+        let firstNewIdx = -1;
+        for (const file of filesToProcess) {
+          const compressed = await compressImageFile(file, 540, 0.68);
+          if (compressed) {
+            const newIdx = editCarouselItems.length;
+            if (firstNewIdx === -1) firstNewIdx = newIdx;
+            editCarouselItems.push({
+              url: compressed,
+              isCover: newIdx === 0,
+              isModified: true,
+              zoom: 1,
+              offsetX: 0,
+              offsetY: 0
+            });
+          }
+        }
+
+        editExtraPhotosInput.value = '';
+        if (firstNewIdx !== -1) {
+          activeCarouselIdx = firstNewIdx;
+          renderEditCarousel();
+          await loadActiveCarouselPhoto();
+          showToast('Foto adicionada ao carrossel! Ajuste o enquadramento 1:1 acima.');
+        }
+      } catch (err) {
+        console.error('[JËZ Ateliê] Falha ao processar fotos extras:', err);
+        showToast('Não foi possível processar algumas imagens selecionadas.');
+      } finally {
+        if (btnAddEditExtraPhoto && editCarouselItems.length < 5) {
+          btnAddEditExtraPhoto.disabled = false;
+          btnAddEditExtraPhoto.style.opacity = '1';
+        }
+      }
+    });
+  }
+
+  if (editExtraPhotosGrid) {
+    editExtraPhotosGrid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-remove-extra-photo');
+      if (!btn) return;
+      e.stopPropagation();
+      const idx = parseInt(btn.getAttribute('data-idx'), 10);
+      if (!isNaN(idx) && idx > 0 && idx < editCarouselItems.length) {
+        editCarouselItems.splice(idx, 1);
+        if (activeCarouselIdx >= editCarouselItems.length) {
+          activeCarouselIdx = editCarouselItems.length - 1;
+        } else if (activeCarouselIdx === idx) {
+          activeCarouselIdx = Math.max(0, idx - 1);
+        }
+        renderEditCarousel();
+        loadActiveCarouselPhoto();
+        showToast('Foto removida do carrossel.');
+      }
+    });
+  }
+
+  const btnEditChangePhoto = document.getElementById('btn-edit-change-photo');
+  if (btnEditChangePhoto && editPhotoInput) {
+    btnEditChangePhoto.addEventListener('click', () => {
+      editPhotoInput.click();
+    });
+  }
+
+  if (editPhotoInput) {
+    editPhotoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const dataUrl = event.target.result;
+          if (editCarouselItems[activeCarouselIdx]) {
+            editCarouselItems[activeCarouselIdx].url = dataUrl;
+            editCarouselItems[activeCarouselIdx].isModified = true;
+            editCarouselItems[activeCarouselIdx].zoom = 1;
+            editCarouselItems[activeCarouselIdx].offsetX = 0;
+            editCarouselItems[activeCarouselIdx].offsetY = 0;
+          }
+          await editPieceCropper.loadImage(dataUrl);
+          renderEditCarousel();
+          showToast(`Foto ${activeCarouselIdx + 1} alterada! Ajuste o zoom e enquadramento.`);
+        } catch (err) {
+          console.error('[JËZ Ateliê] Erro ao carregar foto no cropper:', err);
+          showToast('Erro ao atualizar foto selecionada.');
+        }
+      };
+      reader.onerror = () => {
+        console.error('[JËZ Ateliê] Falha na leitura do arquivo de imagem');
+        showToast('Erro ao ler o arquivo de imagem.');
+      };
+      reader.readAsDataURL(file);
+      editPhotoInput.value = '';
+    });
+  }
+
+  if (formEditProduct) {
+    formEditProduct.addEventListener('submit', (e) => {
       e.preventDefault();
-      if (!currentEditingPieceId) return;
 
+      const btnSaveEdit = document.getElementById('btn-save-edit');
+      const originalText = btnSaveEdit ? btnSaveEdit.textContent : 'Salvar Alterações';
       if (btnSaveEdit) {
         btnSaveEdit.disabled = true;
         btnSaveEdit.textContent = 'Salvando Alterações...';
       }
 
       try {
-        const id = currentEditingPieceId;
-        const mainImage = editPieceCropper.getCroppedDataUrl(540);
-        const updatedImages = [mainImage, ...editPieceExtraPhotos];
-        const isReady = document.getElementById('edit-product-ready').checked;
-        const editStockInput = document.getElementById('edit-product-stock');
-        const stockQty = isReady ? (parseInt(editStockInput ? editStockInput.value : '1', 10) || 0) : 0;
-        const selectedStatusRadio = document.querySelector('input[name="edit-status"]:checked');
-        const pieceStatus = selectedStatusRadio ? selectedStatusRadio.value : (isReady ? 'ready' : 'order');
+        const id = document.getElementById('edit-piece-id')?.value?.trim();
+        if (!id) {
+          showToast('Identificador de peça inválido.');
+          return;
+        }
 
-        catalog = loadCatalog().map(p => {
+        const rawName = document.getElementById('edit-product-name')?.value || '';
+        const name = sanitizeText(rawName, 120);
+        if (!name) {
+          showToast('Informe o nome da peça antes de salvar.');
+          return;
+        }
+
+        const currentCatalog = loadCatalog();
+        const existingPiece = currentCatalog.find(p => p.id === id);
+        if (!existingPiece) {
+          showToast('Peça não encontrada para edição.');
+          return;
+        }
+
+        const category = document.getElementById('edit-product-category')?.value || 'bolsas';
+        const rawPrice = parseFloat(document.getElementById('edit-product-price')?.value);
+        const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
+        const statusRadio = document.querySelector('input[name="edit-status"]:checked');
+        const status = statusRadio ? statusRadio.value : 'ready';
+        const rawLeadTime = parseInt(document.getElementById('edit-product-leadtime')?.value, 10);
+        const leadTimeDays = status === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
+        const rawStock = parseInt(document.getElementById('edit-product-stock')?.value, 10);
+        const stockQty = status === 'ready' ? Math.max(0, isNaN(rawStock) ? 1 : rawStock) : 0;
+        const dimensions = sanitizeText(document.getElementById('edit-product-dimensions')?.value || '', 150);
+        const materials = sanitizeText(document.getElementById('edit-product-materials')?.value || '', 200);
+        const description = sanitizeText(document.getElementById('edit-product-desc')?.value || '', 800);
+
+        saveActivePhotoCropState();
+
+        const categoryLabels = {
+          bolsas: 'Bolsas & Bags',
+          vestuario: 'Vestuário Autoral',
+          acessorios: 'Acessórios'
+        };
+
+        const finalImages = editCarouselItems.map(item => sanitizeImageUrl(item.url));
+        const coverImage = finalImages[0] || (currentEditingPiece ? currentEditingPiece.image : existingPiece.image || 'assets/products/tote_cherry.jpg');
+        const updatedImages = finalImages.length > 0 ? [...finalImages] : [coverImage];
+
+        catalog = currentCatalog.map(p => {
           if (p.id === id) {
             return {
               ...p,
-              name: sanitizeText(document.getElementById('edit-product-name').value),
-              category: document.getElementById('edit-product-category').value,
-              price: parseFloat(document.getElementById('edit-product-price').value) || 0,
-              image: mainImage,
-              images: updatedImages,
-              isReady,
+              name,
+              category,
+              categoryLabel: categoryLabels[category] || p.categoryLabel,
+              price,
+              status,
+              isReady: status === 'ready',
               stockQty,
-              status: pieceStatus,
-              leadTimeDays: isReady ? 0 : (parseInt(document.getElementById('edit-product-leadtime').value, 10) || 7),
-              dimensions: sanitizeText(document.getElementById('edit-product-dimensions').value),
-              materials: sanitizeText(document.getElementById('edit-product-materials').value),
-              description: sanitizeText(document.getElementById('edit-product-description').value)
+              leadTimeDays,
+              dimensions,
+              materials,
+              description,
+              image: coverImage,
+              images: updatedImages
             };
           }
           return p;
         });
 
         saveCatalog(catalog, id, () => {
-          closeEditPieceModal();
-          renderCatalog();
+          closeEditModal();
+          const searchInput = document.getElementById('catalog-search-input');
+          renderCatalog(searchInput ? searchInput.value.trim() : '');
           updateDashboard();
-          showToast('Alterações salvas com sucesso!');
+          showToast(`Peça "${name}" atualizada com sucesso!`);
         });
+      } catch (err) {
+        console.error('[JËZ Ateliê] Erro ao salvar edição da peça:', err);
+        showToast('Ocorreu um erro ao atualizar a peça. Tente novamente.');
       } finally {
         if (btnSaveEdit) {
           btnSaveEdit.disabled = false;
-          btnSaveEdit.textContent = 'Salvar Alterações';
+          btnSaveEdit.textContent = originalText;
         }
       }
     });
@@ -971,21 +1549,85 @@ const initAdmin = () => {
     const badge = document.getElementById('cloud-sync-badge');
     if (!badge) return;
     badge.className = `cloud-sync-badge status-${status}`;
-    const textEl = badge.querySelector('.sync-text');
+    const textEl = badge.querySelector('.sync-label') || badge.querySelector('.sync-text');
     if (textEl) textEl.textContent = text;
   };
 
-  if (typeof window !== 'undefined' && window.jezFirebase) {
-    updateCloudSyncStatus('online', 'Nuvem Conectada');
-    if (typeof window.jezFirebase.onProductsChange === 'function') {
-      window.jezFirebase.onProductsChange(remoteProducts => {
-        if (Array.isArray(remoteProducts) && remoteProducts.length > 0) {
-          updateCloudSyncStatus('synced', 'Sincronizado');
-        }
+  const initCloudSync = () => {
+    const updateBadge = (online) => {
+      if (online) {
+        updateCloudSyncStatus('online', 'Nuvem Conectada');
+      } else {
+        updateCloudSyncStatus('offline', 'Modo Local');
+      }
+    };
+
+    let bound = false;
+    const bindSync = () => {
+      if (typeof window === 'undefined' || !window.jezFirebase || bound) return false;
+      bound = true;
+
+      updateBadge(true);
+
+      if (typeof window.jezFirebase.onConnectionChange === 'function') {
+        window.jezFirebase.onConnectionChange(updateBadge);
+      }
+
+      // Ouve pedidos em tempo real da nuvem
+      if (typeof window.jezFirebase.onOrdersChange === 'function') {
+        window.jezFirebase.onOrdersChange((cloudOrders) => {
+          if (Array.isArray(cloudOrders)) {
+            orders = cloudOrders;
+            localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(orders));
+            renderOrders();
+            updateDashboard();
+          }
+        });
+      }
+
+      // Ouve catálogo em tempo real da nuvem
+      if (typeof window.jezFirebase.onProductsChange === 'function') {
+        window.jezFirebase.onProductsChange((cloudCatalog) => {
+          if (Array.isArray(cloudCatalog) && cloudCatalog.length > 0) {
+            catalog = sortCatalogByCuratedOrder(cloudCatalog);
+            localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalog));
+            const searchInput = document.getElementById('catalog-search-input');
+            renderCatalog(searchInput ? searchInput.value.trim() : '');
+            updateDashboard();
+            updateCloudSyncStatus('synced', 'Sincronizado');
+          }
+        });
+      }
+
+      // Ouve destaque da vitrine em tempo real da nuvem
+      if (typeof window.jezFirebase.onFeaturedChange === 'function') {
+        window.jezFirebase.onFeaturedChange((cloudFeaturedId) => {
+          if (cloudFeaturedId) {
+            localStorage.setItem('jez_featured_product_id', cloudFeaturedId);
+            const searchInput = document.getElementById('catalog-search-input');
+            renderCatalog(searchInput ? searchInput.value.trim() : '');
+            updateDashboard();
+          }
+        });
+      }
+
+      // Semeia o acervo inicial no Firestore caso o banco esteja novo/vazio
+      if (typeof window.jezFirebase.seedInitialProductsIfEmpty === 'function') {
+        window.jezFirebase.seedInitialProductsIfEmpty(defaultInitialCatalog);
+      }
+      return true;
+    };
+
+    if (!bindSync()) {
+      updateBadge(false);
+      window.addEventListener('jez-cloud-status', () => {
+        bindSync();
       });
     }
-  } else {
-    updateCloudSyncStatus('offline', 'Modo Local');
+  };
+
+  if (typeof window !== 'undefined') {
+    initCloudSync();
   }
 
   // --------------------------------------------------------------------------

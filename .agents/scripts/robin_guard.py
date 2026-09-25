@@ -141,17 +141,13 @@ def main():
             if any(f in v.file_path for f in code_files)
         ]
         if relevant_violations:
-            violations_summary = "\n".join(
-                f"- [{v.rule_id}] {v.file_path}:{v.line_number}: {v.message}"
-                for v in relevant_violations[:5]
-            )
+            from src.core.feedback_formatter import format_ast_rejection_reason
+
             response = {
                 "decision": "continue",
-                "reason": (
-                    f"🚨 [Robin - QA / Guardião JEZ]:\n"
-                    f"A entrega foi bloqueada por violações determinísticas de AST detectadas pelo Needle 3:\n\n"
-                    f"{violations_summary}\n\n"
-                    "O agente deve consertar essas violações no disco antes de encerrar o turno."
+                "reason": format_ast_rejection_reason(
+                    "Robin — QA / Guardião JEZ",
+                    [v.to_dict() for v in relevant_violations],
                 ),
             }
             print(json.dumps(response))
@@ -159,13 +155,53 @@ def main():
     except Exception as e:
         sys.stderr.write(f"[Robin - AST Guardrail]: Aviso na verificação de AST: {e}\n")
 
-    # 5. Camada 2: Avaliação de Conformidade via Daemon MCP/IPC
+    # 5. Camada 2: Avaliação de Conformidade via Daemon MCP/IPC (Laya na GPU)
+    import time
+    from src.decision.ipc_service import is_ipc_available
+
+    def ensure_ipc_daemon() -> bool:
+        if is_ipc_available():
+            return True
+        try:
+            subprocess.run(
+                ["systemctl", "--user", "start", "openjev.service"],
+                capture_output=True,
+                timeout=5,
+            )
+            for _ in range(6):
+                time.sleep(0.5)
+                if is_ipc_available():
+                    return True
+        except Exception as e:
+            sys.stderr.write(f"[Robin - Daemon Recovery]: Falha ao tentar acordar daemon: {e}\n")
+        return is_ipc_available()
+
+    daemon_ready = ensure_ipc_daemon()
+    from src.core.feedback_formatter import (
+        format_score_rejection_reason,
+        format_infrastructure_error_reason,
+        format_circuit_breaker_guidance,
+    )
+
+    daemon_ready = ensure_ipc_daemon()
+    if not daemon_ready:
+        response = {
+            "decision": "continue",
+            "reason": format_infrastructure_error_reason(
+                "Robin — QA / Guardião JEZ",
+                "Daemon Open JEV está offline em /tmp/openjev_ipc.sock e não respondeu após tentativa de inicialização.",
+            ),
+        }
+        print(json.dumps(response))
+        sys.exit(0)
+
     try:
         from src.client.jev_ipc_client import request_score_and_diagnose
+        from src.core.transcript_sniffer import build_factual_premise
 
-        premise = (
-            f"Pedido do Prompt: Validação de conformidade de código no JEZ | "
-            f"Resultado Executado: {len(code_files)} arquivos de produção modificados ({', '.join(code_files[:3])})"
+        premise = build_factual_premise(
+            workspace=str(workspace_dir),
+            payload=payload,
         )
         res = request_score_and_diagnose(
             premise=premise,
@@ -175,10 +211,12 @@ def main():
 
         # Trata Saída de Emergência (Circuit Breaker Central)
         if res.get("emergency_exit_unlocked"):
-            sys.stderr.write(
-                f"[Robin - Circuit Breaker]: Limite de {res.get('max_attempts', MAX_ATTEMPTS)} tentativas atingido no JEZ. "
-                "Liberando encerramento da resposta para emissão do Laudo Técnico pelo agente.\n"
+            guidance = format_circuit_breaker_guidance(
+                "Robin — QA / Guardião JEZ",
+                attempts=res.get("attempts", MAX_ATTEMPTS),
+                max_attempts=MAX_ATTEMPTS,
             )
+            sys.stderr.write(f"\n{guidance}\n")
             print(json.dumps({}))
             sys.exit(0)
 
@@ -190,54 +228,36 @@ def main():
         # Trata Bloqueio Determinístico de AST reportado pelo motor central
         if res.get("ast_blocked"):
             violations = res.get("ast_violations") or []
-            violations_summary = "\n".join(
-                f"- [{v.get('rule_id')}] {v.get('file_path')}:{v.get('line_number')}: {v.get('message')}"
-                for v in violations[:5]
-            )
             response = {
                 "decision": "continue",
-                "reason": (
-                    f"🚨 [Robin - QA / Guardião JEZ] (Tentativa {res.get('attempts', 1)}/{res.get('max_attempts', MAX_ATTEMPTS)}):\n"
-                    f"A entrega foi bloqueada por violações determinísticas de AST detectadas pelo Needle 3:\n\n"
-                    f"{violations_summary}\n\n"
-                    "O agente deve consertar essas violações no disco antes de encerrar o turno."
-                ),
+                "reason": format_ast_rejection_reason("Robin — QA / Guardião JEZ", violations),
             }
             print(json.dumps(response))
             sys.exit(0)
 
-        # Reprovação de Score (< 3.40): reporta diagnóstico estruturado
-        score = res.get("score", 0.0)
-        attempts = res.get("attempts", 1)
+        # Reprovação de Score (< 3.40): reporta diagnóstico estruturado com diretiva
         max_attempts = res.get("max_attempts", MAX_ATTEMPTS)
-        diag = res.get("diagnosis") or {}
-        selected = diag.get("selected", "sem_defeito_identificavel")
-        description = diag.get("description", "")
-        stages = res.get("stages") or []
-
-        failed_stages_info = [
-            f"{st.get('file_path')} (Bloco {st.get('part_index')}/{st.get('total_parts')}): Score {st.get('score', 0):.2f} < 3.40"
-            for st in stages if not st.get("passed")
-        ]
-        failed_summary = "\n".join(failed_stages_info[:5]) if failed_stages_info else f"Diagnóstico: {selected} ({description})"
-
         response = {
             "decision": "continue",
-            "reason": (
-                f"🚨 [Robin - QA / Guardião JEZ] (Tentativa {attempts}/{max_attempts}):\n"
-                f"A entrega obteve nota de conformidade {score:.2f} < 3.40 na Camada 2:\n\n"
-                f"{failed_summary}\n\n"
-                f"Defeito identificado: {selected} — {description}\n"
-                "Conserte os blocos com defeitos identificáveis no disco antes de encerrar o turno."
+            "reason": format_score_rejection_reason(
+                "Robin — QA / Guardião JEZ",
+                res,
+                max_attempts=max_attempts,
             ),
         }
         print(json.dumps(response))
         sys.exit(0)
 
     except Exception as e:
-        sys.stderr.write(f"[Robin - Camada 2 Score IPC]: Erro ao conectar ao daemon JEV: {e}\n")
-        # Se o daemon MCP estiver offline, libera para não travar a IDE
-        print(json.dumps({}))
+        sys.stderr.write(f"[Robin - Camada 2 Score IPC]: Erro durante avaliação: {e}\n")
+        response = {
+            "decision": "continue",
+            "reason": format_infrastructure_error_reason(
+                "Robin — QA / Guardião JEZ",
+                f"Erro na comunicação com o daemon Open JEV: {e}",
+            ),
+        }
+        print(json.dumps(response))
         sys.exit(0)
 
 

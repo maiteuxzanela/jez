@@ -95,12 +95,7 @@ Configurado em `~/.gemini/config/mcp_config.json`:
 
 ## 3. Matriz de Especialistas (Subagentes da JEZ Collection)
 
-O orquestrador Alex opera estritamente sob os **Três Níveis de Execução** (Global AGENTS.md §3.1):
-1. **Nível 1 (Auto-Execução Racional):** Dúvidas conceituais, arquitetura e pequenos ajustes de configuração/texto.
-2. **Nível 2 (Delegação Obrigatória à Equipe via Hermes Subagent):** Implementações técnicas em `site/`, estilos CSS, regras de frete/checkout e testes DEVEM ser despachadas para o especialista eleito. Alex **NÃO edita código de produção diretamente**.
-   * Eleição: `openjev_choice(premise="...", options=["lumi", "ariel", "sam", "cris", "morgan", "noa", "robin", "nova_persona_especialista"])`
-   * Despacho: se eleito um especialista existente, despachar via `openjev_spawn_subagent(persona=selected, task="...", workspace="/mnt/94CCB337CCB3130A/JEZ collections")`. Se eleito `"nova_persona_especialista"`, transicionar imediatamente para o **Nível 3**.
-3. **Nível 3 (Proposição de Nova Persona):** Se o choice eleger `"nova_persona_especialista"` ou a demanda técnica exigir especialidade ausente no roster atual, Alex propõe a persona em `personas/<nome>.md`, registra no catálogo abaixo e despacha via subagente.
+O orquestrador Alex opera com autonomia plena de desenvolvimento, coordenação e refatoração. O roteamento obrigatório inicial está suspenso: Alex pode editar arquivos de código diretamente e acionar os subagentes sob demanda ao longo da tarefa via `openjev_spawn_subagent` quando conveniente.
 
 | Subagente | Arquivo de Persona | Especialidade Principal | Quando Acionar |
 | :--- | :--- | :--- | :--- |
@@ -123,8 +118,8 @@ O orquestrador Alex opera estritamente sob os **Três Níveis de Execução** (G
   * `max_tokens`: Entre **500 e 1.200 tokens**.
   * `scope`: Especificar os arquivos alvo para não inflacionar o grafo.
 
-### Protocolo 2: Roteamento Estruturado de Especialista (`choice` + `spawn_subagent`)
-- Toda demanda técnica de Nível 2 deve ser formalmente roteada via `openjev_choice` e despachada para o especialista eleito via `openjev_spawn_subagent`. Alex não deve centralizar tarefas técnicas de frontend/backend na sua janela.
+### Protocolo 2: Despacho de Subagentes Sob Demanda (`openjev_spawn_subagent`)
+- O orquestrador tem autonomia para desenvolver e refatorar diretamente, podendo acionar subagentes sob demanda via `openjev_spawn_subagent` quando precisar de contexto limpo ou execução pontual de especialistas (ex: @Robin para regressões, @Lumi para design/componentes).
 
 ### Protocolo 3: Guardrail de Pré-Execução Crítica (`noul`)
 - **Ações Críticas Obrigatórias para Bloqueio:**

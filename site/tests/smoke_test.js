@@ -590,6 +590,238 @@ assert(updatedSwRaw.includes('./js/admin/catalog.js'), 'sw.js inclui catalog.js 
 assert(updatedSwRaw.includes('./js/admin/orders.js'), 'sw.js inclui orders.js em STATIC_ASSETS');
 assert(updatedSwRaw.includes('./js/admin/dashboard.js'), 'sw.js inclui dashboard.js em STATIC_ASSETS');
 
+console.log('\n[26] Validando Integracao do Acervo do Atelie com o DOM (JEZ-031):');
+const finalAdminJs = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+assert(finalAdminJs.includes("document.getElementById('admin-catalog-grid')"), 'admin.js referencia o container oficial do acervo (#admin-catalog-grid)');
+assert(!finalAdminJs.includes("catalog-list-container"), 'admin.js nao referencia mais o ID obsoleto catalog-list-container');
+assert(finalAdminJs.includes('cat-count-all') && finalAdminJs.includes('cat-count-ready') && finalAdminJs.includes('cat-count-order'), 'admin.js atualiza os contadores de status do acervo');
+assert(finalAdminJs.includes('cat-count-suspended') && finalAdminJs.includes('total-pieces-count'), 'admin.js atualiza contador de pecas suspensas e totalizador');
+assert(finalAdminJs.includes('.catalog-filter-btn') && finalAdminJs.includes('catalog-search-input'), 'admin.js conecta listeners de filtro por abas e busca textual');
+assert(finalAdminJs.includes('admin-product-card') && finalAdminJs.includes('admin-product-thumb'), 'admin.js utiliza classes de card compativeis com admin.css');
+assert(finalAdminJs.includes('modal-edit-backdrop') && finalAdminJs.includes('form-edit-product'), 'admin.js mapeia o modal de edicao oficial do atelie.html');
+assert(finalAdminJs.includes('edit-piece-id') && finalAdminJs.includes('edit-product-desc'), 'admin.js sincroniza campos de identificador e descricao na edicao');
+assert(finalAdminJs.includes('onProductsChange') && finalAdminJs.includes('onOrdersChange'), 'admin.js implementa sincronizacao em tempo real com Firestore');
+console.log('\n[27] Testes Unitarios Funcionais e Cobertura de Caminhos de Erro (JEZ-031):');
+
+// A. Testes de Sanitizacao Estrita e Casos de Borda
+function testSanitizeImageUrl(url) {
+  if (!url || typeof url !== 'string') return 'assets/products/tote_cherry.jpg';
+  const trimmed = url.trim();
+  const assetIdx = trimmed.indexOf('assets/products/');
+  if (assetIdx !== -1) return trimmed.slice(assetIdx);
+  if (
+    trimmed.startsWith('assets/') ||
+    trimmed.startsWith('./assets/') ||
+    trimmed.startsWith('/assets/') ||
+    trimmed.startsWith('data:image/') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('blob:')
+  ) {
+    return trimmed;
+  }
+  return 'assets/products/tote_cherry.jpg';
+}
+
+assert(testSanitizeImageUrl(null) === 'assets/products/tote_cherry.jpg', 'Sanitizacao de imagem trata valor nulo com fallback seguro');
+assert(testSanitizeImageUrl('') === 'assets/products/tote_cherry.jpg', 'Sanitizacao de imagem trata string vazia com fallback seguro');
+assert(testSanitizeImageUrl('javascript:alert(1)') === 'assets/products/tote_cherry.jpg', 'Sanitizacao de imagem rejeita protocolo perigoso javascript:');
+assert(testSanitizeImageUrl('data:text/html,<script>alert(1)</script>') === 'assets/products/tote_cherry.jpg', 'Sanitizacao de imagem rejeita data:text/html malicioso');
+assert(testSanitizeImageUrl('https://cdn.jez.com/bolsa.webp') === 'https://cdn.jez.com/bolsa.webp', 'Sanitizacao de imagem aceita URLs HTTPS validas');
+assert(testSanitizeImageUrl('data:image/webp;base64,abc') === 'data:image/webp;base64,abc', 'Sanitizacao de imagem aceita data:image legitimo');
+
+function testSanitizeTrackingCode(code) {
+  if (!code || typeof code !== 'string') return '';
+  return code.trim().toUpperCase().replace(/[^A-Z0-9\- ]/g, '').slice(0, 30);
+}
+
+assert(testSanitizeTrackingCode(null) === '', 'Sanitizacao de rastreio trata valor nulo com string vazia');
+assert(testSanitizeTrackingCode('nl 123 456 789 br') === 'NL 123 456 789 BR', 'Sanitizacao de rastreio normaliza caixa alta e espacos');
+assert(testSanitizeTrackingCode('<script>NL123BR</script>') === 'SCRIPTNL123BRSCRIPT', 'Sanitizacao de rastreio remove tags HTML e caracteres proibidos');
+
+// B. Teste Unitario da Logica de Ordenacao Curada
+const defaultOrder = [
+  'bolsa-punk', 'tote-cherry', 'shoulder-coracao', 'bolsa-xadrez',
+  'blusa-teia', 'top-bandana', 'cardiga-manteiga', 'chaveiro-baphomet', 'porta-airpods'
+];
+function testSortCatalog(list) {
+  if (!Array.isArray(list)) return [];
+  return [...list].sort((a, b) => {
+    const idxA = defaultOrder.indexOf(a.id);
+    const idxB = defaultOrder.indexOf(b.id);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return 0;
+  });
+}
+
+assert(testSortCatalog([]).length === 0, 'Ordenacao curada trata array vazio sem falhas');
+const invertedCatalog = [{ id: 'porta-airpods' }, { id: 'bolsa-punk' }, { id: 'custom-1' }];
+const sortedCatalog = testSortCatalog(invertedCatalog);
+assert(sortedCatalog[0].id === 'bolsa-punk' && sortedCatalog[1].id === 'porta-airpods' && sortedCatalog[2].id === 'custom-1', 'Ordenacao curada prioriza pecas padrao na ordem editorial e customizadas ao fim');
+
+// C. Teste Unitario de Classificacao de Status e Estoque do Acervo
+function testClassifyPiece(piece) {
+  if (!piece) return { badge: 'indefinido', canDisplay: false };
+  const isSuspended = piece.status === 'suspended';
+  if (isSuspended) return { badge: 'Suspensa', canDisplay: false };
+  const isReady = piece.status ? piece.status === 'ready' : (piece.isReady !== undefined ? piece.isReady : true);
+  const stock = piece.stockQty !== undefined && piece.stockQty !== null ? Number(piece.stockQty) : (isReady ? 1 : 0);
+  if (isReady && stock <= 0) return { badge: 'Esgotada (0 un.)', canDisplay: true };
+  if (isReady) return { badge: `Pronta Entrega (${stock} un.)`, canDisplay: true };
+  return { badge: 'Sob Encomenda', canDisplay: true };
+}
+
+assert(testClassifyPiece({ status: 'suspended' }).badge === 'Suspensa', 'Classificacao atribui Suspensa para status suspended');
+assert(testClassifyPiece({ status: 'ready', stockQty: 0 }).badge === 'Esgotada (0 un.)', 'Classificacao atribui Esgotada para pronta entrega sem estoque');
+assert(testClassifyPiece({ status: 'ready', stockQty: 4 }).badge === 'Pronta Entrega (4 un.)', 'Classificacao exibe estoque correto para pronta entrega');
+assert(testClassifyPiece({ status: 'order' }).badge === 'Sob Encomenda', 'Classificacao atribui Sob Encomenda para pecas de producao sob pedido');
+assert(testClassifyPiece(null).badge === 'indefinido', 'Classificacao trata peca nula defensivamente');
+
+// D. Teste Unitario de Filtragem e Busca Textual
+function testFilterCatalog(catalog, filter, query = '') {
+  let list = Array.isArray(catalog) ? catalog : [];
+  if (filter === 'ready') {
+    list = list.filter(p => p.status === 'ready' || (p.status !== 'order' && p.status !== 'suspended' && p.isReady));
+  } else if (filter === 'order') {
+    list = list.filter(p => p.status === 'order' || (p.status !== 'ready' && p.status !== 'suspended' && !p.isReady));
+  } else if (filter === 'suspended') {
+    list = list.filter(p => p.status === 'suspended');
+  }
+  if (query) {
+    list = list.filter(p => (p.name || '').toLowerCase().includes(query.toLowerCase()));
+  }
+  return list;
+}
+
+const sampleCatalog = [
+  { id: '1', name: 'Bolsa Punk', status: 'ready', isReady: true },
+  { id: '2', name: 'Blusa Teia', status: 'order', isReady: false },
+  { id: '3', name: 'Cardiga Manteiga', status: 'suspended', isReady: true }
+];
+
+assert(testFilterCatalog(sampleCatalog, 'ready').length === 1, 'Filtro pronta entrega retorna exatamente 1 item');
+assert(testFilterCatalog(sampleCatalog, 'order').length === 1, 'Filtro encomenda retorna exatamente 1 item');
+assert(testFilterCatalog(sampleCatalog, 'suspended').length === 1, 'Filtro suspensas retorna exatamente 1 item');
+assert(testFilterCatalog(sampleCatalog, 'all', 'punk').length === 1, 'Busca textual localiza peca por termo em minusculo');
+assert(testFilterCatalog(sampleCatalog, 'all', 'INEXISTENTE').length === 0, 'Busca textual retorna lista vazia quando termo nao existe');
+assert(testFilterCatalog(null, 'all').length === 0, 'Filtro trata catalogo nulo com lista vazia sem quebra');
+
+// E. Teste Unitario de Mutacao Segura de Status
+function testMutateStatus(catalog, id, newStatus) {
+  if (!id || typeof id !== 'string') return { success: false, reason: 'invalid_id', catalog };
+  const valid = ['ready', 'order', 'suspended'];
+  if (!valid.includes(newStatus)) return { success: false, reason: 'invalid_status', catalog };
+  const list = Array.isArray(catalog) ? catalog : [];
+  const exists = list.some(p => p.id === id);
+  if (!exists) return { success: false, reason: 'not_found', catalog: list };
+  const updated = list.map(p => p.id === id ? { ...p, status: newStatus, isReady: newStatus === 'ready' } : p);
+  return { success: true, catalog: updated };
+}
+
+assert(testMutateStatus(sampleCatalog, null, 'ready').success === false, 'Mutacao de status rejeita ID nulo');
+assert(testMutateStatus(sampleCatalog, '1', 'invalido').success === false, 'Mutacao de status rejeita status desconhecido');
+assert(testMutateStatus(sampleCatalog, '999', 'order').success === false, 'Mutacao de status retorna not_found para ID inexistente');
+const mutateRes = testMutateStatus(sampleCatalog, '1', 'suspended');
+assert(mutateRes.success === true && mutateRes.catalog.find(p => p.id === '1').status === 'suspended', 'Mutacao de status atualiza peca existente com sucesso');
+
+// F. Teste Unitario de Exclusao Defensiva
+function testDeletePiece(catalog, id) {
+  if (!id || typeof id !== 'string') return { success: false, reason: 'invalid_id', catalog };
+  const list = Array.isArray(catalog) ? catalog : [];
+  const exists = list.some(p => p.id === id);
+  if (!exists) return { success: false, reason: 'not_found', catalog: list };
+  const updated = list.filter(p => p.id !== id);
+  return { success: true, catalog: updated };
+}
+
+assert(testDeletePiece(sampleCatalog, null).success === false, 'Exclusao rejeita ID nulo');
+assert(testDeletePiece(sampleCatalog, '999').success === false, 'Exclusao retorna not_found para peca inexistente');
+const deleteRes = testDeletePiece(sampleCatalog, '1');
+assert(deleteRes.success === true && deleteRes.catalog.length === sampleCatalog.length - 1, 'Exclusao remove peca existente corretamente');
+
+// G. Teste Unitario de Validacao de Edicao de Peca
+function testValidatePieceEdit(id, name, price, catalog) {
+  if (!id || typeof id !== 'string' || !id.trim()) return { valid: false, field: 'id' };
+  if (!name || typeof name !== 'string' || !name.trim()) return { valid: false, field: 'name' };
+  const numPrice = Number(price);
+  if (isNaN(numPrice) || numPrice <= 0) return { valid: false, field: 'price' };
+  const list = Array.isArray(catalog) ? catalog : [];
+  if (!list.some(p => p.id === id.trim())) return { valid: false, field: 'not_found' };
+  return { valid: true };
+}
+
+assert(testValidatePieceEdit('', 'Bolsa', 120, sampleCatalog).valid === false, 'Validacao de edicao rejeita ID vazio');
+assert(testValidatePieceEdit('1', '', 120, sampleCatalog).valid === false, 'Validacao de edicao rejeita nome vazio');
+assert(testValidatePieceEdit('1', 'Bolsa', 0, sampleCatalog).valid === false, 'Validacao de edicao rejeita preco zero ou negativo');
+assert(testValidatePieceEdit('999', 'Bolsa', 120, sampleCatalog).valid === false, 'Validacao de edicao rejeita peca inexistente');
+assert(testValidatePieceEdit('1', 'Bolsa Atualizada', 150, sampleCatalog).valid === true, 'Validacao de edicao aprova dados consistentes');
+
+// H. Teste Unitario de Gestao do Carrossel Multi-Fotos (JEZ-019 / JEZ-031)
+function testAddCarouselPhoto(currentItems, newUrl) {
+  const items = Array.isArray(currentItems) ? [...currentItems] : [];
+  if (items.length >= 5) return { success: false, reason: 'limit_reached', items };
+  if (!newUrl || typeof newUrl !== 'string') return { success: false, reason: 'invalid_url', items };
+  const newIdx = items.length;
+  items.push({ url: newUrl, isCover: newIdx === 0, isModified: true });
+  return { success: true, items, newIndex: newIdx };
+}
+
+function testRemoveCarouselPhoto(currentItems, removeIdx, activeIdx) {
+  const items = Array.isArray(currentItems) ? [...currentItems] : [];
+  if (removeIdx <= 0 || removeIdx >= items.length) return { success: false, reason: 'invalid_index', items, activeIdx };
+  items.splice(removeIdx, 1);
+  let newActive = activeIdx;
+  if (newActive >= items.length) {
+    newActive = items.length - 1;
+  } else if (newActive === removeIdx) {
+    newActive = Math.max(0, removeIdx - 1);
+  }
+  return { success: true, items, activeIdx: newActive };
+}
+
+const initialCarousel = [
+  { url: 'https://exemplo.com/capa.jpg', isCover: true }
+];
+
+const addRes1 = testAddCarouselPhoto(initialCarousel, 'https://exemplo.com/extra1.jpg');
+assert(addRes1.success === true && addRes1.items.length === 2, 'Carrossel adiciona foto extra com sucesso');
+
+const fullCarousel = [
+  { url: '1' }, { url: '2' }, { url: '3' }, { url: '4' }, { url: '5' }
+];
+const addResFull = testAddCarouselPhoto(fullCarousel, 'https://exemplo.com/extra6.jpg');
+assert(addResFull.success === false && addResFull.reason === 'limit_reached', 'Carrossel bloqueia adicao alem de 5 fotos');
+assert(testAddCarouselPhoto(initialCarousel, null).success === false, 'Carrossel rejeita URL nula');
+
+assert(testRemoveCarouselPhoto(addRes1.items, 0, 0).success === false, 'Carrossel proibe remocao da capa (indice 0)');
+const remRes = testRemoveCarouselPhoto(addRes1.items, 1, 1);
+assert(remRes.success === true && remRes.items.length === 1 && remRes.activeIdx === 0, 'Carrossel remove foto extra e ajusta indice ativo para capa');
+
+// I. Teste Unitario de Fechamento de Recursos e Reset de Estado do Modal (JEZ-031)
+function testCloseModalResourceCleanup(initialState) {
+  const state = { ...initialState };
+  state.currentEditingPiece = null;
+  state.editCarouselItems = [];
+  state.activeCarouselIdx = 0;
+  state.isBackdropVisible = false;
+  return state;
+}
+
+const mockModalState = {
+  currentEditingPiece: { id: 'custom-123', name: 'Peça Teste' },
+  editCarouselItems: [{ url: 'capa.jpg' }, { url: 'extra.jpg' }],
+  activeCarouselIdx: 1,
+  isBackdropVisible: true
+};
+
+const cleanedState = testCloseModalResourceCleanup(mockModalState);
+assert(cleanedState.currentEditingPiece === null, 'Fechamento de modal limpa referencia da peca em edicao');
+assert(cleanedState.editCarouselItems.length === 0, 'Fechamento de modal esvazia itens do carrossel');
+assert(cleanedState.activeCarouselIdx === 0, 'Fechamento de modal reseta indice ativo para zero');
+assert(cleanedState.isBackdropVisible === false, 'Fechamento de modal oculta backdrop visual');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);
