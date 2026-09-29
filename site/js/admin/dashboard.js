@@ -34,7 +34,7 @@ export function calculateDashboardMetrics(orders = [], catalog = []) {
  * @param {object} params
  */
 export function renderDashboard(elements, params) {
-  const { orders = [], catalog = [], formatCurrency, getStatusMeta, escapeHtml } = params;
+  const { orders = [], catalog = [], formatCurrency, getStatusMeta, escapeHtml, onNavigateOrder } = params;
   const metrics = calculateDashboardMetrics(orders, catalog);
 
   const {
@@ -82,7 +82,9 @@ export function renderDashboard(elements, params) {
     metrics.recentOrders.forEach(order => {
       const itemRow = document.createElement('div');
       itemRow.className = 'recent-order-item';
-      itemRow.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: rgba(35, 25, 45, 0.6); border: 1px dashed rgba(254, 191, 151, 0.25); border-radius: 4px; font-size: 0.82rem;';
+      itemRow.setAttribute('role', 'button');
+      itemRow.setAttribute('tabindex', '0');
+      itemRow.setAttribute('data-order-id', order.id);
 
       const statusMeta = typeof getStatusMeta === 'function' ? getStatusMeta(order.status, order, catalog) : { label: order.status };
       const safeId = typeof escapeHtml === 'function' ? escapeHtml(order.id) : order.id;
@@ -90,16 +92,37 @@ export function renderDashboard(elements, params) {
       const safeStatus = typeof escapeHtml === 'function' ? escapeHtml(order.status) : order.status;
       const formattedTotal = typeof formatCurrency === 'function' ? formatCurrency(order.total) : order.total;
 
+      const customerLabel = safeCustomer ? ` de ${safeCustomer}` : '';
+      itemRow.setAttribute('aria-label', `Ver detalhes do pedido ${safeId}${customerLabel}`);
+
       itemRow.innerHTML = `
-        <div>
-          <strong style="color: var(--color-bg-light);">${safeId}</strong>
-          <span style="color: rgba(245, 236, 183, 0.75); font-size: 0.74rem; margin-left: 6px;">${safeCustomer}</span>
+        <div class="recent-order-main">
+          <span class="recent-order-id">${safeId}</span>
+          <span class="recent-order-customer">${safeCustomer}</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="status-tag status-${safeStatus}" style="font-size: 0.65rem; padding: 2px 6px;">${statusMeta.label}</span>
-          <strong style="color: var(--color-accent);">${formattedTotal}</strong>
+        <div class="recent-order-meta">
+          <span class="status-tag status-${safeStatus}">${statusMeta.label}</span>
+          <strong class="recent-order-total">${formattedTotal}</strong>
+          <svg class="recent-order-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
         </div>
       `;
+
+      const triggerNavigation = () => {
+        if (typeof onNavigateOrder === 'function') {
+          onNavigateOrder(order.id);
+        }
+      };
+
+      itemRow.addEventListener('click', triggerNavigation);
+      itemRow.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          triggerNavigation();
+        }
+      });
+
       recentContainerEl.appendChild(itemRow);
     });
   }

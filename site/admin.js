@@ -396,8 +396,31 @@ const initAdmin = () => {
   });
 
   // --------------------------------------------------------------------------
-  // 3. Atualização do Dashboard (Cris)
+  // 3. Atualização do Dashboard e Navegação de Pedidos (Cris & Lumi - JEZ-036)
   // --------------------------------------------------------------------------
+  const navigateToOrder = (orderId) => {
+    if (!orderId || typeof orderId !== 'string') return;
+    currentOrderFilter = 'all';
+    document.querySelectorAll('.order-filter-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute('data-status') === 'all');
+    });
+    switchTab('orders');
+    setTimeout(() => {
+      const card = document.getElementById(`order-card-${orderId}`) || document.querySelector(`.order-card[data-order-id="${orderId}"]`);
+      if (card) {
+        if (typeof card.scrollIntoView === 'function') {
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        card.classList.remove('highlight-focus-pesponto');
+        void card.offsetWidth;
+        card.classList.add('highlight-focus-pesponto');
+        setTimeout(() => {
+          card.classList.remove('highlight-focus-pesponto');
+        }, 1800);
+      }
+    }, 120);
+  };
+
   const updateDashboard = () => {
     orders = loadOrders();
     catalog = loadCatalog();
@@ -416,7 +439,8 @@ const initAdmin = () => {
         catalog,
         formatCurrency,
         getStatusMeta,
-        escapeHtml
+        escapeHtml,
+        onNavigateOrder: navigateToOrder
       }
     );
   };
@@ -512,6 +536,8 @@ const initAdmin = () => {
     filtered.forEach(order => {
       const card = document.createElement('div');
       card.className = 'order-card';
+      card.id = `order-card-${order.id}`;
+      card.setAttribute('data-order-id', order.id);
       const isCustomOrder = isOrderCustomProduction(order, catalog);
       const statusMeta = getStatusMeta(order.status, order, catalog);
 

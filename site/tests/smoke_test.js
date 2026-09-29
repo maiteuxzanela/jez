@@ -1555,6 +1555,303 @@ assert(pwaEnterResult === false, 'Acessibilidade: handleModalEscapeKey ignora te
 assert(envA11y.elements.modalIos.style.display === 'flex', 'Acessibilidade: modal permanece aberto ao pressionar tecla diferente de Escape');
 lifecycleA11y.closeIosModal();
 
+// ============================================================================
+// 33. Navegacao e Acessibilidade dos Pedidos Recentes no Dashboard (JEZ-036)
+// ============================================================================
+console.log('\n[33] Navegacao e Acessibilidade dos Pedidos Recentes no Dashboard (JEZ-036):');
+
+// 1. Integridade Estrutural nos Modulos e Folha de Estilos
+const dashboardJsContent = fs.readFileSync(path.join(ROOT_DIR, 'js/admin/dashboard.js'), 'utf-8');
+const adminJsForNav = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+const adminCssForNav = fs.readFileSync(path.join(ROOT_DIR, 'admin.css'), 'utf-8');
+
+// Diretriz Zero Emojis estrita (Robin Quality Gate)
+assert(!emojiRegex.test(dashboardJsContent), 'dashboard.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiRegex.test(adminJsForNav), 'admin.js cumpre rigorosamente a regra zero emojis apos JEZ-036');
+assert(!emojiRegex.test(adminCssForNav), 'admin.css cumpre rigorosamente a regra zero emojis');
+
+// Contratos estruturais no dashboard.js
+assert(dashboardJsContent.includes('onNavigateOrder'), 'dashboard.js aceita callback onNavigateOrder em params');
+assert(dashboardJsContent.includes("itemRow.setAttribute('role', 'button')"), 'dashboard.js atribui role button em recent-order-item');
+assert(dashboardJsContent.includes("itemRow.setAttribute('tabindex', '0')"), 'dashboard.js atribui tabindex 0 em recent-order-item');
+assert(dashboardJsContent.includes("itemRow.setAttribute('data-order-id', order.id)"), 'dashboard.js atribui atributo data-order-id com o identificador do pedido');
+assert(dashboardJsContent.includes("itemRow.setAttribute('aria-label'"), 'dashboard.js define aria-label descritivo com safeId e safeCustomer');
+assert(dashboardJsContent.includes('recent-order-chevron'), 'dashboard.js inclui classe recent-order-chevron no SVG vetorial');
+assert(dashboardJsContent.includes('polyline points="9 18 15 12 9 6"'), 'dashboard.js renderiza icone vetorial SVG chevron com polyline nativo');
+assert(dashboardJsContent.includes("e.key === 'Enter' || e.key === ' '"), 'dashboard.js escuta teclas Enter e Space para ativacao acessivel');
+assert(dashboardJsContent.includes('e.preventDefault()'), 'dashboard.js previne acao padrao ao pressionar Enter ou Space');
+
+// Contratos estruturais no admin.js e admin.css
+assert(adminJsForNav.includes('const navigateToOrder ='), 'admin.js define funcao dedicada navigateToOrder');
+assert(adminJsForNav.includes('card.id = `order-card-${order.id}`'), 'admin.js define id unico order-card-${order.id} em cada card de pedido');
+assert(adminJsForNav.includes("card.setAttribute('data-order-id', order.id)"), 'admin.js define data-order-id em cada card de pedido');
+assert(adminJsForNav.includes('onNavigateOrder: navigateToOrder'), 'admin.js injeta navigateToOrder no renderDashboard');
+assert(adminJsForNav.includes('highlight-focus-pesponto'), 'admin.js aplica classe highlight-focus-pesponto no card selecionado');
+assert(adminCssForNav.includes('.recent-order-item'), 'admin.css define estilos dedicados para .recent-order-item');
+assert(adminCssForNav.includes('.recent-order-chevron'), 'admin.css define micro-interacoes e transicao do chevron');
+assert(adminCssForNav.includes('.order-card.highlight-focus-pesponto'), 'admin.css define classe .order-card.highlight-focus-pesponto');
+assert(adminCssForNav.includes('@keyframes pespontoFocusPulse'), 'admin.css define animacao pespontoFocusPulse para feedback do lojista');
+
+// 2. Testes Unitarios Funcionais e Acessibilidade (renderDashboard)
+const dashboardModule = require('../js/admin/dashboard.js');
+const testRenderDashboard = dashboardModule.renderDashboard;
+assert(typeof testRenderDashboard === 'function', 'renderDashboard e exportada como funcao pelo modulo de dashboard');
+
+function createMockDomElement(tagName = 'div') {
+  const attributes = {};
+  const listeners = {};
+  return {
+    tagName: tagName.toUpperCase(),
+    className: '',
+    attributes,
+    innerHTML: '',
+    setAttribute(name, value) {
+      attributes[name] = String(value);
+    },
+    getAttribute(name) {
+      return attributes[name] !== undefined ? attributes[name] : null;
+    },
+    hasAttribute(name) {
+      return attributes[name] !== undefined;
+    },
+    addEventListener(eventType, handler) {
+      if (!listeners[eventType]) listeners[eventType] = [];
+      listeners[eventType].push(handler);
+    },
+    dispatchEvent(eventObj) {
+      const handlers = listeners[eventObj.type] || [];
+      handlers.forEach(fn => fn(eventObj));
+      return !eventObj.defaultPrevented;
+    },
+    click() {
+      const evt = {
+        type: 'click',
+        target: this,
+        defaultPrevented: false,
+        preventDefault() { this.defaultPrevented = true; }
+      };
+      return this.dispatchEvent(evt);
+    },
+    triggerKeydown(key) {
+      const evt = {
+        type: 'keydown',
+        key,
+        target: this,
+        defaultPrevented: false,
+        preventDefault() { this.defaultPrevented = true; }
+      };
+      this.dispatchEvent(evt);
+      return evt;
+    }
+  };
+}
+
+function createMockRecentContainer() {
+  const container = createMockDomElement('div');
+  container.children = [];
+  container.appendChild = (child) => {
+    container.children.push(child);
+  };
+  return container;
+}
+
+const originalGlobalDocument = global.document;
+global.document = {
+  createElement: (tagName) => createMockDomElement(tagName)
+};
+
+try {
+  const sampleOrders = [
+    { id: 'JEZ-3001', customer: 'Mariana Silva', status: 'preparar-envio', total: 219.90 },
+    { id: 'JEZ-3002', customer: 'Fernanda Costa', status: 'em-producao', total: 145.00 },
+    { id: 'JEZ-3003', customer: 'Camila Rocha', status: 'concluido', total: 320.50 }
+  ];
+
+  const recentContainer = createMockRecentContainer();
+  const navigatedOrders = [];
+  const mockNavigateCallback = (orderId) => {
+    navigatedOrders.push(orderId);
+  };
+
+  testRenderDashboard(
+    { recentContainerEl: recentContainer },
+    {
+      orders: sampleOrders,
+      catalog: [],
+      formatCurrency: (val) => `R$ ${Number(val).toFixed(2).replace('.', ',')}`,
+      getStatusMeta: (st) => ({ label: st }),
+      escapeHtml: (s) => String(s || ''),
+      onNavigateOrder: mockNavigateCallback
+    }
+  );
+
+  assert(recentContainer.children.length === 3, 'renderDashboard renderiza os 3 pedidos recentes no container');
+
+  const firstItem = recentContainer.children[0];
+  const secondItem = recentContainer.children[1];
+  const thirdItem = recentContainer.children[2];
+
+  assert(firstItem.getAttribute('role') === 'button', 'Item recente 1 possui role=button');
+  assert(firstItem.getAttribute('tabindex') === '0', 'Item recente 1 possui tabindex=0');
+  assert(firstItem.getAttribute('data-order-id') === 'JEZ-3001', 'Item recente 1 possui data-order-id=JEZ-3001');
+  assert(firstItem.getAttribute('aria-label') === 'Ver detalhes do pedido JEZ-3001 de Mariana', 'Item recente 1 possui aria-label descritivo com primeiro nome da cliente');
+
+  assert(secondItem.getAttribute('role') === 'button', 'Item recente 2 possui role=button');
+  assert(secondItem.getAttribute('tabindex') === '0', 'Item recente 2 possui tabindex=0');
+  assert(secondItem.getAttribute('data-order-id') === 'JEZ-3002', 'Item recente 2 possui data-order-id=JEZ-3002');
+
+  assert(thirdItem.getAttribute('role') === 'button', 'Item recente 3 possui role=button');
+  assert(thirdItem.getAttribute('tabindex') === '0', 'Item recente 3 possui tabindex=0');
+  assert(thirdItem.getAttribute('data-order-id') === 'JEZ-3003', 'Item recente 3 possui data-order-id=JEZ-3003');
+
+  assert(firstItem.innerHTML.includes('recent-order-chevron'), 'Item recente 1 contem o SVG do chevron com classe .recent-order-chevron');
+  assert(firstItem.innerHTML.includes('<polyline points="9 18 15 12 9 6"></polyline>'), 'Item recente 1 contem geometria vetorial do chevron');
+  assert(firstItem.innerHTML.includes('recent-order-main'), 'Item recente 1 contem subcontainer .recent-order-main');
+  assert(firstItem.innerHTML.includes('recent-order-id'), 'Item recente 1 contem identificador .recent-order-id');
+  assert(firstItem.innerHTML.includes('recent-order-customer'), 'Item recente 1 contem identificador .recent-order-customer');
+  assert(firstItem.innerHTML.includes('recent-order-meta'), 'Item recente 1 contem container de metadados .recent-order-meta');
+  assert(firstItem.innerHTML.includes('status-tag'), 'Item recente 1 contem tag de status .status-tag');
+  assert(firstItem.innerHTML.includes('recent-order-total'), 'Item recente 1 contem valor formatado .recent-order-total');
+
+  navigatedOrders.length = 0;
+  firstItem.click();
+  assert(navigatedOrders.length === 1 && navigatedOrders[0] === 'JEZ-3001', 'Evento click no item recente dispara onNavigateOrder com o ID do pedido correto');
+
+  secondItem.click();
+  assert(navigatedOrders.length === 2 && navigatedOrders[1] === 'JEZ-3002', 'Evento click no segundo item dispara onNavigateOrder com o ID correspondente');
+
+  navigatedOrders.length = 0;
+  const enterEvt = firstItem.triggerKeydown('Enter');
+  assert(navigatedOrders.length === 1 && navigatedOrders[0] === 'JEZ-3001', 'Pressionamento da tecla Enter dispara onNavigateOrder');
+  assert(enterEvt.defaultPrevented === true, 'Pressionamento da tecla Enter aciona preventDefault');
+
+  navigatedOrders.length = 0;
+  const spaceEvt = firstItem.triggerKeydown(' ');
+  assert(navigatedOrders.length === 1 && navigatedOrders[0] === 'JEZ-3001', 'Pressionamento da tecla Space dispara onNavigateOrder');
+  assert(spaceEvt.defaultPrevented === true, 'Pressionamento da tecla Space aciona preventDefault');
+
+  navigatedOrders.length = 0;
+  const escEvt = firstItem.triggerKeydown('Escape');
+  assert(navigatedOrders.length === 0, 'Tecla Escape NAO dispara callback onNavigateOrder');
+  assert(escEvt.defaultPrevented === false, 'Tecla Escape nao invoca preventDefault');
+
+  const tabEvt = firstItem.triggerKeydown('Tab');
+  assert(navigatedOrders.length === 0, 'Tecla Tab NAO dispara callback onNavigateOrder');
+  assert(tabEvt.defaultPrevented === false, 'Tecla Tab nao invoca preventDefault');
+
+  const arrowDownEvt = firstItem.triggerKeydown('ArrowDown');
+  assert(navigatedOrders.length === 0, 'Tecla ArrowDown NAO dispara callback onNavigateOrder');
+  assert(arrowDownEvt.defaultPrevented === false, 'Tecla ArrowDown nao invoca preventDefault');
+
+  const arrowUpEvt = firstItem.triggerKeydown('ArrowUp');
+  assert(navigatedOrders.length === 0, 'Tecla ArrowUp NAO dispara callback onNavigateOrder');
+  assert(arrowUpEvt.defaultPrevented === false, 'Tecla ArrowUp nao invoca preventDefault');
+
+  const charEvt = firstItem.triggerKeydown('a');
+  assert(navigatedOrders.length === 0, 'Tecla alfanumerica a NAO dispara callback onNavigateOrder');
+  assert(charEvt.defaultPrevented === false, 'Tecla alfanumerica nao invoca preventDefault');
+
+  const emptyContainer = createMockRecentContainer();
+  testRenderDashboard(
+    { recentContainerEl: emptyContainer },
+    {
+      orders: [],
+      catalog: [],
+      formatCurrency: (v) => String(v),
+      getStatusMeta: () => ({ label: '' }),
+      escapeHtml: (s) => s,
+      onNavigateOrder: mockNavigateCallback
+    }
+  );
+  assert(emptyContainer.children.length === 0, 'Lista vazia nao adiciona itens filhos no container');
+  assert(emptyContainer.innerHTML.includes('Nenhum pedido registrado ainda.'), 'Lista vazia exibe mensagem amigavel informando ausencia de pedidos');
+
+  const containerWithoutCallback = createMockRecentContainer();
+  testRenderDashboard(
+    { recentContainerEl: containerWithoutCallback },
+    {
+      orders: sampleOrders,
+      catalog: [],
+      formatCurrency: (v) => String(v),
+      getStatusMeta: () => ({ label: '' }),
+      escapeHtml: (s) => s
+    }
+  );
+  assert(containerWithoutCallback.children.length === 3, 'Renderizacao funciona perfeitamente sem fornecer onNavigateOrder');
+  let threw = false;
+  try {
+    containerWithoutCallback.children[0].click();
+    containerWithoutCallback.children[0].triggerKeydown('Enter');
+  } catch (e) {
+    threw = true;
+  }
+  assert(!threw, 'Disparar clique ou Enter sem onNavigateOrder nao lanca excecao');
+
+  function createTestOrderCard(order) {
+    const card = createMockDomElement('div');
+    card.className = 'order-card';
+    card.id = `order-card-${order.id}`;
+    card.setAttribute('data-order-id', order.id);
+    return card;
+  }
+
+  const testCard1 = createTestOrderCard({ id: 'JEZ-3001' });
+  const testCard2 = createTestOrderCard({ id: 'JEZ-3002' });
+
+  assert(testCard1.id === 'order-card-JEZ-3001', 'Card de pedido possui id prefixado com order-card-');
+  assert(testCard1.getAttribute('data-order-id') === 'JEZ-3001', 'Card de pedido possui atributo data-order-id correspondente');
+  assert(testCard1.className === 'order-card', 'Card de pedido possui classe order-card');
+
+  assert(testCard2.id === 'order-card-JEZ-3002', 'Card de pedido 2 possui id prefixado com order-card-');
+  assert(testCard2.getAttribute('data-order-id') === 'JEZ-3002', 'Card de pedido 2 possui atributo data-order-id');
+
+  function simulateNavigateToOrder(orderId, state, domElements) {
+    if (!orderId || typeof orderId !== 'string') return false;
+    state.currentOrderFilter = 'all';
+    domElements.filterButtons.forEach(btn => {
+      btn.active = btn.getAttribute('data-status') === 'all';
+    });
+    state.activeTab = 'orders';
+    const card = domElements.cardsById[orderId] || null;
+    if (card) {
+      if (typeof card.scrollIntoView === 'function') {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      card.highlighted = true;
+      return true;
+    }
+    return false;
+  }
+
+  const navState = { currentOrderFilter: 'em-producao', activeTab: 'dashboard' };
+  let scrolledOpts = null;
+  const mockTargetCard = {
+    getAttribute: () => 'JEZ-3001',
+    scrollIntoView: (opts) => { scrolledOpts = opts; },
+    highlighted: false
+  };
+  const mockFilterAll = { getAttribute: () => 'all', active: false };
+  const mockFilterProd = { getAttribute: () => 'em-producao', active: true };
+  const mockDomElements = {
+    filterButtons: [mockFilterAll, mockFilterProd],
+    cardsById: { 'JEZ-3001': mockTargetCard }
+  };
+
+  assert(simulateNavigateToOrder(null, navState, mockDomElements) === false, 'navigateToOrder ignora chamada com orderId nulo');
+  assert(simulateNavigateToOrder('', navState, mockDomElements) === false, 'navigateToOrder ignora chamada com orderId vazio');
+  assert(simulateNavigateToOrder(12345, navState, mockDomElements) === false, 'navigateToOrder ignora chamada com orderId nao string');
+
+  const navSuccess = simulateNavigateToOrder('JEZ-3001', navState, mockDomElements);
+  assert(navSuccess === true, 'navigateToOrder executa navegacao com sucesso para ID valido');
+  assert(navState.currentOrderFilter === 'all', 'navigateToOrder redefine o filtro de pedidos para all');
+  assert(mockFilterAll.active === true && mockFilterProd.active === false, 'navigateToOrder atualiza botao ativo de filtro para all');
+  assert(navState.activeTab === 'orders', 'navigateToOrder alterna a aba ativa para orders');
+  assert(scrolledOpts && scrolledOpts.behavior === 'smooth' && scrolledOpts.block === 'center', 'navigateToOrder aciona scrollIntoView suave centralizado');
+  assert(mockTargetCard.highlighted === true, 'navigateToOrder aplica destaque visual no card de destino');
+} finally {
+  global.document = originalGlobalDocument;
+}
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);
