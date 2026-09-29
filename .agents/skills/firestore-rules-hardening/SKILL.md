@@ -1,6 +1,6 @@
 ---
 name: firestore-rules-hardening
-description: Use only in JEZ collections when editing firestore.rules or doing security/LGPD hardening: pre-action via openjev_noul or run_pilot_poc.py, apply least-privilege rules, then openjev_score_and_diagnose before treating the change as done.
+description: Use only in JEZ collections when editing firestore.rules or doing security/LGPD hardening: pre-action via openjev_noul or run_pilot_poc.py, apply least-privilege rules, then needle_verify_delivery before treating the change as done.
 ---
 
 # firestore-rules-hardening
@@ -19,7 +19,7 @@ description: Use only in JEZ collections when editing firestore.rules or doing s
 2. **Choice** — route to `morgan_security` (persona list in script)
 3. **Noul (pre-action)** — optional guardrail before touching disk; threshold reference **≥ 0.78**; **premise gaming prohibited** (low P ⇒ change attitude / alert, do not rephrase to force pass)
 4. **Apply** least-privilege rules on disk
-5. **Score** — `openjev_score_and_diagnose` after real file change; cutoff **≥ 3.40**
+5. **Verify Delivery** — `needle_verify_delivery` (Pytest em Chunks + Needle 3 AST) after real file change
 
 Reference secure shape (orders — from pilot):
 - `products` / `config`: public read, write if `request.auth != null`

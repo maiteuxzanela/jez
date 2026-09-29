@@ -157,12 +157,15 @@ export function sortProductsByCuratedOrder(list) {
 
 export function isProductSoldOut(product) {
   if (!product) return false;
+  // Peças sob encomenda nunca são esgotadas (RN-JEZ-001)
+  const isOrder = product.status === 'order' || (product.isReady === false && product.status !== 'ready');
+  if (isOrder) return false;
+
   const isReady = product.status ? product.status === 'ready' : (product.isReady !== undefined ? product.isReady : true);
-  if (isReady || product.stockQty !== undefined) {
-    const stock = Number(product.stockQty !== undefined && product.stockQty !== null ? product.stockQty : (isReady ? 1 : 0));
-    return stock <= 0;
-  }
-  return false;
+  if (!isReady) return false;
+
+  const stock = Number(product.stockQty !== undefined && product.stockQty !== null ? product.stockQty : 1);
+  return stock <= 0;
 }
 
 export function isItemCustomProduction(item) {

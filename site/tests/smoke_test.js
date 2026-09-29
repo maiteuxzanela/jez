@@ -1023,6 +1023,538 @@ assert(ordersSet[0].status === 'aguardando-pagamento', 'updateOrderInList preser
 const shipUpdate = testUpdateOrderInList(ordersSet, '3', 'enviado', 'BR999888777AA');
 assert(shipUpdate.success === true && shipUpdate.updatedOrder.trackingCode === 'BR999888777AA', 'updateOrderInList anexa codigo de rastreamento no avanco para enviado');
 
+// [29] Validando Reativacao Segura de Pecas e Preservacao da Modalidade (JEZ-033):
+console.log('\n[29] Validando Reativacao Segura de Pecas e Preservacao da Modalidade (JEZ-033):');
+
+// 1. Integracao no DOM e Ouvintes do Atelie
+assert(adminJsRef.includes("setPieceStatus(id, 'reactivate')"), 'admin.js conecta o botao reactivate enviando a acao de reativacao contextual');
+assert(adminJsRef.includes('determineReactivatedStatus') && adminJsRef.includes('mutatePieceStatus'), 'admin.js integra e re-exporta determineReactivatedStatus e mutatePieceStatus');
+
+// 2. Funcoes Puras do Modulo js/admin/catalog.js para Teste Unitario
+const adminCatalogModule = require('../js/admin/catalog.js');
+const testDetermineReactivatedStatus = adminCatalogModule.determineReactivatedStatus;
+const testMutatePieceStatus = adminCatalogModule.mutatePieceStatus;
+
+// 3. Testes Unitarios de Determinacao de Status
+assert(testDetermineReactivatedStatus(null) === 'ready', 'determineReactivatedStatus retorna pronta entrega defensiva para entrada nula');
+assert(testDetermineReactivatedStatus({ originalStatus: 'order' }) === 'order', 'determineReactivatedStatus respeita originalStatus order');
+assert(testDetermineReactivatedStatus({ originalStatus: 'ready' }) === 'ready', 'determineReactivatedStatus respeita originalStatus ready');
+assert(testDetermineReactivatedStatus({ status: 'suspended', leadTimeDays: 8, isReady: false }) === 'order', 'determineReactivatedStatus detecta sob encomenda legada por leadTimeDays e isReady');
+assert(testDetermineReactivatedStatus({ status: 'suspended', stockQty: 3, isReady: true }) === 'ready', 'determineReactivatedStatus detecta pronta entrega legada por stockQty e isReady');
+assert(testDetermineReactivatedStatus({ status: 'suspended', leadTimeDays: 5, stockQty: 0 }) === 'order', 'determineReactivatedStatus detecta sob encomenda com estoque zero');
+
+// 4. Testes de Ciclo Completo e Caminhos de Erro (mutatePieceStatus)
+const testCatalogInitial = [
+  { id: 'custom-order-1', name: 'Bolsa Tear Especial', status: 'order', isReady: false, leadTimeDays: 10, stockQty: 0 },
+  { id: 'custom-ready-1', name: 'Scrunchie Algodao', status: 'ready', isReady: true, leadTimeDays: 0, stockQty: 5 }
+];
+
+assert(testMutatePieceStatus(null, 'custom-order-1', 'suspended').success === false, 'mutatePieceStatus rejeita lista nula');
+assert(testMutatePieceStatus(testCatalogInitial, null, 'suspended').success === false, 'mutatePieceStatus rejeita ID nulo');
+assert(testMutatePieceStatus(testCatalogInitial, 'custom-order-1', 'status_estranho').success === false, 'mutatePieceStatus rejeita status invalido');
+assert(testMutatePieceStatus(testCatalogInitial, 'inexistente', 'suspended').reason === 'not_found', 'mutatePieceStatus sinaliza peca inexistente');
+
+// Ciclo Sob Encomenda: Suspender -> Reativar
+const suspendOrderRes = testMutatePieceStatus(testCatalogInitial, 'custom-order-1', 'suspended');
+assert(suspendOrderRes.success === true, 'mutatePieceStatus suspende peca sob encomenda com sucesso');
+assert(suspendOrderRes.updatedPiece.status === 'suspended', 'Peca suspensa possui status suspended');
+assert(suspendOrderRes.updatedPiece.originalStatus === 'order', 'Peca suspensa armazena modalidade original order');
+assert(suspendOrderRes.updatedPiece.leadTimeDays === 10, 'Peca suspensa mantem prazo de confeccao intacto');
+
+const reactivateOrderRes = testMutatePieceStatus(suspendOrderRes.catalog, 'custom-order-1', 'reactivate');
+assert(reactivateOrderRes.success === true, 'mutatePieceStatus reativa peca sob encomenda com sucesso');
+assert(reactivateOrderRes.updatedPiece.status === 'order', 'Peca sob encomenda reativada restaura status order');
+assert(reactivateOrderRes.updatedPiece.isReady === false, 'Peca sob encomenda reativada mantem isReady falso');
+assert(reactivateOrderRes.updatedPiece.leadTimeDays === 10, 'Peca sob encomenda reativada preserva prazo em dias original');
+
+// Ciclo Pronta Entrega: Suspender -> Reativar
+const suspendReadyRes = testMutatePieceStatus(testCatalogInitial, 'custom-ready-1', 'suspended');
+assert(suspendReadyRes.success === true, 'mutatePieceStatus suspende peca pronta entrega com sucesso');
+assert(suspendReadyRes.updatedPiece.originalStatus === 'ready', 'Peca pronta entrega suspensa armazena modalidade original ready');
+
+const reactivateReadyRes = testMutatePieceStatus(suspendReadyRes.catalog, 'custom-ready-1', 'reactivate');
+assert(reactivateReadyRes.success === true, 'mutatePieceStatus reativa peca pronta entrega com sucesso');
+assert(reactivateReadyRes.updatedPiece.status === 'ready', 'Peca pronta entrega reativada restaura status ready');
+assert(reactivateReadyRes.updatedPiece.isReady === true, 'Peca pronta entrega reativada mantem isReady verdadeiro');
+assert(reactivateReadyRes.updatedPiece.stockQty === 5, 'Peca pronta entrega reativada preserva quantidade de estoque');
+
+// Garantia de Imutabilidade
+assert(testCatalogInitial[0].status === 'order', 'mutatePieceStatus preserva array de catalogo original sem mutacao lateral');
+
+// [30] Validando Gestao Segura de Modais, Fechamento no Backdrop e Tecla Escape (JEZ-034):
+console.log('\n[30] Validando Gestao Segura de Modais, Fechamento no Backdrop e Tecla Escape (JEZ-034):');
+
+const latestAdminJsContent = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+const latestAtelieHtmlContent = fs.readFileSync(path.join(ROOT_DIR, 'atelie.html'), 'utf-8');
+
+// 1. Integracao no DOM e Ouvintes do Atelie
+assert(latestAdminJsContent.includes('handleModalBackdropClick'), 'admin.js implementa e exporta handleModalBackdropClick');
+assert(latestAdminJsContent.includes('handleModalEscapeKey'), 'admin.js implementa e exporta handleModalEscapeKey');
+assert(latestAdminJsContent.includes('closeResetOrdersModal'), 'admin.js define funcao dedicada closeResetOrdersModal');
+assert(latestAdminJsContent.includes("resetOrdersModal.addEventListener('click'") && latestAdminJsContent.includes('handleModalBackdropClick(e, resetOrdersModal'), 'admin.js conecta fechamento seguro por backdrop no modal de reset');
+assert(latestAdminJsContent.includes("document.addEventListener('keydown'") && latestAdminJsContent.includes('handleModalEscapeKey'), 'admin.js registra listener global para a tecla Escape');
+assert(!emojiRegex.test(latestAdminJsContent), 'admin.js preserva rigorosamente ZERO emojis apos as mudancas de JEZ-034');
+
+// 2. Testes Unitarios de Fechamento por Backdrop (handleModalBackdropClick)
+function testHandleModalBackdropClick(event, backdropElement, closeCallback) {
+  if (!event || !backdropElement || typeof closeCallback !== 'function') return false;
+  if (event.target === backdropElement) {
+    closeCallback();
+    return true;
+  }
+  return false;
+}
+
+const mockBackdrop = { id: 'modal-reset-orders-backdrop', style: { display: 'flex' } };
+const mockCard = { id: 'modal-reset-orders-card', parent: mockBackdrop };
+const mockInnerBtn = { id: 'btn-cancel-reset-orders', parent: mockCard };
+
+let modalClosed = false;
+const mockClose = () => { modalClosed = true; };
+
+// Borda e parametros invalidos
+assert(testHandleModalBackdropClick(null, mockBackdrop, mockClose) === false, 'handleModalBackdropClick rejeita evento nulo');
+assert(testHandleModalBackdropClick({ target: mockBackdrop }, null, mockClose) === false, 'handleModalBackdropClick rejeita backdrop nulo');
+assert(testHandleModalBackdropClick({ target: mockBackdrop }, mockBackdrop, null) === false, 'handleModalBackdropClick rejeita callback nula');
+
+// Cliques internos nao devem fechar o modal
+modalClosed = false;
+const clickInsideCard = testHandleModalBackdropClick({ target: mockCard }, mockBackdrop, mockClose);
+assert(clickInsideCard === false && modalClosed === false, 'handleModalBackdropClick ignora cliques disparados no card interno');
+
+modalClosed = false;
+const clickInsideBtn = testHandleModalBackdropClick({ target: mockInnerBtn }, mockBackdrop, mockClose);
+assert(clickInsideBtn === false && modalClosed === false, 'handleModalBackdropClick ignora cliques disparados em botoes internos');
+
+// Clique no backdrop fecha o modal
+modalClosed = false;
+const clickOnBackdrop = testHandleModalBackdropClick({ target: mockBackdrop }, mockBackdrop, mockClose);
+assert(clickOnBackdrop === true && modalClosed === true, 'handleModalBackdropClick executa callback ao clicar exatamente no backdrop');
+
+// 3. Testes Unitarios de Fechamento por Tecla Escape (handleModalEscapeKey)
+function testHandleModalEscapeKey(event, activeModals = []) {
+  if (!event || (event.key !== 'Escape' && event.key !== 'Esc')) return false;
+  if (!Array.isArray(activeModals)) return false;
+  for (const modal of activeModals) {
+    if (modal && modal.element && modal.element.style) {
+      const display = modal.element.style.display;
+      if (display && display !== 'none') {
+        if (typeof modal.close === 'function') {
+          modal.close();
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+let escapeClosedModal = false;
+const resetModalObj = {
+  element: { style: { display: 'none' } },
+  close: () => { escapeClosedModal = true; }
+};
+const editModalObj = {
+  element: { style: { display: 'none' } },
+  close: () => { escapeClosedModal = true; }
+};
+
+// Teclas normais devem ser ignoradas
+assert(testHandleModalEscapeKey({ key: 'Enter' }, [resetModalObj]) === false, 'handleModalEscapeKey ignora tecla Enter');
+assert(testHandleModalEscapeKey({ key: 'Tab' }, [resetModalObj]) === false, 'handleModalEscapeKey ignora tecla Tab');
+assert(testHandleModalEscapeKey({ key: 'a' }, [resetModalObj]) === false, 'handleModalEscapeKey ignora teclas alfanumericas');
+
+// Modais fechados nao disparam acao
+escapeClosedModal = false;
+assert(testHandleModalEscapeKey({ key: 'Escape' }, [resetModalObj, editModalObj]) === false, 'handleModalEscapeKey nao fecha modais que ja estao ocultos');
+assert(escapeClosedModal === false, 'callback de fechamento nao e invocada para modais com display none');
+
+// Modal aberto e fechado via Escape
+resetModalObj.element.style.display = 'flex';
+escapeClosedModal = false;
+const escapeResult = testHandleModalEscapeKey({ key: 'Escape' }, [resetModalObj, editModalObj]);
+assert(escapeResult === true && escapeClosedModal === true, 'handleModalEscapeKey fecha com sucesso o modal ativo ao pressionar Escape');
+
+// Suporte alternativo a key Esc legado
+resetModalObj.element.style.display = 'flex';
+escapeClosedModal = false;
+const escLegacyResult = testHandleModalEscapeKey({ key: 'Esc' }, [resetModalObj]);
+assert(escLegacyResult === true && escapeClosedModal === true, 'handleModalEscapeKey suporta identificador legado Esc');
+
+// Robustez defensiva
+assert(testHandleModalEscapeKey(null, [resetModalObj]) === false, 'handleModalEscapeKey trata evento nulo defensivamente');
+assert(testHandleModalEscapeKey({ key: 'Escape' }, null) === false, 'handleModalEscapeKey trata lista de modais nula defensivamente');
+assert(testHandleModalEscapeKey({ key: 'Escape' }, [{}]) === false, 'handleModalEscapeKey trata itens malformados sem quebrar');
+
+// ============================================================================
+// 31. Validando Classificação de Esgotamento e Reativação Segura de Encomenda (RN-JEZ-001 e RN-JEZ-008)
+// ============================================================================
+console.log('\n[31] Validando Classificacao de Esgotamento e Reativacao Segura de Encomenda (RN-JEZ-001 / RN-JEZ-008):');
+
+// Carrega servico de produtos
+const productsModule = require('../js/services/products.js');
+const testIsProductSoldOut = productsModule.isProductSoldOut;
+assert(typeof testIsProductSoldOut === 'function', 'isProductSoldOut e exportada como funcao pelo servico de produtos');
+
+// 1. Invariante RN-JEZ-001: Peca sob encomenda NUNCA e classificada como esgotada
+const mockOrderPiece1 = { id: 'bolsa-punk', status: 'order', isReady: false, stockQty: 0, leadTimeDays: 7 };
+assert(testIsProductSoldOut(mockOrderPiece1) === false, 'isProductSoldOut retorna false para peca sob encomenda com stockQty zero');
+
+const mockOrderPiece2 = { id: 'custom-order-99', status: 'order', isReady: false, stockQty: null, leadTimeDays: 10 };
+assert(testIsProductSoldOut(mockOrderPiece2) === false, 'isProductSoldOut retorna false para peca sob encomenda com stockQty null');
+
+const mockOrderPiece3 = { id: 'custom-order-98', isReady: false, leadTimeDays: 5 };
+assert(testIsProductSoldOut(mockOrderPiece3) === false, 'isProductSoldOut retorna false para peca sob encomenda sem status explicito mas com isReady false');
+
+const mockOrderPiece4 = { id: 'custom-order-97', status: 'order', stockQty: 0 };
+assert(testIsProductSoldOut(mockOrderPiece4) === false, 'isProductSoldOut retorna false para peca com status order mesmo com estoque zerado');
+
+// 2. Peca pronta entrega sem estoque DEVE ser classificada como esgotada
+const mockReadySoldOut = { id: 'tote-cherry', status: 'ready', isReady: true, stockQty: 0 };
+assert(testIsProductSoldOut(mockReadySoldOut) === true, 'isProductSoldOut retorna true para pronta entrega com estoque zero');
+
+const mockReadyInStock = { id: 'tote-cherry', status: 'ready', isReady: true, stockQty: 2 };
+assert(testIsProductSoldOut(mockReadyInStock) === false, 'isProductSoldOut retorna false para pronta entrega com estoque positivo');
+
+assert(testIsProductSoldOut(null) === false, 'isProductSoldOut trata entrada nula defensivamente retornando false');
+assert(testIsProductSoldOut({}) === false, 'isProductSoldOut trata objeto vazio defensivamente');
+
+// 3. Invariante RN-JEZ-008: Peca padrao sob encomenda sem metadados legados reativa como order
+const defaultOrderPieceSuspended = { id: 'bolsa-punk', status: 'suspended', isReady: false, leadTimeDays: 0, stockQty: 0 };
+assert(testDetermineReactivatedStatus(defaultOrderPieceSuspended) === 'order', 'determineReactivatedStatus reconhece peca padrao bolsa-punk como order mesmo com leadTimeDays zerado legado');
+
+const defaultXadrezSuspended = { id: 'bolsa-xadrez', status: 'suspended' };
+assert(testDetermineReactivatedStatus(defaultXadrezSuspended) === 'order', 'determineReactivatedStatus reconhece peca padrao bolsa-xadrez como order mesmo sem metadados');
+
+const defaultBlusaTeiaSuspended = { id: 'blusa-teia', status: 'suspended' };
+assert(testDetermineReactivatedStatus(defaultBlusaTeiaSuspended) === 'order', 'determineReactivatedStatus reconhece peca padrao blusa-teia como order');
+
+// 4. Ciclo completo de suspensao e reativacao com mutatePieceStatus
+const catalogWithOrder = [
+  { id: 'bolsa-punk', name: 'Bolsa Punk', status: 'order', isReady: false, leadTimeDays: 7, stockQty: 0 }
+];
+const suspendResult = testMutatePieceStatus(catalogWithOrder, 'bolsa-punk', 'suspended');
+assert(suspendResult.success === true, 'Peca sob encomenda e suspensa com sucesso');
+assert(suspendResult.updatedPiece.status === 'suspended', 'Status e atualizado para suspended');
+assert(suspendResult.updatedPiece.originalStatus === 'order', 'originalStatus e preservado como order');
+
+const reactivateResult = testMutatePieceStatus(suspendResult.catalog, 'bolsa-punk', 'reactivate');
+assert(reactivateResult.success === true, 'Peca suspensa e reativada com sucesso');
+assert(reactivateResult.updatedPiece.status === 'order', 'Status reativado e order e NAO ready');
+assert(reactivateResult.updatedPiece.isReady === false, 'isReady permanece false');
+assert(reactivateResult.updatedPiece.leadTimeDays >= 7, 'Prazo de confeccao e mantido em dias uteis');
+assert(testIsProductSoldOut(reactivateResult.updatedPiece) === false, 'Peca reativada sob encomenda NAO e considerada esgotada na vitrine');
+
+// 5. Reativacao de pronta entrega zerada restaura ao menos 1 unidade para exibicao
+const catalogWithEmptyReady = [
+  { id: 'custom-ready-zero', name: 'Peca Pronta Zerada', status: 'ready', isReady: true, stockQty: 0 }
+];
+const suspendReadyZero = testMutatePieceStatus(catalogWithEmptyReady, 'custom-ready-zero', 'suspended');
+const reactivateReadyZero = testMutatePieceStatus(suspendReadyZero.catalog, 'custom-ready-zero', 'reactivate');
+assert(reactivateReadyZero.updatedPiece.status === 'ready', 'Pronta entrega reativa como ready');
+assert(reactivateReadyZero.updatedPiece.stockQty >= 1, 'Pronta entrega zerada recupera ao menos 1 unidade ao ser disponibilizada');
+
+// ============================================================================
+// 32. Ciclo de Vida do PWA do Atelie e Suporte Multiplataforma (JEZ-035)
+// ============================================================================
+console.log('\n[32] Ciclo de Vida do PWA do Atelie e Suporte Multiplataforma (JEZ-035):');
+
+// 1. Integridade Estrutural no HTML e Modulos do Atelie
+const ateliePwaHtml = fs.readFileSync(path.join(ROOT_DIR, 'atelie.html'), 'utf-8');
+const adminPwaJs = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+
+assert(ateliePwaHtml.includes('window.__jezPwaInstallPrompt = null'), 'atelie.html inicializa variavel de captura antecipada no head');
+assert(ateliePwaHtml.includes("window.dispatchEvent(new CustomEvent('jez:pwa-prompt-ready'))"), 'atelie.html dispara evento jez:pwa-prompt-ready ao capturar instalador no head');
+assert(ateliePwaHtml.includes('id="btn-pwa-install-admin"'), 'atelie.html contem o botao oficial de instalacao do atelie');
+assert(ateliePwaHtml.includes('id="modal-pwa-ios-backdrop"'), 'atelie.html contem o modal dedicado de instrucoes PWA para iOS Safari');
+assert(ateliePwaHtml.includes('id="btn-close-pwa-ios"'), 'atelie.html contem botao de fechar modal iOS');
+assert(ateliePwaHtml.includes('id="btn-ok-pwa-ios"'), 'atelie.html contem botao de confirmacao no modal iOS');
+assert(adminPwaJs.includes('setupPwaLifecycle'), 'admin.js exporta a rotina de ciclo de vida setupPwaLifecycle');
+assert(adminPwaJs.includes('{ element: modalPwaIosBackdrop, close: closePwaIosModal }'), 'admin.js inclui modal iOS no listener global de escape');
+
+const adminPwaModule = require('../admin.js');
+const testSetupPwaLifecycle = adminPwaModule.setupPwaLifecycle;
+const testPwaBackdropClick = adminPwaModule.handleModalBackdropClick;
+const testPwaEscapeKey = adminPwaModule.handleModalEscapeKey;
+
+assert(typeof testSetupPwaLifecycle === 'function', 'setupPwaLifecycle e exportada como funcao');
+assert(typeof testPwaBackdropClick === 'function', 'handleModalBackdropClick e exportada como funcao');
+assert(typeof testPwaEscapeKey === 'function', 'handleModalEscapeKey e exportada como funcao');
+assert(testSetupPwaLifecycle(null) === null, 'setupPwaLifecycle trata parametros nulos defensivamente');
+assert(testSetupPwaLifecycle({}) === null, 'setupPwaLifecycle trata objetos vazios defensivamente');
+
+// Factory de Mocks Isolada para Validacao do Ciclo de Vida PWA
+function createPwaTestElement(id) {
+  const listeners = {};
+  return {
+    id,
+    style: { display: 'none' },
+    listeners,
+    addEventListener(event, fn) {
+      if (!listeners[event]) listeners[event] = [];
+      listeners[event].push(fn);
+    },
+    click(target) {
+      if (listeners['click']) {
+        const evt = {
+          target: target || this,
+          preventDefault: () => {}
+        };
+        listeners['click'].forEach(fn => fn(evt));
+      }
+    }
+  };
+}
+
+function createPwaTestEnv(overrides = {}) {
+  const windowListeners = {};
+  const btnInstall = createPwaTestElement('btn-pwa-install-admin');
+  const modalIos = createPwaTestElement('modal-pwa-ios-backdrop');
+  const cardIos = createPwaTestElement('modal-pwa-ios-card');
+  const btnCloseIos = createPwaTestElement('btn-close-pwa-ios');
+  const btnOkIos = createPwaTestElement('btn-ok-pwa-ios');
+
+  const elementsMap = {
+    'btn-pwa-install-admin': btnInstall,
+    'modal-pwa-ios-backdrop': modalIos,
+    'modal-pwa-ios-card': cardIos,
+    'btn-close-pwa-ios': btnCloseIos,
+    'btn-ok-pwa-ios': btnOkIos
+  };
+
+  const documentObj = {
+    readyState: 'complete',
+    getElementById(id) {
+      return elementsMap[id] || null;
+    }
+  };
+
+  const defaultNav = {
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
+    platform: 'Win32',
+    maxTouchPoints: 0,
+    standalone: false,
+    serviceWorker: {
+      register: () => Promise.resolve({})
+    }
+  };
+
+  const navigatorObj = Object.assign({}, defaultNav, overrides.navigator || {});
+
+  const windowObj = {
+    __jezPwaInstallPrompt: overrides.earlyPrompt !== undefined ? overrides.earlyPrompt : null,
+    MSStream: false,
+    navigator: navigatorObj,
+    matchMedia(query) {
+      return {
+        matches: query === '(display-mode: standalone)' ? Boolean(overrides.matchMediaStandalone) : false
+      };
+    },
+    addEventListener(event, fn) {
+      if (!windowListeners[event]) windowListeners[event] = [];
+      windowListeners[event].push(fn);
+    },
+    dispatchEvent(eventName, eventObj = {}) {
+      if (windowListeners[eventName]) {
+        windowListeners[eventName].forEach(fn => fn(eventObj));
+      }
+    }
+  };
+
+  return {
+    windowObj,
+    documentObj,
+    elements: {
+      btnInstall,
+      modalIos,
+      cardIos,
+      btnCloseIos,
+      btnOkIos
+    }
+  };
+}
+
+// 2. Cenario 1: Early Capture no Desktop/Chromium
+const earlyPromptMock = {
+  prompt: async () => {},
+  userChoice: Promise.resolve({ outcome: 'accepted' })
+};
+const envEarly = createPwaTestEnv({ earlyPrompt: earlyPromptMock });
+let earlyToastMsg = null;
+const lifecycleEarly = testSetupPwaLifecycle({
+  windowObj: envEarly.windowObj,
+  documentObj: envEarly.documentObj,
+  onToast: (msg) => { earlyToastMsg = msg; }
+});
+assert(lifecycleEarly !== null, 'Early Capture: setupPwaLifecycle inicializado com sucesso');
+assert(lifecycleEarly.isStandalone === false, 'Early Capture: isStandalone permanece false em Desktop normal');
+assert(lifecycleEarly.isIos === false, 'Early Capture: isIos permanece false em Desktop Chromium');
+assert(envEarly.elements.btnInstall.style.display === 'inline-flex', 'Early Capture: botao de instalacao ganha display inline-flex quando prompt previo existe');
+assert(lifecycleEarly.getDeferredPrompt() === earlyPromptMock, 'Early Capture: prompt capturado precocemente e retornado pelo accessor getDeferredPrompt');
+
+// 3. Cenario 2: Late Event (Evento disparado apos o setup)
+// Subcenario 2A: Via evento customizado jez:pwa-prompt-ready
+const envLateCustom = createPwaTestEnv({ earlyPrompt: null });
+const lifecycleLateCustom = testSetupPwaLifecycle({
+  windowObj: envLateCustom.windowObj,
+  documentObj: envLateCustom.documentObj
+});
+assert(envLateCustom.elements.btnInstall.style.display === 'none', 'Late Event (Custom): botao inicia com display none sem prompt');
+const lateCustomPromptMock = { prompt: async () => {} };
+envLateCustom.windowObj.__jezPwaInstallPrompt = lateCustomPromptMock;
+envLateCustom.windowObj.dispatchEvent('jez:pwa-prompt-ready');
+assert(envLateCustom.elements.btnInstall.style.display === 'inline-flex', 'Late Event (Custom): botao ganha display inline-flex apos evento jez:pwa-prompt-ready');
+assert(lifecycleLateCustom.getDeferredPrompt() === lateCustomPromptMock, 'Late Event (Custom): prompt tardio fica disponivel no ciclo de vida');
+
+// Subcenario 2B: Via evento nativo beforeinstallprompt
+const envLateNative = createPwaTestEnv({ earlyPrompt: null });
+const lifecycleLateNative = testSetupPwaLifecycle({
+  windowObj: envLateNative.windowObj,
+  documentObj: envLateNative.documentObj
+});
+assert(envLateNative.elements.btnInstall.style.display === 'none', 'Late Event (Native): botao inicia com display none sem prompt');
+let preventDefaultCalled = false;
+const nativePromptMock = {
+  preventDefault: () => { preventDefaultCalled = true; },
+  prompt: async () => {}
+};
+envLateNative.windowObj.dispatchEvent('beforeinstallprompt', nativePromptMock);
+assert(preventDefaultCalled === true, 'Late Event (Native): preventDefault e acionado para suprimir banner padrao do navegador');
+assert(envLateNative.elements.btnInstall.style.display === 'inline-flex', 'Late Event (Native): botao ganha display inline-flex apos evento beforeinstallprompt nativo');
+assert(lifecycleLateNative.getDeferredPrompt() === nativePromptMock, 'Late Event (Native): evento nativo e armazenado como deferred prompt');
+
+// 4. Cenario 3: iOS Safari (onde beforeinstallprompt nunca dispara)
+const envIos = createPwaTestEnv({
+  navigator: {
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+    platform: 'iPhone',
+    maxTouchPoints: 5,
+    standalone: false
+  }
+});
+const lifecycleIos = testSetupPwaLifecycle({
+  windowObj: envIos.windowObj,
+  documentObj: envIos.documentObj
+});
+assert(lifecycleIos.isIos === true, 'iOS Safari: isIos detectado como true via userAgent');
+assert(lifecycleIos.isStandalone === false, 'iOS Safari: isStandalone e false antes de instalar');
+assert(envIos.elements.btnInstall.style.display === 'inline-flex', 'iOS Safari: botao de instalacao ganha display inline-flex mesmo sem evento de prompt');
+assert(envIos.elements.modalIos.style.display === 'none', 'iOS Safari: modal inicia com display none');
+
+// Clique no botao abre modal com instrucoes
+envIos.elements.btnInstall.click();
+assert(envIos.elements.modalIos.style.display === 'flex', 'iOS Safari: clique no botao de instalacao abre o modal instrucional com display flex');
+
+// Fechamento via botao X
+envIos.elements.btnCloseIos.click();
+assert(envIos.elements.modalIos.style.display === 'none', 'iOS Safari: clique no botao btn-close-pwa-ios fecha o modal');
+
+// Reabertura e fechamento via botao Entendi
+lifecycleIos.openIosModal();
+assert(envIos.elements.modalIos.style.display === 'flex', 'iOS Safari: openIosModal reabre o modal');
+envIos.elements.btnOkIos.click();
+assert(envIos.elements.modalIos.style.display === 'none', 'iOS Safari: clique no botao btn-ok-pwa-ios fecha o modal');
+
+// 5. Cenario 4: Standalone Mode (app ja instalado)
+// Subcenario 4A: iOS Standalone (navigator.standalone === true)
+const envStandaloneIos = createPwaTestEnv({
+  navigator: {
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X)',
+    platform: 'iPhone',
+    standalone: true
+  }
+});
+const lifecycleStandaloneIos = testSetupPwaLifecycle({
+  windowObj: envStandaloneIos.windowObj,
+  documentObj: envStandaloneIos.documentObj
+});
+assert(lifecycleStandaloneIos.isStandalone === true, 'Standalone Mode (iOS): isStandalone detectado como true via navigator.standalone');
+assert(envStandaloneIos.elements.btnInstall.style.display === 'none', 'Standalone Mode (iOS): botao permanece com display none');
+assert(lifecycleStandaloneIos.getDeferredPrompt() === null, 'Standalone Mode (iOS): getDeferredPrompt retorna null em app instalado');
+
+// Subcenario 4B: Desktop/Android Standalone (matchMedia standalone === true)
+const envStandaloneDesktop = createPwaTestEnv({
+  matchMediaStandalone: true,
+  earlyPrompt: { prompt: async () => {} }
+});
+const lifecycleStandaloneDesktop = testSetupPwaLifecycle({
+  windowObj: envStandaloneDesktop.windowObj,
+  documentObj: envStandaloneDesktop.documentObj
+});
+assert(lifecycleStandaloneDesktop.isStandalone === true, 'Standalone Mode (Desktop): isStandalone detectado via matchMedia');
+assert(envStandaloneDesktop.elements.btnInstall.style.display === 'none', 'Standalone Mode (Desktop): botao permanece com display none mesmo com prompt presente');
+
+// 6. Cenario 5: Evento appinstalled
+const envInstalled = createPwaTestEnv({
+  earlyPrompt: { prompt: async () => {} }
+});
+let installedToast = null;
+const lifecycleInstalled = testSetupPwaLifecycle({
+  windowObj: envInstalled.windowObj,
+  documentObj: envInstalled.documentObj,
+  onToast: (msg) => { installedToast = msg; }
+});
+assert(envInstalled.elements.btnInstall.style.display === 'inline-flex', 'appinstalled: botao esta visivel antes do encerramento da instalacao');
+envInstalled.windowObj.dispatchEvent('appinstalled');
+assert(envInstalled.elements.btnInstall.style.display === 'none', 'appinstalled: botao e ocultado com display none apos evento appinstalled');
+assert(envInstalled.windowObj.__jezPwaInstallPrompt === null, 'appinstalled: window.__jezPwaInstallPrompt e limpo defensivamente');
+assert(lifecycleInstalled.getDeferredPrompt() === null, 'appinstalled: deferredPrompt interno e invalidado');
+assert(installedToast !== null && installedToast.includes('instalado com sucesso'), 'appinstalled: dispara toast amigavel de conclusao da instalacao');
+
+// 7. Cenario 6: Acessibilidade de modais no modal iOS
+// Reutiliza o ambiente iOS para testes estritos de backdrop e teclado
+const envA11y = createPwaTestEnv({
+  navigator: {
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4)',
+    platform: 'iPhone'
+  }
+});
+const lifecycleA11y = testSetupPwaLifecycle({
+  windowObj: envA11y.windowObj,
+  documentObj: envA11y.documentObj
+});
+
+// A. Clique no backdrop fecha o modal
+envA11y.elements.modalIos.style.display = 'flex';
+const clickBackdropResult = testPwaBackdropClick({ target: envA11y.elements.modalIos }, envA11y.elements.modalIos, lifecycleA11y.closeIosModal);
+assert(clickBackdropResult === true, 'Acessibilidade: handleModalBackdropClick retorna true ao clicar no backdrop do modal iOS');
+assert(envA11y.elements.modalIos.style.display === 'none', 'Acessibilidade: clique no backdrop fecha o modal iOS');
+
+// B. Clique interno (no card) NAO fecha o modal
+envA11y.elements.modalIos.style.display = 'flex';
+const clickInsideResult = testPwaBackdropClick({ target: envA11y.elements.cardIos }, envA11y.elements.modalIos, lifecycleA11y.closeIosModal);
+assert(clickInsideResult === false, 'Acessibilidade: handleModalBackdropClick retorna false ao clicar no card interno');
+assert(envA11y.elements.modalIos.style.display === 'flex', 'Acessibilidade: modal iOS permanece aberto ao clicar dentro do card');
+
+// B2. Clique no listener nativo conectado ao elemento modalIos
+envA11y.elements.modalIos.click(envA11y.elements.cardIos);
+assert(envA11y.elements.modalIos.style.display === 'flex', 'Acessibilidade: listener conectado ao modalIos ignora propagacao de card interno');
+envA11y.elements.modalIos.click(envA11y.elements.modalIos);
+assert(envA11y.elements.modalIos.style.display === 'none', 'Acessibilidade: listener conectado ao modalIos fecha modal no clique do backdrop');
+
+// C. Tecla Escape fecha o modal ativo
+envA11y.elements.modalIos.style.display = 'flex';
+const pwaEscapeResult = testPwaEscapeKey({ key: 'Escape' }, [
+  { element: envA11y.elements.modalIos, close: lifecycleA11y.closeIosModal }
+]);
+assert(pwaEscapeResult === true, 'Acessibilidade: handleModalEscapeKey retorna true para tecla Escape com modal iOS ativo');
+assert(envA11y.elements.modalIos.style.display === 'none', 'Acessibilidade: tecla Escape fecha o modal iOS');
+
+// D. Tecla Escape nao executa acao se modal ja estiver fechado
+const pwaEscapeClosedResult = testPwaEscapeKey({ key: 'Escape' }, [
+  { element: envA11y.elements.modalIos, close: lifecycleA11y.closeIosModal }
+]);
+assert(pwaEscapeClosedResult === false, 'Acessibilidade: handleModalEscapeKey ignora fechamento quando modal ja esta oculto');
+
+// E. Tecla que nao e Escape e ignorada
+envA11y.elements.modalIos.style.display = 'flex';
+const pwaEnterResult = testPwaEscapeKey({ key: 'Enter' }, [
+  { element: envA11y.elements.modalIos, close: lifecycleA11y.closeIosModal }
+]);
+assert(pwaEnterResult === false, 'Acessibilidade: handleModalEscapeKey ignora tecla Enter');
+assert(envA11y.elements.modalIos.style.display === 'flex', 'Acessibilidade: modal permanece aberto ao pressionar tecla diferente de Escape');
+lifecycleA11y.closeIosModal();
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

@@ -40,6 +40,8 @@ import {
   loadCatalog,
   handleStorageQuotaExceeded,
   saveCatalog,
+  determineReactivatedStatus,
+  mutatePieceStatus,
   STORAGE_CATALOG_KEY,
   STORAGE_CUSTOM_PRODUCTS_KEY
 } from './js/admin/catalog.js';
@@ -67,6 +69,48 @@ import {
   renderDashboard
 } from './js/admin/dashboard.js';
 
+// Utilitários de Gestão Segura de Modais e Acessibilidade (JEZ-034)
+/**
+ * Trata o clique no backdrop de modais para fechamento seguro (JEZ-034)
+ * Fecha apenas se o clique ocorreu diretamente no elemento de fundo (backdrop)
+ * e nunca quando o clique ocorre dentro do card ou de seus elementos filhos.
+ * @param {Event|object} event
+ * @param {HTMLElement|object} backdropElement
+ * @param {Function} closeCallback
+ * @returns {boolean} Retorna true se fechou o modal, false caso contrário
+ */
+export function handleModalBackdropClick(event, backdropElement, closeCallback) {
+  if (!event || !backdropElement || typeof closeCallback !== 'function') return false;
+  if (event.target === backdropElement) {
+    closeCallback();
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Trata o evento de tecla de escape para fechar o modal aberto ativo (JEZ-034)
+ * @param {KeyboardEvent|object} event
+ * @param {Array<{ element: HTMLElement|object, close: Function }>} activeModals
+ * @returns {boolean} Retorna true se fechou algum modal, false caso contrário
+ */
+export function handleModalEscapeKey(event, activeModals = []) {
+  if (!event || (event.key !== 'Escape' && event.key !== 'Esc')) return false;
+  if (!Array.isArray(activeModals)) return false;
+  for (const modal of activeModals) {
+    if (modal && modal.element && modal.element.style) {
+      const display = modal.element.style.display;
+      if (display && display !== 'none') {
+        if (typeof modal.close === 'function') {
+          modal.close();
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 // Re-exportações para interoperabilidade e contratos de teste
 export {
   sha256Hex,
@@ -78,6 +122,8 @@ export {
   loadCatalog,
   saveCatalog,
   handleStorageQuotaExceeded,
+  determineReactivatedStatus,
+  mutatePieceStatus,
   loadOrders,
   saveOrders,
   isItemCustomProduction,
@@ -89,6 +135,172 @@ export {
   calculateDashboardMetrics,
   renderDashboard
 };
+
+/**
+ * Inicialização e Gestão do Ciclo de Vida do PWA do Ateliê (JEZ-035 - Noa & Alex)
+ * Previne race conditions de captura precoce do beforeinstallprompt e suporta iOS Safari.
+ * @param {Object} options Injeção de dependências para testes e runtime
+ * @returns {Object|null} Interface de controle para auditoria e automação
+ */
+export function setupPwaLifecycle(options = {}) {
+  const safeOptions = options || {};
+  const windowObj = safeOptions.windowObj || (typeof window !== 'undefined' ? window : null);
+  const documentObj = safeOptions.documentObj || (typeof document !== 'undefined' ? document : null);
+  const onToast = safeOptions.onToast || null;
+
+  if (!windowObj || !documentObj) return null;
+
+  const btnInstall = documentObj.getElementById('btn-pwa-install-admin') || documentObj.getElementById('btn-install-atelie-pwa');
+  const modalIos = documentObj.getElementById('modal-pwa-ios-backdrop');
+  const btnCloseIos = documentObj.getElementById('btn-close-pwa-ios');
+  const btnOkIos = documentObj.getElementById('btn-ok-pwa-ios');
+
+  let deferredInstallPrompt = windowObj.__jezPwaInstallPrompt || null;
+
+  const nav = windowObj.navigator || (typeof navigator !== 'undefined' ? navigator : {});
+  const isIosDevice = Boolean(
+    nav && (
+      /iPad|iPhone|iPod/.test(nav.userAgent || '') ||
+      (nav.platform === 'MacIntel' && (nav.maxTouchPoints || 0) > 1)
+    ) && !windowObj.MSStream
+  );
+
+  const isStandaloneMode = Boolean(
+    (nav && nav.standalone === true) ||
+    (typeof windowObj.matchMedia === 'function' && windowObj.matchMedia('(display-mode: standalone)').matches)
+  );
+
+  const openIosModal = () => {
+    if (modalIos) modalIos.style.display = 'flex';
+  };
+
+  const closeIosModal = () => {
+    if (modalIos) modalIos.style.display = 'none';
+  };
+
+  if (modalIos) {
+    modalIos.addEventListener('click', (e) => {
+      handleModalBackdropClick(e, modalIos, closeIosModal);
+    });
+  }
+  if (btnCloseIos) {
+    btnCloseIos.addEventListener('click', closeIosModal);
+  }
+  if (btnOkIos) {
+    btnOkIos.addEventListener('click', closeIosModal);
+  }
+
+  // Se já estiver rodando em standalone (PWA instalado), nunca exibe o botão
+  if (isStandaloneMode) {
+    if (btnInstall) btnInstall.style.display = 'none';
+    return {
+      isStandalone: true,
+      isIos: isIosDevice,
+      openIosModal,
+      closeIosModal,
+      getDeferredPrompt: () => null
+    };
+  }
+
+  // Tratamento específico para iOS Safari (onde beforeinstallprompt nunca dispara)
+  if (isIosDevice) {
+    if (btnInstall) {
+      btnInstall.style.display = 'inline-flex';
+      btnInstall.addEventListener('click', openIosModal);
+    }
+  } else {
+    // Tratamento para Chromium / Android / Desktop
+    const capturePrompt = (evt) => {
+      if (evt) {
+        if (typeof evt.preventDefault === 'function') evt.preventDefault();
+        deferredInstallPrompt = evt;
+      } else if (windowObj.__jezPwaInstallPrompt) {
+        deferredInstallPrompt = windowObj.__jezPwaInstallPrompt;
+      }
+      if (btnInstall) {
+        btnInstall.style.display = 'inline-flex';
+      }
+    };
+
+    // 1. Resgatar prompt previamente capturado pelo script do <head>
+    if (windowObj.__jezPwaInstallPrompt) {
+      capturePrompt(windowObj.__jezPwaInstallPrompt);
+    }
+
+    // 2. Escutar evento customizado disparado pelo early-listener do <head>
+    windowObj.addEventListener('jez:pwa-prompt-ready', () => {
+      capturePrompt(windowObj.__jezPwaInstallPrompt);
+    });
+
+    // 3. Fallback: escutar diretamente o evento nativo
+    windowObj.addEventListener('beforeinstallprompt', (evt) => {
+      capturePrompt(evt);
+    });
+
+    if (btnInstall) {
+      btnInstall.addEventListener('click', async () => {
+        if (deferredInstallPrompt) {
+          const promptToTrigger = deferredInstallPrompt;
+          deferredInstallPrompt = null;
+          windowObj.__jezPwaInstallPrompt = null;
+          try {
+            if (typeof promptToTrigger.prompt === 'function') {
+              await promptToTrigger.prompt();
+            }
+            let choiceResult = null;
+            if (promptToTrigger.userChoice) {
+              choiceResult = await promptToTrigger.userChoice;
+            }
+            if (choiceResult && choiceResult.outcome === 'accepted') {
+              btnInstall.style.display = 'none';
+              if (typeof onToast === 'function') {
+                onToast('Aplicativo instalado com sucesso!');
+              }
+            }
+          } catch (err) {
+            console.warn('[JËZ PWA] Falha ao acionar prompt de instalação:', err);
+          }
+        } else {
+          if (typeof onToast === 'function') {
+            onToast('Para instalar, use a opção "Instalar aplicativo" no menu do navegador.');
+          }
+        }
+      });
+    }
+  }
+
+  // Notificação de conclusão de instalação pelo sistema operacional
+  windowObj.addEventListener('appinstalled', () => {
+    if (btnInstall) btnInstall.style.display = 'none';
+    deferredInstallPrompt = null;
+    windowObj.__jezPwaInstallPrompt = null;
+    if (typeof onToast === 'function') {
+      onToast('Aplicativo do Ateliê instalado com sucesso!');
+    }
+  });
+
+  // Registro defensivo do Service Worker
+  if (nav && 'serviceWorker' in nav) {
+    const registerWorker = () => {
+      nav.serviceWorker.register('./sw.js').catch((err) => {
+        console.warn('[JËZ PWA] Falha no registro do Service Worker:', err);
+      });
+    };
+    if (documentObj.readyState === 'complete') {
+      registerWorker();
+    } else {
+      windowObj.addEventListener('load', registerWorker);
+    }
+  }
+
+  return {
+    isStandalone: isStandaloneMode,
+    isIos: isIosDevice,
+    openIosModal,
+    closeIosModal,
+    getDeferredPrompt: () => deferredInstallPrompt
+  };
+}
 
 const initAdmin = () => {
   let orders = loadOrders();
@@ -483,12 +695,16 @@ const initAdmin = () => {
   }
 
   // --------------------------------------------------------------------------
-  // 7. Modal de Reset Seguro de Pedidos (JEZ-023)
+  // 7. Modal de Reset Seguro de Pedidos (JEZ-023 / JEZ-034)
   // --------------------------------------------------------------------------
   const btnResetOrders = document.getElementById('btn-reset-orders');
   const resetOrdersModal = document.getElementById('modal-reset-orders-backdrop');
   const btnCancelReset = document.getElementById('btn-cancel-reset-orders');
   const btnConfirmReset = document.getElementById('btn-confirm-reset-orders');
+
+  const closeResetOrdersModal = () => {
+    if (resetOrdersModal) resetOrdersModal.style.display = 'none';
+  };
 
   if (btnResetOrders) {
     btnResetOrders.addEventListener('click', () => {
@@ -497,8 +713,13 @@ const initAdmin = () => {
   }
 
   if (btnCancelReset) {
-    btnCancelReset.addEventListener('click', () => {
-      if (resetOrdersModal) resetOrdersModal.style.display = 'none';
+    btnCancelReset.addEventListener('click', closeResetOrdersModal);
+  }
+
+  // JEZ-034: Fechamento no backdrop sem executar reset de dados
+  if (resetOrdersModal) {
+    resetOrdersModal.addEventListener('click', (e) => {
+      handleModalBackdropClick(e, resetOrdersModal, closeResetOrdersModal);
     });
   }
 
@@ -516,7 +737,7 @@ const initAdmin = () => {
           console.warn('[JËZ Cloud] Erro ao limpar pedidos no Firestore:', e.message);
         }
       }
-      if (resetOrdersModal) resetOrdersModal.style.display = 'none';
+      closeResetOrdersModal();
     });
   }
 
@@ -657,7 +878,7 @@ const initAdmin = () => {
         } else if (action === 'suspend') {
           setPieceStatus(id, 'suspended');
         } else if (action === 'reactivate') {
-          setPieceStatus(id, 'ready');
+          setPieceStatus(id, 'reactivate');
         } else if (action === 'delete') {
           deletePiece(id);
         }
@@ -665,13 +886,13 @@ const initAdmin = () => {
     });
   };
 
-  // Alterna status rápido da peça
+  // Alterna status da peça com preservação e restauração da modalidade de confecção (JEZ-033)
   const setPieceStatus = (id, newStatus) => {
     if (!id || typeof id !== 'string') {
       console.warn('[JËZ Ateliê] ID inválido fornecido para setPieceStatus.');
       return;
     }
-    const validStatuses = ['ready', 'order', 'suspended'];
+    const validStatuses = ['ready', 'order', 'suspended', 'reactivate'];
     if (!validStatuses.includes(newStatus)) {
       console.warn('[JËZ Ateliê] Status desconhecido fornecido para setPieceStatus:', newStatus);
       return;
@@ -679,23 +900,17 @@ const initAdmin = () => {
 
     try {
       const currentList = loadCatalog();
-      const existing = currentList.find(p => p.id === id);
-      if (!existing) {
-        showToast('Peça não encontrada no catálogo local.');
+      const res = mutatePieceStatus(currentList, id, newStatus);
+      if (!res.success) {
+        if (res.reason === 'not_found') {
+          showToast('Peça não encontrada no catálogo local.');
+        } else {
+          showToast('Não foi possível alterar o status da peça.');
+        }
         return;
       }
 
-      catalog = currentList.map(p => {
-        if (p.id === id) {
-          return {
-            ...p,
-            status: newStatus,
-            isReady: newStatus === 'ready'
-          };
-        }
-        return p;
-      });
-
+      catalog = res.catalog;
       saveCatalog(catalog, id, () => {
         const searchInput = document.getElementById('catalog-search-input');
         renderCatalog(searchInput ? searchInput.value.trim() : '');
@@ -707,7 +922,8 @@ const initAdmin = () => {
         order: 'Sob Encomenda',
         suspended: 'Suspensa (Oculta da loja)'
       };
-      showToast(`Status alterado para ${statusLabels[newStatus] || newStatus}!`);
+      const updatedStatus = res.updatedPiece ? res.updatedPiece.status : newStatus;
+      showToast(`Status alterado para ${statusLabels[updatedStatus] || updatedStatus}!`);
     } catch (err) {
       console.error('[JËZ Ateliê] Erro ao alternar status da peça:', err);
       showToast('Ocorreu um erro ao atualizar o status.');
@@ -1176,7 +1392,7 @@ const initAdmin = () => {
   if (btnCancelEdit) btnCancelEdit.addEventListener('click', closeEditModal);
   if (modalEditBackdrop) {
     modalEditBackdrop.addEventListener('click', (e) => {
-      if (e.target === modalEditBackdrop) closeEditModal();
+      handleModalBackdropClick(e, modalEditBackdrop, closeEditModal);
     });
   }
 
@@ -1360,10 +1576,21 @@ const initAdmin = () => {
         const price = Math.max(0.01, isNaN(rawPrice) ? 1.0 : rawPrice);
         const statusRadio = document.querySelector('input[name="edit-status"]:checked');
         const status = statusRadio ? statusRadio.value : 'ready';
+        const isEditingSuspended = status === 'suspended';
+        const preservedOriginal = isEditingSuspended
+          ? (existingPiece.originalStatus || (existingPiece.status !== 'suspended' ? existingPiece.status : (existingPiece.isReady ? 'ready' : (Number(existingPiece.leadTimeDays) > 0 ? 'order' : 'ready'))))
+          : status;
+
         const rawLeadTime = parseInt(document.getElementById('edit-product-leadtime')?.value, 10);
-        const leadTimeDays = status === 'order' ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0;
+        const leadTimeDays = status === 'order'
+          ? Math.max(1, Math.min(90, isNaN(rawLeadTime) ? 7 : rawLeadTime))
+          : (isEditingSuspended && preservedOriginal === 'order' ? Math.max(1, Number(existingPiece.leadTimeDays) || (isNaN(rawLeadTime) ? 7 : rawLeadTime)) : 0);
+
         const rawStock = parseInt(document.getElementById('edit-product-stock')?.value, 10);
-        const stockQty = status === 'ready' ? Math.max(0, isNaN(rawStock) ? 1 : rawStock) : 0;
+        const stockQty = status === 'ready'
+          ? Math.max(0, isNaN(rawStock) ? 1 : rawStock)
+          : (isEditingSuspended && preservedOriginal === 'ready' ? Math.max(0, Number(existingPiece.stockQty) || 1) : 0);
+
         const dimensions = sanitizeText(document.getElementById('edit-product-dimensions')?.value || '', 150);
         const materials = sanitizeText(document.getElementById('edit-product-materials')?.value || '', 200);
         const description = sanitizeText(document.getElementById('edit-product-desc')?.value || '', 800);
@@ -1390,6 +1617,7 @@ const initAdmin = () => {
               price,
               status,
               isReady: status === 'ready',
+              originalStatus: preservedOriginal,
               stockQty,
               leadTimeDays,
               dimensions,
@@ -1606,31 +1834,17 @@ const initAdmin = () => {
   }
 
   // --------------------------------------------------------------------------
-  // 13. Registro do PWA e Notificações (Noa & Alex)
+  // 13. Registro do PWA e Notificações (Noa & Alex - JEZ-035)
   // --------------------------------------------------------------------------
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(err => {
-        console.warn('[JËZ PWA] Falha no registro do Service Worker:', err);
-      });
-    });
-  }
+  const modalPwaIosBackdrop = document.getElementById('modal-pwa-ios-backdrop');
+  const closePwaIosModal = () => {
+    if (modalPwaIosBackdrop) modalPwaIosBackdrop.style.display = 'none';
+  };
 
-  let deferredInstallPrompt = null;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    const btnInstall = document.getElementById('btn-pwa-install-admin') || document.getElementById('btn-install-atelie-pwa');
-    if (btnInstall) {
-      btnInstall.style.display = 'inline-flex';
-      btnInstall.addEventListener('click', () => {
-        if (deferredInstallPrompt) {
-          deferredInstallPrompt.prompt();
-          deferredInstallPrompt = null;
-          btnInstall.style.display = 'none';
-        }
-      });
-    }
+  setupPwaLifecycle({
+    windowObj: (typeof window !== 'undefined' ? window : null),
+    documentObj: (typeof document !== 'undefined' ? document : null),
+    onToast: showToast
   });
 
   // Sincronizacao de status na nuvem (Firestore)
@@ -1717,6 +1931,19 @@ const initAdmin = () => {
 
   if (typeof window !== 'undefined') {
     initCloudSync();
+  }
+
+  // --------------------------------------------------------------------------
+  // 13.5. Acessibilidade via Teclado: Escape fecha modais ativos com segurança (JEZ-034 & JEZ-035)
+  // --------------------------------------------------------------------------
+  if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', (e) => {
+      handleModalEscapeKey(e, [
+        { element: resetOrdersModal, close: closeResetOrdersModal },
+        { element: modalEditBackdrop, close: closeEditModal },
+        { element: modalPwaIosBackdrop, close: closePwaIosModal }
+      ]);
+    });
   }
 
   // --------------------------------------------------------------------------

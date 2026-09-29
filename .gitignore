@@ -19,6 +19,8 @@
 !/.agents/**
 !/personas/
 !/personas/**
+!/docs/
+!/docs/**
 
 # Arquivos de sistema e temporarios
 .DS_Store

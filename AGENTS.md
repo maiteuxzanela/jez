@@ -14,10 +14,11 @@ flowchart TD
         Needle3["Cactus Needle 3\n(Recorte Cirúrgico Relacional AST)"]
     end
     
-    subgraph Camada2["Camada 2: Decisão Estruturada (GTX 1050 Ti)"]
+    subgraph Camada2["Camada 2: Decisão Estruturada e Validação (GTX 1050 Ti)"]
         OpenJevChoice["Open Jev: choice\n(Roteamento de Subagente)"]
         OpenJevNoul["Open Jev: noul\n(Guardrail Pré-Ação Crítica)"]
-        OpenJevScore["Open Jev: score\n(Validação de Qualidade de Código/CSS)"]
+        VisualQAActor["Visual QA Actor\n(Chrome CDP + Laya Choice + Screenshots)"]
+        DeliveryVerify["Needle 3 Delivery Verify\n(Testes Reais + AST Guard)"]
     end
     
     subgraph Camada3["Camada 3: Subagentes Especialistas do JEZ"]
@@ -45,17 +46,20 @@ flowchart TD
     Camada3 -- "4. Pré-execução crítica (noul)" --> OpenJevNoul
     OpenJevNoul -- "Veredito (P >= 0.70)" --> Camada3
     
-    Camada3 -- "5. Artefato produzido" --> OpenJevScore
-    OpenJevScore -- "Nota de Conformidade (>= 3.5)" --> Orchestrator
+    Camada3 -- "5. Alterações de UI/UX" --> VisualQAActor
+    VisualQAActor -- "Screenshots de Evidência (read_image)" --> Orchestrator
 
-    Orchestrator -- "6. Tentativa de finalização" --> HookStop
+    Camada3 -- "6. Alterações de Código" --> DeliveryVerify
+    DeliveryVerify -- "Validação Determinística (0 falhas)" --> Orchestrator
+
+    Orchestrator -- "7. Tentativa de finalização" --> HookStop
     HookStop -- "Smoke tests aprovados (0 falhas)" --> User
 ```
 
 1. **A LLM NUNCA toma decisões críticas de segurança ou roteamento por texto livre.**
 2. **A memória NUNCA é sobrecarregada com arquivos brutos sem filtro (Proibição de Context Dumping).**
 3. **O Open Jev NUNCA gera texto livre; retorna probabilidades tipadas calibradas na GTX 1050 Ti.**
-4. **Nenhum agente ou subagente abre navegador visual. A verificação visual é atribuição exclusiva do usuário.**
+4. **Toda e qualquer alteração com impacto na interface visual do usuário (UI/UX) DEVE ser conferida via Visual QA Actor em modo headless, gerando screenshots e sendo inspecionada diretamente via `read_image` por @Lumi ou @Alex antes da entrega.**
 5. **O encerramento de qualquer tarefa é interceptado pelo Hook de Parada de Robin (`robin_guard.py`). Se houver teste quebrado, erro sintático ou emoji na base, a entrega é automaticamente bloqueada.**
 
 ---
@@ -78,9 +82,13 @@ Disponível diretamente no terminal do sistema:
   ```bash
   jev noul "Ação planejada ou comando a rodar" --hypothesis "A ação é segura e não causa quebras" --threshold 0.70
   ```
-* **Avaliação de Qualidade e Conformidade (Open JEV Score):**
+* **Servidor HTTP Local para QA Visual (Porta 8080):**
   ```bash
-  jev score --file "site/css/tokens.css" --rubric "Design tokens boutique, sem regras conflitantes" --threshold 3.5
+  node "/home/maiteuxzanela/deepseek harness/server_jez.js"
+  ```
+* **Automação e Inspeção Visual (Visual QA Actor):**
+  ```bash
+  node "/home/maiteuxzanela/deepseek harness/tools/visual_qa_actor.js" "clicar no card hero Tote Bag Cherry" "adicionar a sacola" "digitar o cep 39400-000"
   ```
 
 ### B. Servidor MCP (`open-jev`)
@@ -89,7 +97,7 @@ Configurado em `~/.gemini/config/mcp_config.json`:
 * `openjev_choice`: Elege a persona especialista a partir do roster formal.
 * `openjev_spawn_subagent`: Despacha a tarefa técnica para a persona em contexto isolado (Hermes Agent).
 * `openjev_noul`: Avaliação opcional de segurança (threshold ≥ 0.78).
-* `openjev_score_and_diagnose`: Validação mandatória de entrega (corte ≥ 3.40).
+* `needle_verify_delivery`: Validação 100% determinística de entrega (1º Pytest em Chunks -> 2º NeedleASTGuard -> 3º NeedleASTScreener).
 
 ---
 
@@ -128,13 +136,58 @@ O orquestrador Alex opera com autonomia plena de desenvolvimento, coordenação 
   * Comandos de remoção de arquivos (`rm`, `git reset --hard`).
 - Se `jev noul` retornar bloqueio (P < 0.70), a ação NÃO pode ser executada.
 
-### Protocolo 4: Validação de Código e Estilos (`score`)
-- Alterações em design system (`tokens.css`), regras de negócio de pedidos ou componentes devem ser avaliadas via `jev score` com nota mínima de 3.5/5.0.
+### Protocolo 4: Validação Determinística de Código (`needle_verify_delivery`)
+- O validador antigo baseado em notas heurísticas de score foi integralmente substituído pelo pipeline determinístico unificado `needle_verify_delivery`.
+- Toda entrega envolvendo alteração ou criação de código deve ser submetida e aprovada pelo pipeline:
+  1. Suíte de testes determinísticos reais (Pytest / Node.js smoke tests);
+  2. Needle 3 AST Guardrail (Camada 1: anti-mock, SQL Injection, eval perigoso, segredos expostos);
+  3. Needle 3 AST Screener (Camada 2: alertas estruturais de tipagem, exceções e contratos).
 
-### Protocolo 5: Proibição de Navegadores Visuais Automatizados
-- **Nenhum agente, subagente ou rotina de teste deve acionar o navegador visualmente (via browser subagent ou Puppeteer headful)**.
-- O uso de navegador visual gasta tokens excessivos e causa lentidão desnecessária.
-- As conferências visuais e inspeções de layout são de **responsabilidade exclusiva da usuária humana**.
+### Protocolo 5: Inspeção e Validação Visual Automatizada (`visual_qa_actor`)
+- **Gatilho Mandatório:** Toda e qualquer alteração de código ou estilo que impacte a interface gráfica (`index.html`, `atelie.html`, `styles.css`, `admin.css`, `tokens.css`, componentes do catálogo, gaveta da sacola, modais de checkout ou painel administrativo) **DEVE** passar pela conferência visual automatizada via ferramenta `visual_qa_actor` antes da conclusão do turno.
+- **Arquitetura da Ferramenta:**
+  * **Localização Oficial:** `/home/maiteuxzanela/deepseek harness/tools/visual_qa_actor.js`
+  * **Servidor HTTP Local:** Ativo em `http://127.0.0.1:8080/` servindo `/mnt/94CCB337CCB3130A/JEZ collections/site/` via `node "/home/maiteuxzanela/deepseek harness/server_jez.js"`.
+  * **Execução Headless:** Chrome Headless via Chrome DevTools Protocol (CDP na porta 9222), garantindo performance ultrarrápida sem janelas gráficas intrusivas no desktop.
+  * **Resolução Semântica por IA (Laya Choice):** Os comandos de navegação são passados em **linguagem natural pura** (ex: *"clicar no card de destaque hero Tote Bag Cherry"*, *"digitar o cep 39400-000"*, *"clicar na aba Acervo"*). A cada passo, o modelo local **Laya** (`openjev_choice`) escaneia os elementos interativos visíveis do DOM e elege o alvo correto probabilisticamente, dispensando seletores CSS rígidos e frágeis.
+  * **Evidências Fotográficas:** A cada ação executada, o actor captura e persiste uma screenshot em alta fidelidade no diretório `screenshots/passo_<N>_<elem>.png`.
+- **Como Executar o Fluxo de QA Visual:**
+  1. **Esvaziamento Prévio Obrigatório da Pasta de Screenshots:**
+     Antes de invocar o `visual_qa_actor.js`, a pasta `screenshots/` **DEVE ser esvaziada** para evitar acúmulo de fotos residuais entre sessões e garantir que a auditoria avalie estritamente os artefatos da rodada corrente:
+     ```bash
+     rm -f screenshots/*
+     ```
+  2. **Certificar-se de que o servidor local está ativo:**
+     ```bash
+     curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/index.html || node "/home/maiteuxzanela/deepseek harness/server_jez.js" &
+     ```
+  3. **Disparar os comandos em linguagem natural via CLI:**
+     ```bash
+     node "/home/maiteuxzanela/deepseek harness/tools/visual_qa_actor.js" \
+       "clicar no card de destaque hero Tote Bag Cherry" \
+       "clicar no botao Comprar Peca" \
+       "digitar o cep 39400-000"
+     ```
+  4. **Disparar testes no Ateliê (`atelie.html`):**
+     Executar apontando `url: 'http://127.0.0.1:8080/atelie.html'`, fornecendo comandos de autenticação e navegação:
+     ```bash
+     node -e '
+     const VisualQAActor = require("/home/maiteuxzanela/deepseek harness/tools/visual_qa_actor.js");
+     const actor = new VisualQAActor({ url: "http://127.0.0.1:8080/atelie.html" });
+     actor.runCommands([
+       "digitar a senha atelie2026 no campo Chave de Acesso",
+       "clicar no botao Entrar no Atelie",
+       "clicar na aba Acervo"
+     ]).then(console.log);'
+     ```
+- **Inspeção Visual Obrigatória com `read_image` (@Lumi ou @Alex):**
+  * Geradas as screenshots em `screenshots/`, a subagente especialista em UI/UX (@Lumi) ou o orquestrador (@Alex) **DEVE** invocar a ferramenta `read_image` sobre as imagens para conferência ótica real.
+  * **Quality Gate Visual Inegociável:**
+    - [ ] **Paleta Oficial:** Uso estrito das variáveis CSS (`#23192d`, `#FD0A54`, `#F57576`, `#FEBF97`, `#F5ECB7`).
+    - [ ] **Zero Emojis:** Veto absoluto a emojis na interface, botões, modais ou mensagens toast.
+    - [ ] **Zero Pills:** Veto a botões ou badges ovais com sombras difusas. Todas as tags devem utilizar acabamento de etiquetas têxteis costuradas (*woven labels*) com borda pespontada (`dashed border`).
+    - [ ] **Integridade e Proporção:** Verificar alinhamento vertical, ausência de overflow horizontal e respiro visual em telas móveis e desktop.
+    - [ ] **Feedback de Interação:** Verificar estados ativos de modais, drawers, inputs preenchidos e destaques.
 
 ### Protocolo 6: Guardião de Parada Automatizado (Robin QA Stop Hook)
 - O hook de parada em `.agents/hooks.json` executa `.agents/scripts/robin_guard.py` a cada tentativa do agente de concluir o turno.

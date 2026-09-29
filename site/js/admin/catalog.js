@@ -281,3 +281,142 @@ export function saveCatalog(catalogList, targetProductId = null, onUpdated = nul
 
   return savedSuccessfully;
 }
+
+/**
+ * Determina o status correto para o qual uma peça suspensa deve ser reativada,
+ * preservando a modalidade de confecção original (Sob Encomenda vs Pronta Entrega).
+ * (JEZ-033: Resolução de Sobrescrita Indevida na Reativação)
+ * @param {object} piece
+ * @returns {'ready' | 'order'}
+ */
+export function determineReactivatedStatus(piece) {
+  if (!piece || typeof piece !== 'object') {
+    return 'ready';
+  }
+
+  // 1. Prioridade para modalidade original explicitamente registrada
+  if (piece.originalStatus === 'order' || piece.modality === 'order') {
+    return 'order';
+  }
+  if (piece.originalStatus === 'ready' || piece.modality === 'ready') {
+    return 'ready';
+  }
+
+  // 2. Verificação de peça padrão que é originalmente sob encomenda (RN-JEZ-001)
+  if (piece.id && Array.isArray(defaultInitialCatalog)) {
+    const defaultItem = defaultInitialCatalog.find(d => d && d.id === piece.id);
+    if (defaultItem) {
+      if (defaultItem.status === 'order' || defaultItem.isReady === false) {
+        return 'order';
+      }
+      if (defaultItem.status === 'ready' || defaultItem.isReady === true) {
+        return 'ready';
+      }
+    }
+  }
+
+  // 3. Análise da regra de confecção e prazo em dias úteis (Sob Encomenda)
+  const leadTime = Number(piece.leadTimeDays);
+  if ((leadTime > 0 && piece.isReady === false) || piece.status === 'order') {
+    return 'order';
+  }
+
+  // 4. Peças com prazo de dias positivo mesmo sem flag explícita
+  if (leadTime > 0 && (piece.stockQty === undefined || piece.stockQty === null || Number(piece.stockQty) === 0)) {
+    return 'order';
+  }
+
+  // 5. Peças com isReady explicitamente false
+  if (piece.isReady === false && (piece.stockQty === undefined || piece.stockQty === null || Number(piece.stockQty) <= 0)) {
+    return 'order';
+  }
+
+  // 6. Peças com estoque numérico explícito positivo ou isReady
+  if (piece.isReady === true || (piece.stockQty !== undefined && piece.stockQty !== null && Number(piece.stockQty) > 0)) {
+    return 'ready';
+  }
+
+  // 7. Fallback por prazo de confecção residual
+  if (leadTime > 0) {
+    return 'order';
+  }
+
+  return 'ready';
+}
+
+/**
+ * Atualiza o status de uma peça no catálogo de forma pura e defensiva,
+ * preservando a modalidade original em caso de suspensão e restaurando-a na reativação.
+ * @param {Array} catalogList
+ * @param {string} id
+ * @param {string} newStatus ('ready' | 'order' | 'suspended' | 'reactivate')
+ * @returns {{ success: boolean, catalog: Array, updatedPiece?: object, reason?: string }}
+ */
+export function mutatePieceStatus(catalogList, id, newStatus) {
+  if (!Array.isArray(catalogList)) {
+    return { success: false, reason: 'invalid_catalog_list', catalog: [] };
+  }
+  if (!id || typeof id !== 'string') {
+    return { success: false, reason: 'invalid_id', catalog: catalogList };
+  }
+  const validStatuses = ['ready', 'order', 'suspended', 'reactivate'];
+  if (!validStatuses.includes(newStatus)) {
+    return { success: false, reason: 'invalid_status', catalog: catalogList };
+  }
+
+  const existing = catalogList.find(p => p && p.id === id);
+  if (!existing) {
+    return { success: false, reason: 'not_found', catalog: catalogList };
+  }
+
+  let finalStatus = newStatus;
+  let originalStatus = existing.originalStatus;
+
+  if (newStatus === 'reactivate') {
+    finalStatus = determineReactivatedStatus(existing);
+  } else if (newStatus === 'suspended') {
+    // Ao suspender, armazena a modalidade atual antes da suspensão
+    if (existing.status !== 'suspended') {
+      originalStatus = existing.status || (existing.isReady ? 'ready' : (Number(existing.leadTimeDays) > 0 ? 'order' : 'ready'));
+    }
+  } else {
+    // Ao mudar ativamente para ready ou order, atualiza a modalidade de origem
+    originalStatus = newStatus;
+  }
+
+  let updatedPiece = null;
+  const nextCatalog = catalogList.map(p => {
+    if (p && p.id === id) {
+      const isReadyValue = finalStatus === 'ready';
+      updatedPiece = {
+        ...p,
+        status: finalStatus,
+        isReady: isReadyValue,
+        originalStatus: originalStatus || (isReadyValue ? 'ready' : 'order')
+      };
+
+      // Garante coerência dos campos segundo a modalidade final
+      if (finalStatus === 'order') {
+        updatedPiece.isReady = false;
+        if (!p.leadTimeDays || Number(p.leadTimeDays) <= 0) {
+          updatedPiece.leadTimeDays = 7;
+        }
+      } else if (finalStatus === 'ready') {
+        updatedPiece.isReady = true;
+        // Ao reativar pronta entrega que estava zerada, restaura ao menos 1 unidade disponível
+        if (newStatus === 'reactivate' && (p.stockQty === undefined || p.stockQty === null || Number(p.stockQty) <= 0)) {
+          updatedPiece.stockQty = 1;
+        }
+      }
+
+      return updatedPiece;
+    }
+    return p;
+  });
+
+  return {
+    success: true,
+    catalog: nextCatalog,
+    updatedPiece
+  };
+}
