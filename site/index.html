@@ -42,7 +42,7 @@
   <!-- Metadados de Segurança & Privacidade (Morgan - Cibersegurança & LGPD) -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://viacep.com.br https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasestorage.app;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; connect-src 'self' https://viacep.com.br https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasestorage.app;">
 
   <!-- Google Fonts: Bodoni Moda, Playfair Display & Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -313,6 +313,9 @@
         <div class="modal-img-overlay" aria-hidden="true"></div>
         <img src="" alt="" id="modal-img" width="400" height="400">
 
+        <!-- Elemento de Vídeo em Loop Otimizado (JEZ-032) -->
+        <video id="modal-video" class="modal-video-element" autoplay loop muted playsinline preload="metadata" width="400" height="400" aria-label="Vídeo dos detalhes artesanais da peça" style="display: none;"></video>
+
         <!-- Navegação e Contador de Galeria Multi-Fotos (JEZ-019) -->
         <span class="modal-photo-counter" id="modal-photo-counter" style="display: none;">1 / 1</span>
         <button type="button" class="modal-nav-btn modal-nav-prev" id="modal-btn-prev" aria-label="Foto anterior" style="display: none;">
@@ -496,6 +499,7 @@
 
   <!-- Scripts de Sincronização em Nuvem (Firebase) e Lógica da Loja -->
   <script type="module" src="firebase-service.js"></script>
+  <script type="module" src="js/services/media-performance.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

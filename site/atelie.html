@@ -32,7 +32,7 @@
   <!-- Metadados de Segurança & Privacidade (Morgan - Cibersegurança & LGPD) -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://viacep.com.br https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasestorage.app;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; connect-src 'self' https://viacep.com.br https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasestorage.app;">
 
   <!-- Google Fonts Oficiais -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -317,20 +317,28 @@
             </div>
           </div>
 
-          <!-- Fotos Complementares da Peça (Galeria Multi-Fotos - JEZ-019) -->
+          <!-- Fotos & Vídeos Complementares da Peça (Galeria Mista - JEZ-019 / JEZ-032) -->
           <div class="extra-photos-section" id="new-extra-photos-section">
             <div class="extra-photos-header">
               <label class="form-label" style="margin-bottom: 0;">
-                Fotos Complementares (Ângulos & Detalhes)
-                <span class="label-badge-optional">Opcional • até 4 fotos extras</span>
+                Mídias Complementares (Fotos & Vídeos)
+                <span class="label-badge-optional">Opcional • até 4 extras</span>
               </label>
-              <button type="button" class="btn-add-extra-photo" id="btn-add-new-extra-photo">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                Adicionar Fotos Extras
-              </button>
+              <div class="extra-photos-actions">
+                <button type="button" class="btn-add-extra-photo" id="btn-add-new-extra-photo">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  Adicionar Fotos Extras
+                </button>
+                <button type="button" class="btn-add-extra-video" id="btn-add-new-video">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"></rect><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon></svg>
+                  Adicionar Vídeo
+                </button>
+              </div>
               <input type="file" id="new-extra-photos-input" multiple accept="image/*" style="display: none;">
+              <input type="file" id="new-video-file-input" accept="video/mp4,video/webm" style="display: none;">
             </div>
-            <p class="extra-photos-hint">A foto principal acima é a Capa Oficial (1:1). As fotos extras aparecem na galeria de detalhes e na alternância ao passar o mouse.</p>
+
+            <p class="extra-photos-hint">A foto principal acima é a Capa Oficial (1:1). As fotos e vídeos extras aparecem na galeria de detalhes e na alternância ao passar o mouse.</p>
             <div class="extra-photos-grid" id="new-extra-photos-grid"></div>
           </div>
         </div>
@@ -472,11 +480,12 @@
             <div class="crop-workspace" id="edit-crop-workspace">
               <div class="crop-viewport" id="edit-crop-viewport">
                 <img src="" alt="Enquadramento da peca" id="edit-crop-source-img" class="crop-image">
-                <div class="crop-grid-overlay"></div>
+                <video id="edit-crop-source-video" class="crop-video-element" autoplay loop muted playsinline preload="metadata" style="display: none;"></video>
+                <div class="crop-grid-overlay" id="edit-crop-grid-overlay"></div>
               </div>
 
-              <div class="crop-controls">
-                <div class="zoom-control-row">
+              <div class="crop-controls" id="edit-crop-controls">
+                <div class="zoom-control-row" id="edit-zoom-controls-row">
                   <span class="zoom-label">Zoom:</span>
                   <button type="button" class="btn-zoom-step" id="btn-edit-zoom-out" title="Reduzir zoom">-</button>
                   <input type="range" id="edit-crop-zoom-slider" min="1" max="3" step="0.02" value="1" class="crop-range-slider">
@@ -490,23 +499,39 @@
                   <input type="file" id="edit-photo-input" accept="image/*" style="display: none;">
                 </div>
               </div>
+
+              <!-- Aviso visual informativo para mídia de vídeo ativa -->
+              <div class="video-active-hint" id="edit-video-active-hint" style="display: none;">
+                <span class="video-active-label">
+                  <svg class="jez-craft-icon jez-icon-video-loop" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3" ry="3"></rect><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" fill-opacity="0.25"></polygon></svg>
+                  Vídeo em loop ativo na moldura 1:1 sem áudio
+                </span>
+              </div>
             </div>
           </div>
 
-          <!-- Carrossel de Fotos na Edição (Galeria Multi-Fotos - JEZ-019) -->
+          <!-- Carrossel de Mídias na Edição (Galeria Mista - JEZ-032) -->
           <div class="extra-photos-section" id="edit-extra-photos-section">
             <div class="extra-photos-header">
               <label class="form-label" style="margin-bottom: 0;">
-                Carrossel
+                Carrossel de Mídias
                 <span class="label-badge-optional" id="edit-carousel-counter">Até 5 fotos</span>
               </label>
-              <button type="button" class="btn-add-extra-photo" id="btn-add-edit-extra-photo">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                Adicionar Foto
-              </button>
+              <div class="extra-photos-actions">
+                <button type="button" class="btn-add-extra-photo" id="btn-add-edit-extra-photo">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  Adicionar Foto
+                </button>
+                <button type="button" class="btn-add-extra-video" id="btn-add-edit-video">
+                  <svg class="jez-craft-icon jez-icon-video-loop" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3" ry="3"></rect><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" fill-opacity="0.25"></polygon></svg>
+                  Adicionar Vídeo
+                </button>
+              </div>
               <input type="file" id="edit-extra-photos-input" multiple accept="image/*" style="display: none;">
+              <input type="file" id="edit-video-file-input" accept="video/mp4,video/webm" style="display: none;">
             </div>
-            <p class="extra-photos-hint">Clique em uma miniatura para enquadrar, dar zoom ou trocar na moldura 1:1 acima. A primeira foto é a capa da vitrine.</p>
+
+            <p class="extra-photos-hint">Clique em uma miniatura para visualizar na moldura 1:1. A primeira mídia é a capa principal da vitrine.</p>
             <div class="extra-photos-grid" id="edit-extra-photos-grid"></div>
           </div>
         </div>

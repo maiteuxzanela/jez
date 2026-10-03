@@ -1,15 +1,17 @@
 /**
  * ==========================================================================
- * JEZ Collection — Componente de Card de Produto da Vitrine
+ * JEZ Collection — Componente de Card de Produto da Vitrine (JEZ-032)
  * Especialistas: Lumi (UI/UX Boutique) & Sam (E-Commerce)
+ * Supervisão: Alex (CTO) & Ariel (Direção de Arte)
  * ==========================================================================
  */
 
 import { isProductSoldOut } from '../services/products.js';
+import { isVideoUrl, hasVideoMedia } from '../services/media-performance.js';
 
 export function escapeHtml(unsafe) {
-  if (typeof unsafe !== 'string') return '';
-  return unsafe
+  if (unsafe === null || unsafe === undefined) return '';
+  return String(unsafe)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -52,12 +54,38 @@ export function createProductCardElement(p) {
   const safeName = escapeHtml(p.name);
   const safeCategory = escapeHtml(p.categoryLabel || 'Peça Autoral');
   const safeMaterials = escapeHtml(p.materials || '');
-  const safeImage = sanitizeImageUrl(p.image);
+  let primaryCandidate = p.image;
+  if (isVideoUrl(primaryCandidate)) {
+    if (p.poster) {
+      primaryCandidate = p.poster;
+    } else if (Array.isArray(p.images)) {
+      const firstStatic = p.images.find(img => !isVideoUrl(img));
+      if (firstStatic) {
+        primaryCandidate = typeof firstStatic === 'object' ? (firstStatic.poster || firstStatic.url) : firstStatic;
+      } else {
+        primaryCandidate = 'assets/products/tote_cherry.jpg';
+      }
+    } else {
+      primaryCandidate = 'assets/products/tote_cherry.jpg';
+    }
+  }
+  const safeImage = sanitizeImageUrl(primaryCandidate);
   const safeLeadTime = parseInt(p.leadTimeDays, 10) || 7;
 
   const productImages = (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.image];
-  const hasSecondary = productImages.length > 1;
-  const secondaryImage = hasSecondary ? sanitizeImageUrl(productImages[1]) : '';
+  const hasVideo = hasVideoMedia(productImages) || isVideoUrl(p.image) || Boolean(p.hasVideo) || Boolean(p.videoUrl);
+
+  let secondaryUrl = '';
+  if (productImages.length > 1) {
+    const secondaryCandidate = productImages[1];
+    if (typeof secondaryCandidate === 'object' && secondaryCandidate.poster) {
+      secondaryUrl = sanitizeImageUrl(secondaryCandidate.poster);
+    } else if (typeof secondaryCandidate === 'string' && !isVideoUrl(secondaryCandidate)) {
+      secondaryUrl = sanitizeImageUrl(secondaryCandidate);
+    }
+  }
+  const hasSecondary = Boolean(secondaryUrl);
+  const secondaryImage = secondaryUrl;
 
   let badgeHtml = '';
   if (isSoldOut) {
@@ -68,17 +96,24 @@ export function createProductCardElement(p) {
     badgeHtml = `<span class="product-badge badge-order">Sob Encomenda (${safeLeadTime}d)</span>`;
   }
 
+  const videoBadgeHtml = hasVideo
+    ? `<span class="product-badge-video" aria-label="Contém vídeo em loop dos detalhes">
+        <svg class="jez-craft-icon jez-icon-video-loop" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3" ry="3"></rect><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" fill-opacity="0.25"></polygon><line x1="6" y1="4" x2="6" y2="7"></line><line x1="6" y1="17" x2="6" y2="20"></line><line x1="18" y1="4" x2="18" y2="7"></line><line x1="18" y1="17" x2="18" y2="20"></line></svg>
+        Vídeo
+      </span>`
+    : '';
+
   const isLocalAsset = safeImage.startsWith('assets/');
   const webpCandidate = isLocalAsset ? safeImage.replace(/\.(jpg|jpeg|png)$/i, '.webp') : '';
   const imageMarkup = isLocalAsset
     ? `<picture>
-        <source srcset="${webpCandidate}" type="image/webp">
-        <img src="${safeImage}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">
+        <source srcset="${escapeHtml(webpCandidate)}" type="image/webp">
+        <img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">
       </picture>`
-    : `<img src="${safeImage}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">`;
+    : `<img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">`;
 
   const secondaryMarkup = hasSecondary
-    ? `<img src="${secondaryImage}" class="product-img-secondary" alt="${safeName} - Detalhe" loading="lazy" width="400" height="400">`
+    ? `<img src="${escapeHtml(secondaryImage)}" class="product-img-secondary" alt="${safeName} - Detalhe" loading="lazy" width="400" height="400">`
     : '';
 
   const btnBuyHtml = isSoldOut
@@ -90,11 +125,12 @@ export function createProductCardElement(p) {
         Comprar
       </button>`;
 
-  card.innerHTML = `
+  const cardContent = `
     <div class="product-image-wrap ${hasSecondary ? 'has-secondary-image' : ''}" data-action="quickview" data-id="${safeId}">
       ${imageMarkup}
       ${secondaryMarkup}
       ${badgeHtml}
+      ${videoBadgeHtml}
       <button type="button" class="quick-view-overlay-btn" title="Visualizar detalhes" aria-label="Visualizar ${safeName}" data-action="quickview" data-id="${safeId}">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
       </button>
@@ -109,6 +145,7 @@ export function createProductCardElement(p) {
       </div>
     </div>
   `;
+  card.innerHTML = cardContent;
 
   return card;
 }

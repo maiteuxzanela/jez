@@ -37,6 +37,8 @@ Qualquer alteração ou inclusão neste catálogo deve ser submetida via `docs/D
 | [`RN-JEZ-011`](#rn-jez-011-privacidade-lgpd-e-minimizacao-de-dados) | Minimização de Dados (LGPD) e Zero Persistência PCI | Privacidade & Legal | Crítica |
 | [`RN-JEZ-012`](#rn-jez-012-governanca-estetica-anti-ia-e-tokens-oficiais) | Diretrizes Anti-IA (Zero Emojis, Zero Pills, Woven Tags) | Design System & UI | Crítica |
 | [`RN-JEZ-013`](#rn-jez-013-resiliencia-de-consulta-de-cep-e-fallback-regional) | Fallback de CEP e Logística Regional (Montes Claros) | Frete & Integrações | Média |
+| [`RN-JEZ-014`](#rn-jez-014-galeria-mista-e-diretrizes-esteticas-de-video-em-loop) | Galeria Mista e Diretrizes Estéticas de Vídeo em Loop | Design & Mídia | Alta |
+| [`RN-JEZ-015`](#rn-jez-015-arquitetura-de-performance-quotas-e-lazy-loading-de-video) | Performance, Quotas do Storage e Lazy Loading de Vídeo | Performance & Infra | Crítica |
 
 ---
 
@@ -324,3 +326,50 @@ Qualquer alteração ou inclusão neste catálogo deve ser submetida via `docs/D
   * `site/app.js`
 * **Testes Associados:**
   * `site/tests/smoke_test.js` — Seção 16.
+
+---
+
+### RN-JEZ-014: Galeria Mista e Diretrizes Estéticas de Vídeo em Loop
+
+* **ID & Título:** `RN-JEZ-014` — Galeria Mista e Diretrizes Estéticas de Vídeo em Loop.
+* **Invariante (O que NUNCA pode acontecer):**  
+  Vídeos em loop na vitrine ou no catálogo **NUNCA** podem conter faixa de áudio ativa ou emitir som automático. **NUNCA** devem utilizar emojis (ex: 🎬, 📹, ▶️) ou botões pílula flutuantes para indicar reprodução ou mídia mista. Vídeos não devem exceder o limite de 8 segundos para preservar cotas de tráfego e foco tátil.
+* **Critério de Aceite / Fluxo Válido:**
+  * Vídeos devem possuir duração recomendada entre 3 e 8 segundos, gravados em loop contínuo e silencioso (`muted`, `loop`, `playsinline`).
+  * Indicadores de vídeo nos cards e miniaturas devem utilizar acabamento de etiqueta de ateliê pespontada (`dashed border`) com cantos retos suavizados (`border-radius: 4px` a `6px`) e ícones monocromáticos vetoriais SVG (`currentColor`).
+  * As miniaturas de vídeo na galeria Quick View exibem selo artesanal discreto de identificação.
+  * Diretrizes de gravação e tokens oficiais definidos em `docs/DESIGN_VIDEO_GUIDELINES.md` e `site/css/tokens.css`.
+* **Casos de Borda & Exceções:**
+  * Navegadores com restrição de autoplay: o vídeo permanece com poster estático com ícone vetorial de reprodução artesanal aguardando interação do usuário.
+* **Arquivos/Módulos Relacionados:**
+  * `docs/DESIGN_VIDEO_GUIDELINES.md`
+  * `site/css/tokens.css`
+  * `site/styles.css`
+  * `site/js/components/quick-view.js`
+  * `site/js/components/product-card.js`
+* **Testes Associados:**
+  * `site/tests/smoke_test.js` — Seções 2, 6, 7 e 23.
+
+---
+
+### RN-JEZ-015: Arquitetura de Performance, Quotas e Lazy Loading de Vídeo
+
+* **ID & Título:** `RN-JEZ-015` — Arquitetura de Performance, Quotas do Storage e Lazy Loading de Vídeo.
+* **Invariante (O que NUNCA pode acontecer):**  
+  Um arquivo de vídeo com tamanho superior a **4 MB** **NUNCA** pode ser aceito ou enviado para o Firebase Storage no painel do Ateliê. Vídeos na vitrine pública (`index.html`) **NUNCA** podem ser baixados em massa sem interação ou utilizar `preload="auto"`. Um elemento de vídeo **NUNCA** pode ser renderizado sem os atributos obrigatórios de performance e acessibilidade (`autoplay loop muted playsinline preload="metadata"` e `poster`), e **NUNCA** pode causar Cumulative Layout Shift (CLS >= 0.1). O fechamento do modal ou a alternância de mídia **NUNCA** pode deixar o vídeo em reprodução em segundo plano drenando dados e cotas de download do Firebase Storage.
+* **Critério de Aceite / Fluxo Válido:**
+  * O validador client-side (`validateVideoUploadQuota`) bloqueia preventivamente arquivos maiores que 4 MB (limite estrito para salvaguarda da cota Spark diária de 1 GB).
+  * A vitrine consome exclusivamente pôsteres estáticos leves (WebP/JPEG), exibindo a etiqueta pespontada `.product-badge-video` desenhada pela direção de arte.
+  * O modal Quick View instancia o vídeo HTML5 sob demanda com `preload="metadata"`, `autoplay`, `loop`, `muted`, `playsinline` e pôster de fallback imediato.
+  * O container e o elemento de vídeo possuem proporção fixa 1:1 (`aspect-ratio: 1 / 1; width: 100%; height: 100%; object-fit: cover;`), garantindo CLS rigorosamente inferior a 0.1.
+  * Ao fechar o Quick View ou alternar para outra foto da galeria, a rotina `cleanupVideoPlayback` pausa a reprodução imediatamente e descarrega a retenção de buffer.
+  * Respeito estrito à preferência do sistema operacional para redução de movimento (`prefers-reduced-motion: reduce`) e economia de dados (`Save-Data`).
+* **Casos de Borda & Exceções:**
+  * Navegadores com políticas restritivas de autoplay ou conexões 3G com economia de dados ativada: o vídeo exibe o poster estático preservando o layout até interação do usuário.
+* **Arquivos/Módulos Relacionados:**
+  * `docs/VIDEO_PERFORMANCE_QUOTAS.md`
+  * `site/js/services/media-performance.js`
+  * `site/js/components/quick-view.js`
+  * `site/js/admin/catalog.js`
+* **Testes Associados:**
+  * `site/tests/smoke_test.js` — Seção 34 (JEZ-032).

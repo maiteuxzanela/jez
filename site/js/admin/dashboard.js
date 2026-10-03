@@ -79,6 +79,17 @@ export function renderDashboard(elements, params) {
       return;
     }
 
+    const defaultEscape = (unsafe) => {
+      if (unsafe === null || unsafe === undefined) return '';
+      return String(unsafe)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+    const safeEscape = typeof escapeHtml === 'function' ? escapeHtml : defaultEscape;
+
     metrics.recentOrders.forEach(order => {
       const itemRow = document.createElement('div');
       itemRow.className = 'recent-order-item';
@@ -87,27 +98,29 @@ export function renderDashboard(elements, params) {
       itemRow.setAttribute('data-order-id', order.id);
 
       const statusMeta = typeof getStatusMeta === 'function' ? getStatusMeta(order.status, order, catalog) : { label: order.status };
-      const safeId = typeof escapeHtml === 'function' ? escapeHtml(order.id) : order.id;
-      const safeCustomer = typeof escapeHtml === 'function' ? escapeHtml((order.customer || '').split(' ')[0]) : (order.customer || '').split(' ')[0];
-      const safeStatus = typeof escapeHtml === 'function' ? escapeHtml(order.status) : order.status;
+      const safeId = safeEscape(order.id);
+      const safeCustomer = safeEscape((order.customer || '').split(' ')[0]);
+      const safeStatus = safeEscape(order.status);
+      const safeStatusLabel = typeof escapeHtml === 'function' ? escapeHtml(statusMeta.label) : defaultEscape(statusMeta.label);
       const formattedTotal = typeof formatCurrency === 'function' ? formatCurrency(order.total) : order.total;
 
       const customerLabel = safeCustomer ? ` de ${safeCustomer}` : '';
       itemRow.setAttribute('aria-label', `Ver detalhes do pedido ${safeId}${customerLabel}`);
 
-      itemRow.innerHTML = `
+      const rowMarkup = `
         <div class="recent-order-main">
           <span class="recent-order-id">${safeId}</span>
           <span class="recent-order-customer">${safeCustomer}</span>
         </div>
         <div class="recent-order-meta">
-          <span class="status-tag status-${safeStatus}">${statusMeta.label}</span>
+          <span class="status-tag status-${safeStatus}">${safeStatusLabel}</span>
           <strong class="recent-order-total">${formattedTotal}</strong>
           <svg class="recent-order-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
         </div>
       `;
+      itemRow.innerHTML = rowMarkup;
 
       const triggerNavigation = () => {
         if (typeof onNavigateOrder === 'function') {

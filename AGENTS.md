@@ -28,7 +28,6 @@ flowchart TD
         Cris["@Cris (Painel Lojista Admin)"]
         Morgan["@Morgan (Segurança & LGPD)"]
         Noa["@Noa (Performance Web & SEO)"]
-        Robin["@Robin (QA & Testes E2E)"]
     end
 
     subgraph Gates["Governança Nativa & Hooks de Conclusão"]
@@ -60,7 +59,7 @@ flowchart TD
 2. **A memória NUNCA é sobrecarregada com arquivos brutos sem filtro (Proibição de Context Dumping).**
 3. **O Open Jev NUNCA gera texto livre; retorna probabilidades tipadas calibradas na GTX 1050 Ti.**
 4. **Toda e qualquer alteração com impacto na interface visual do usuário (UI/UX) DEVE ser conferida via Visual QA Actor em modo headless, gerando screenshots e sendo inspecionada diretamente via `read_image` por @Lumi ou @Alex antes da entrega.**
-5. **O encerramento de qualquer tarefa é interceptado pelo Hook de Parada de Robin (`robin_guard.py`). Se houver teste quebrado, erro sintático ou emoji na base, a entrega é automaticamente bloqueada.**
+5. **O encerramento de qualquer tarefa é interceptado pelo Hook de Parada de Qualidade (`robin_guard.py`). Se houver teste quebrado, erro sintático ou emoji na base, a entrega é automaticamente bloqueada.**
 
 ---
 
@@ -95,7 +94,6 @@ Disponível diretamente no terminal do sistema:
 Configurado em `~/.gemini/config/mcp_config.json`:
 * `needle3_search`: Retorna blocos AST relacionais cirúrgicos (500 a 1.200 tokens).
 * `openjev_choice`: Elege a persona especialista a partir do roster formal.
-* `openjev_spawn_subagent`: Despacha a tarefa técnica para a persona em contexto isolado (Hermes Agent).
 * `openjev_noul`: Avaliação opcional de segurança (threshold ≥ 0.78).
 * `needle_verify_delivery`: Validação 100% determinística de entrega (1º Pytest em Chunks -> 2º NeedleASTGuard -> 3º NeedleASTScreener).
 
@@ -103,18 +101,18 @@ Configurado em `~/.gemini/config/mcp_config.json`:
 
 ## 3. Matriz de Especialistas (Subagentes da JEZ Collection)
 
-O orquestrador Alex opera com autonomia plena de desenvolvimento, coordenação e refatoração. O roteamento obrigatório inicial está suspenso: Alex pode editar arquivos de código diretamente e acionar os subagentes sob demanda ao longo da tarefa via `openjev_spawn_subagent` quando conveniente.
+O orquestrador Alex opera com autonomia plena de desenvolvimento, coordenação e refatoração. Em conformidade com as Diretrizes Globais (~/.dsh/AGENTS.md), quando a tarefa exigir colaboração entre múltiplos especialistas, ela opera compulsoriamente via plugin **AgentTeams** com DAG e mailbox durável.
 
 | Subagente | Arquivo de Persona | Especialidade Principal | Quando Acionar |
 | :--- | :--- | :--- | :--- |
 | **@Alex** | [`./personas/alex_cto.md`](./personas/alex_cto.md) | CTO & Arquiteto Líder | Arquitetura geral, code reviews, decisões estruturais e coordenação técnica. |
 | **@Ariel** | [`./personas/ariel_brand_art_direction.md`](./personas/ariel_brand_art_direction.md) | Direção de Arte & Craft Design | Identidade visual artesanal, texturas têxteis e combate ao design genérico de IA. |
-| **@Lumi** | [`./personas/lumi_ui_ux_frontend.md`](./personas/lumi_ui_ux_frontend.md) | UI/UX & Frontend Boutique | Design system, tokens de CSS, componentes mobile-first e micro-interações. |
-| **@Sam** | [`./personas/sam_ecommerce_payments.md`](./personas/sam_ecommerce_payments.md) | E-Commerce & Checkout | Regras de frete (Correios/Melhor Envio), pronta entrega vs encomenda e Pix/Cartão. |
+| **@Lumi** | [`./personas/lumi_ui_ux_frontend.md`](./personas/lumi_ui_ux_frontend.md) | UI/UX & Frontend Boutique | Design system, tokens de CSS, componentes mobile-first, micro-interações e testes visuais. |
+| **@Sam** | [`./personas/sam_ecommerce_payments.md`](./personas/sam_ecommerce_payments.md) | E-Commerce & Checkout | Regras de frete (Correios/Melhor Envio), pronta entrega vs encomenda, Pix/Cartão e testes de fluxo. |
 | **@Cris** | [`./personas/cris_admin_merchant.md`](./personas/cris_admin_merchant.md) | Experiência do Lojista (Admin) | Painel simplificado da Jéssica, fluxo de status de pedidos e usabilidade no celular. |
 | **@Morgan** | [`./personas/morgan_security_privacy.md`](./personas/morgan_security_privacy.md) | Cibersegurança & LGPD | Blindagem de Firestore rules, tokenização PCI-DSS e proteção de PII de clientes. |
 | **@Noa** | [`./personas/noa_performance_seo.md`](./personas/noa_performance_seo.md) | Performance & SEO | Core Web Vitals, otimização de imagens de alta resolução e Open Graph social. |
-| **@Robin** | [`./personas/robin_qa_regression.md`](./personas/robin_qa_regression.md) | QA & Guardião de Testes | Testes E2E, suíte de regressão (smoke_test.js) e guardião de paradas. |
+| *(Arquivo)* **@Robin** | [`./personas/robin_qa_regression.md`](./personas/robin_qa_regression.md) | *[Descontinuada / Integrada]* | Suíte de regressão (smoke_test.js) transferida para os desenvolvedores e validada via needle_verify_delivery. |
 
 ---
 
@@ -126,8 +124,8 @@ O orquestrador Alex opera com autonomia plena de desenvolvimento, coordenação 
   * `max_tokens`: Entre **500 e 1.200 tokens**.
   * `scope`: Especificar os arquivos alvo para não inflacionar o grafo.
 
-### Protocolo 2: Despacho de Subagentes Sob Demanda (`openjev_spawn_subagent`)
-- O orquestrador tem autonomia para desenvolver e refatorar diretamente, podendo acionar subagentes sob demanda via `openjev_spawn_subagent` quando precisar de contexto limpo ou execução pontual de especialistas (ex: @Robin para regressões, @Lumi para design/componentes).
+### Protocolo 2: Orquestração de Squad via AgentTeams
+- O orquestrador tem autonomia para desenvolver e refatorar diretamente. Sempre que houver demanda por debate ou colaboração de squad (ex: @Lumi para design/componentes, @Sam para checkout/pagamentos), deve instanciar a equipe via plugin **AgentTeams** com DAG e mailbox durável.
 
 ### Protocolo 3: Guardrail de Pré-Execução Crítica (`noul`)
 - **Ações Críticas Obrigatórias para Bloqueio:**
@@ -189,7 +187,7 @@ O orquestrador Alex opera com autonomia plena de desenvolvimento, coordenação 
     - [ ] **Integridade e Proporção:** Verificar alinhamento vertical, ausência de overflow horizontal e respiro visual em telas móveis e desktop.
     - [ ] **Feedback de Interação:** Verificar estados ativos de modais, drawers, inputs preenchidos e destaques.
 
-### Protocolo 6: Guardião de Parada Automatizado (Robin QA Stop Hook)
+### Protocolo 6: Guardião de Parada Automatizado (Quality Stop Hook)
 - O hook de parada em `.agents/hooks.json` executa `.agents/scripts/robin_guard.py` a cada tentativa do agente de concluir o turno.
 - O hook valida automaticamente:
   1. Se algum arquivo em `site/` foi alterado.

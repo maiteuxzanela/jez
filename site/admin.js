@@ -69,6 +69,55 @@ import {
   renderDashboard
 } from './js/admin/dashboard.js';
 
+import {
+  isVideoUrl,
+  hasVideoMedia,
+  validateVideoUploadQuota,
+  cleanupVideoPlayback
+} from './js/services/media-performance.js';
+
+/**
+ * Validação de URL de vídeo compatível com as regras do Ateliê (JEZ-032)
+ * Suporta .mp4, .webm, data:video, blob: e URLs seguras do Firebase Storage.
+ * @param {string} url
+ * @returns {boolean}
+ */
+function isValidVideoUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+
+  // Neutraliza esquemas perigosos
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('data:text/') ||
+    lower.startsWith('vbscript:')
+  ) {
+    return false;
+  }
+
+  if (lower.startsWith('data:video/')) return true;
+  if (lower.startsWith('blob:')) return true;
+
+  const isHttp = lower.startsWith('https://') || lower.startsWith('http://');
+  const isLocalAsset = lower.startsWith('assets/') || lower.startsWith('./assets/') || lower.startsWith('/assets/');
+  if (!isHttp && !isLocalAsset) return false;
+
+  const isFirebaseStorage =
+    lower.includes('firebasestorage.googleapis.com') ||
+    lower.includes('storage.googleapis.com') ||
+    lower.includes('firebasestorage.app');
+
+  const hasVideoExtension = /\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i.test(trimmed);
+
+  if (isFirebaseStorage) {
+    return hasVideoExtension || lower.includes('alt=media') || lower.includes('mediatype=video');
+  }
+
+  return hasVideoExtension;
+}
+
 // Utilitários de Gestão Segura de Modais e Acessibilidade (JEZ-034)
 /**
  * Trata o clique no backdrop de modais para fechamento seguro (JEZ-034)
@@ -133,7 +182,12 @@ export {
   validateOrderStatusTransition,
   updateOrderInList,
   calculateDashboardMetrics,
-  renderDashboard
+  renderDashboard,
+  isValidVideoUrl,
+  isVideoUrl,
+  hasVideoMedia,
+  validateVideoUploadQuota,
+  cleanupVideoPlayback
 };
 
 /**
@@ -339,6 +393,7 @@ const initAdmin = () => {
       trimmed.startsWith('./assets/') ||
       trimmed.startsWith('/assets/') ||
       trimmed.startsWith('data:image/') ||
+      trimmed.startsWith('data:video/') ||
       trimmed.startsWith('https://') ||
       trimmed.startsWith('http://') ||
       trimmed.startsWith('blob:')
@@ -522,14 +577,12 @@ const initAdmin = () => {
 
     if (filtered.length === 0) {
       const emptyHtml = currentOrderFilter === 'all'
-        ? `<p style="font-size: 0.95rem; font-weight: 700; color: var(--color-bg-light);">Nenhum pedido registrado ainda.</p>
-           <p style="font-size: 0.82rem; margin-top: 6px; color: rgba(245, 236, 183, 0.65);">Assim que um cliente concluir o pedido na vitrine, ele aparecerá aqui em tempo real.</p>`
-        : `<p style="font-size: 0.95rem; font-weight: 700; color: var(--color-bg-light);">Nenhum pedido encontrado nesta categoria.</p>`;
-      container.innerHTML = `
-        <div style="text-align: center; padding: 40px 20px; color: rgba(245, 236, 183, 0.75); background: var(--admin-card-bg); border-radius: var(--radius-sm); border: var(--admin-card-border);">
-          ${emptyHtml}
-        </div>
-      `;
+        ? '<p style="font-size: 0.95rem; font-weight: 700; color: var(--color-bg-light);">Nenhum pedido registrado ainda.</p><p style="font-size: 0.82rem; margin-top: 6px; color: rgba(245, 236, 183, 0.65);">Assim que um cliente concluir o pedido na vitrine, ele aparecerá aqui em tempo real.</p>'
+        : '<p style="font-size: 0.95rem; font-weight: 700; color: var(--color-bg-light);">Nenhum pedido encontrado nesta categoria.</p>';
+      const box = document.createElement('div');
+      box.style.cssText = 'text-align: center; padding: 40px 20px; color: rgba(245, 236, 183, 0.75); background: var(--admin-card-bg); border-radius: var(--radius-sm); border: var(--admin-card-border);';
+      box.innerHTML = emptyHtml;
+      container.appendChild(box);
       return;
     }
 
@@ -581,7 +634,7 @@ const initAdmin = () => {
         actionButtons = `<button class="btn-status-change btn-order-action status-action-green" data-id="${escapeHtml(order.id)}" data-newstatus="concluido">Marcar Entregue</button>`;
       }
 
-      card.innerHTML = `
+      const cardContent = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
           <div>
             <strong style="font-size: 0.95rem; color: var(--color-bg-light);">${escapeHtml(order.id)}</strong>
@@ -590,7 +643,7 @@ const initAdmin = () => {
             ${customerContact}
             ${deliveryAddress}
           </div>
-          <span class="status-tag status-${escapeHtml(order.status)}">${statusMeta.label}</span>
+          <span class="status-tag status-${escapeHtml(order.status)}">${escapeHtml(statusMeta.label)}</span>
         </div>
         <div style="font-size: 0.82rem; margin: 8px 0; border-top: 1px dashed rgba(254, 191, 151, 0.2); border-bottom: 1px dashed rgba(254, 191, 151, 0.2); padding: 8px 0;">
           ${itemsHtml}
@@ -604,6 +657,7 @@ const initAdmin = () => {
           <div>${actionButtons}</div>
         </div>
       `;
+      card.innerHTML = cardContent;
       container.appendChild(card);
     });
 
@@ -808,11 +862,7 @@ const initAdmin = () => {
     }
 
     if (filtered.length === 0) {
-      grid.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: rgba(245, 236, 183, 0.75); background: var(--admin-card-bg); border-radius: var(--radius-sm); border: var(--admin-card-border);">
-          <p style="font-weight: 700;">Nenhuma peça encontrada neste filtro.</p>
-        </div>
-      `;
+      grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: rgba(245, 236, 183, 0.75); background: var(--admin-card-bg); border-radius: var(--radius-sm); border: var(--admin-card-border);"><p style="font-weight: 700;">Nenhuma peça encontrada neste filtro.</p></div>';
       return;
     }
 
@@ -855,8 +905,8 @@ const initAdmin = () => {
       const safeImage = sanitizeImageUrl(piece.image);
       const safeLeadTime = parseInt(piece.leadTimeDays, 10) || 7;
 
-      card.innerHTML = `
-        <img src="${safeImage}" alt="${safeName}" class="admin-product-thumb">
+      const cardContent = `
+        <img src="${escapeHtml(safeImage)}" alt="${safeName}" class="admin-product-thumb">
         <div class="admin-product-details">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;">
             <span class="admin-product-name" title="${safeName}">${safeName}</span>
@@ -868,6 +918,12 @@ const initAdmin = () => {
               <span class="badge-catalog-photos" title="${piece.images.length} fotos cadastradas">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
                 ${piece.images.length} fotos
+              </span>
+            ` : ''}
+            ${(hasVideoMedia(piece.images) || isVideoUrl(piece.image) || (piece.video && isVideoUrl(piece.video))) ? `
+              <span class="badge-catalog-video" title="Contém vídeo em loop">
+                <svg class="jez-craft-icon jez-icon-video-loop" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3" ry="3"></rect><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" fill-opacity="0.25"></polygon></svg>
+                Vídeo
               </span>
             ` : ''}
           </div>
@@ -887,6 +943,7 @@ const initAdmin = () => {
           </div>
         </div>
       `;
+      card.innerHTML = cardContent;
 
       grid.appendChild(card);
     });
@@ -1079,10 +1136,44 @@ const initAdmin = () => {
     newPieceExtraPhotos.forEach((src, idx) => {
       const item = document.createElement('div');
       item.className = 'extra-photo-thumb';
-      item.innerHTML = `
-        <img src="${sanitizeImageUrl(src)}" alt="Foto extra ${idx + 1}" />
-        <button type="button" class="btn-remove-thumb" data-idx="${idx}">&times;</button>
-      `;
+
+      const isVideo = isVideoUrl(src);
+      const safeSrc = sanitizeImageUrl(src);
+
+      if (isVideo) {
+        item.classList.add('is-video');
+        const video = document.createElement('video');
+        video.src = safeSrc;
+        video.muted = true;
+        video.playsInline = true;
+        video.preload = 'metadata';
+        video.style.cssText = 'width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-xs);';
+
+        const overlay = document.createElement('span');
+        overlay.className = 'video-thumb-play-overlay';
+        overlay.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="8 5 19 12 8 19 8 5"/></svg>';
+
+        const badge = document.createElement('span');
+        badge.className = 'video-thumb-badge';
+        badge.textContent = 'Vídeo';
+
+        item.appendChild(video);
+        item.appendChild(overlay);
+        item.appendChild(badge);
+      } else {
+        const img = document.createElement('img');
+        img.src = sanitizeImageUrl(src);
+        img.alt = `Foto extra ${idx + 1}`;
+        item.appendChild(img);
+      }
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-remove-thumb';
+      btn.setAttribute('data-idx', String(idx));
+      btn.textContent = '\u00D7';
+
+      item.appendChild(btn);
       newExtraPhotosGrid.appendChild(item);
     });
     newExtraPhotosGrid.querySelectorAll('.btn-remove-thumb').forEach(btn => {
@@ -1093,6 +1184,55 @@ const initAdmin = () => {
       });
     });
   };
+
+  // Suporte a Vídeo em Nova Peça (1 clique direto na galeria - JEZ-032)
+  const btnAddNewVideo = document.getElementById('btn-add-new-video');
+  const newVideoFileInput = document.getElementById('new-video-file-input');
+
+  if (btnAddNewVideo && newVideoFileInput) {
+    btnAddNewVideo.addEventListener('click', () => {
+      if (newPieceExtraPhotos.length >= 4) {
+        showToast('Limite de 4 mídias complementares atingido.');
+        return;
+      }
+      newVideoFileInput.click();
+    });
+  }
+
+  if (newVideoFileInput) {
+    newVideoFileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const quotaCheck = validateVideoUploadQuota(file);
+      if (!quotaCheck.valid) {
+        showToast(quotaCheck.error || 'Arquivo excede a cota permitida.');
+        newVideoFileInput.value = '';
+        return;
+      }
+
+      if (file.size > 800 * 1024) {
+        showToast('Para vídeos salvos direto no catálogo, utilize arquivos de até 800 KB para manter o sistema ágil.');
+        newVideoFileInput.value = '';
+        return;
+      }
+
+      if (newPieceExtraPhotos.length >= 4) {
+        showToast('Limite de 4 mídias complementares atingido.');
+        newVideoFileInput.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        newPieceExtraPhotos.push(event.target.result);
+        renderNewExtraPhotos();
+        showToast(`Vídeo (${quotaCheck.sizeMb} MB) adicionado com sucesso!`);
+      };
+      reader.readAsDataURL(file);
+      newVideoFileInput.value = '';
+    });
+  }
 
   // Alternância Pronta Entrega vs Sob Encomenda
   const modalityOptions = document.querySelectorAll('.modality-option');
@@ -1232,25 +1372,71 @@ const initAdmin = () => {
     if (!current) return;
 
     const titleLabel = document.getElementById('edit-crop-title-label');
+    const isVideo = isVideoUrl(current.url);
+
     if (titleLabel) {
-      titleLabel.textContent = current.isCover
-        ? 'Foto da Peça (Moldura 1:1) — Capa Principal'
-        : `Foto ${activeCarouselIdx + 1} do Carrossel (Moldura 1:1)`;
+      if (isVideo) {
+        titleLabel.textContent = current.isCover
+          ? 'Vídeo da Peça (Moldura 1:1) — Capa Principal'
+          : `Vídeo ${activeCarouselIdx + 1} do Carrossel (Moldura 1:1)`;
+      } else {
+        titleLabel.textContent = current.isCover
+          ? 'Foto da Peça (Moldura 1:1) — Capa Principal'
+          : `Foto ${activeCarouselIdx + 1} do Carrossel (Moldura 1:1)`;
+      }
     }
 
-    await editPieceCropper.loadImage(current.url);
-    if (current.isModified && current.zoom) {
-      editPieceCropper.setState({
-        zoom: current.zoom,
-        offsetX: current.offsetX,
-        offsetY: current.offsetY
-      });
+    const editCropSourceImg = document.getElementById('edit-crop-source-img');
+    const editCropSourceVideo = document.getElementById('edit-crop-source-video');
+    const editCropGridOverlay = document.getElementById('edit-crop-grid-overlay');
+    const editCropControls = document.getElementById('edit-crop-controls');
+    const editVideoActiveHint = document.getElementById('edit-video-active-hint');
+
+    if (isVideo) {
+      if (editCropSourceImg) editCropSourceImg.style.display = 'none';
+      if (editCropGridOverlay) editCropGridOverlay.style.display = 'none';
+      if (editCropControls) editCropControls.style.display = 'none';
+      if (editVideoActiveHint) editVideoActiveHint.style.display = 'block';
+
+      if (editCropSourceVideo) {
+        editCropSourceVideo.src = current.url;
+        editCropSourceVideo.style.display = 'block';
+        try {
+          const playPromise = editCropSourceVideo.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(e => {
+              console.debug('[JËZ Ateliê] Autoplay silenciado de vídeo na prévia do carrossel:', e);
+            });
+          }
+        } catch (e) {
+          console.debug('[JËZ Ateliê] Exceção defensiva na prévia de vídeo:', e);
+        }
+      }
+    } else {
+      if (editCropSourceVideo) {
+        cleanupVideoPlayback(editCropSourceVideo);
+        editCropSourceVideo.style.display = 'none';
+      }
+      if (editCropSourceImg) editCropSourceImg.style.display = 'block';
+      if (editCropGridOverlay) editCropGridOverlay.style.display = 'block';
+      if (editCropControls) editCropControls.style.display = 'block';
+      if (editVideoActiveHint) editVideoActiveHint.style.display = 'none';
+
+      await editPieceCropper.loadImage(current.url);
+      if (current.isModified && current.zoom) {
+        editPieceCropper.setState({
+          zoom: current.zoom,
+          offsetX: current.offsetX,
+          offsetY: current.offsetY
+        });
+      }
     }
   };
 
   const saveActivePhotoCropState = () => {
     if (!editCarouselItems || !editCarouselItems[activeCarouselIdx]) return;
     const current = editCarouselItems[activeCarouselIdx];
+    if (isVideoUrl(current.url)) return; // Reenquadramento em canvas aplica-se estritamente a fotos estáticas
     const st = editPieceCropper.getState();
     const changed = st.zoom !== 1 || st.offsetX !== 0 || st.offsetY !== 0 || current.isModified;
     if (changed) {
@@ -1278,24 +1464,44 @@ const initAdmin = () => {
     editExtraPhotosGrid.innerHTML = '';
 
     editCarouselItems.forEach((item, idx) => {
+      const isVideo = isVideoUrl(item.url);
       const thumb = document.createElement('div');
-      thumb.className = `extra-photo-thumb ${idx === activeCarouselIdx ? 'active-thumb' : ''} ${item.isCover ? 'is-cover' : ''}`;
+      thumb.className = `extra-photo-thumb ${idx === activeCarouselIdx ? 'active-thumb' : ''} ${item.isCover ? 'is-cover' : ''} ${isVideo ? 'is-video' : ''}`;
       thumb.setAttribute('data-idx', String(idx));
-      thumb.setAttribute('title', `Foto ${idx + 1} (${item.isCover ? 'Capa' : 'Carrossel'}) — Clique para enquadrar 1:1`);
+      thumb.setAttribute('title', isVideo
+        ? `Vídeo ${idx + 1} (${item.isCover ? 'Capa' : 'Carrossel'}) — Clique para visualizar na moldura 1:1`
+        : `Foto ${idx + 1} (${item.isCover ? 'Capa' : 'Carrossel'}) — Clique para enquadrar 1:1`
+      );
 
       const safeUrl = sanitizeImageUrl(item.url);
       const badgeText = item.isCover ? 'Capa' : `${idx + 1}`;
       const removeBtn = !item.isCover ? `
-        <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover foto do carrossel" title="Remover foto">
+        <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover do carrossel" title="Remover mídia">
           <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       ` : '';
 
-      thumb.innerHTML = `
-        <img src="${safeUrl}" alt="Foto ${idx + 1}">
-        <span class="carousel-thumb-badge">${badgeText}</span>
-        ${removeBtn}
-      `;
+      let thumbContent = '';
+      if (isVideo) {
+        thumbContent = `
+          <video src="${escapeHtml(safeUrl)}" preload="metadata" muted playsinline></video>
+          <span class="video-thumb-play-overlay" aria-hidden="true">
+            <svg class="jez-craft-icon jez-icon-play-craft" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+          </span>
+          <span class="carousel-thumb-badge video-thumb-badge">
+            <svg class="jez-craft-icon jez-icon-video-loop" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3" ry="3"></rect><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"></polygon></svg>
+            ${badgeText}
+          </span>
+          ${removeBtn}
+        `;
+      } else {
+        thumbContent = `
+          <img src="${escapeHtml(safeUrl)}" alt="Foto ${idx + 1}">
+          <span class="carousel-thumb-badge">${badgeText}</span>
+          ${removeBtn}
+        `;
+      }
+      thumb.innerHTML = thumbContent;
 
       thumb.addEventListener('click', (e) => {
         if (e.target.closest('.btn-remove-extra-photo')) return;
@@ -1310,14 +1516,15 @@ const initAdmin = () => {
       counterEl.textContent = `${editCarouselItems.length}/5 fotos`;
     }
 
+    const isFull = editCarouselItems.length >= 5;
     if (btnAddEditExtraPhoto) {
-      if (editCarouselItems.length >= 5) {
-        btnAddEditExtraPhoto.style.opacity = '0.5';
-        btnAddEditExtraPhoto.disabled = true;
-      } else {
-        btnAddEditExtraPhoto.style.opacity = '1';
-        btnAddEditExtraPhoto.disabled = false;
-      }
+      btnAddEditExtraPhoto.style.opacity = isFull ? '0.5' : '1';
+      btnAddEditExtraPhoto.disabled = isFull;
+    }
+    const btnAddEditVideo = document.getElementById('btn-add-edit-video');
+    if (btnAddEditVideo) {
+      btnAddEditVideo.style.opacity = isFull ? '0.5' : '1';
+      btnAddEditVideo.disabled = isFull;
     }
 
     // Mantém editPieceExtraPhotos sincronizado
@@ -1386,6 +1593,7 @@ const initAdmin = () => {
       url: sanitizeImageUrl(url),
       isCover: idx === 0,
       isModified: false,
+      isVideo: isVideoUrl(url),
       zoom: 1,
       offsetX: 0,
       offsetY: 0
@@ -1403,11 +1611,16 @@ const initAdmin = () => {
     currentEditingPiece = null;
     editCarouselItems = [];
     activeCarouselIdx = 0;
+    const editCropSourceVideo = document.getElementById('edit-crop-source-video');
+    if (editCropSourceVideo) {
+      cleanupVideoPlayback(editCropSourceVideo);
+      editCropSourceVideo.style.display = 'none';
+    }
     if (formEditProduct) {
       try {
         formEditProduct.reset();
       } catch (e) {
-        // Ignora caso elementos já estejam desconectados
+        console.debug('[JËZ Ateliê] Falha ao resetar formulário de edição (elementos possivelmente desconectados):', e);
       }
     }
   };
@@ -1505,6 +1718,78 @@ const initAdmin = () => {
     });
   }
 
+  // Gestão de Vídeos Curtos no Carrossel da Peça (1 clique direto na galeria - JEZ-032)
+  const btnAddEditVideo = document.getElementById('btn-add-edit-video');
+  const editVideoFileInput = document.getElementById('edit-video-file-input');
+
+  if (btnAddEditVideo && editVideoFileInput) {
+    btnAddEditVideo.addEventListener('click', () => {
+      if (editCarouselItems.length >= 5) {
+        showToast('Limite de 5 mídias no carrossel atingido.');
+        return;
+      }
+      editVideoFileInput.click();
+    });
+  }
+
+  if (editVideoFileInput) {
+    editVideoFileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const quotaCheck = validateVideoUploadQuota(file);
+      if (!quotaCheck.valid) {
+        showToast(quotaCheck.error || 'Arquivo de vídeo excede a cota permitida.');
+        editVideoFileInput.value = '';
+        return;
+      }
+
+      if (file.size > 800 * 1024) {
+        showToast('Para vídeos salvos direto no catálogo, utilize arquivos de até 800 KB para manter o sistema ágil.');
+        editVideoFileInput.value = '';
+        return;
+      }
+
+      if (editCarouselItems.length >= 5) {
+        showToast('Limite de 5 mídias no carrossel atingido.');
+        editVideoFileInput.value = '';
+        return;
+      }
+
+      saveActivePhotoCropState();
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const videoDataUrl = event.target.result;
+          const newIdx = editCarouselItems.length;
+          editCarouselItems.push({
+            url: videoDataUrl,
+            isCover: newIdx === 0,
+            isModified: true,
+            isVideo: true,
+            zoom: 1,
+            offsetX: 0,
+            offsetY: 0
+          });
+
+          activeCarouselIdx = newIdx;
+          renderEditCarousel();
+          await loadActiveCarouselPhoto();
+          showToast(`Vídeo (${quotaCheck.sizeMb} MB) adicionado ao carrossel com sucesso!`);
+        } catch (err) {
+          console.error('[JËZ Ateliê] Falha ao processar arquivo de vídeo:', err);
+          showToast('Erro ao carregar pré-visualização do vídeo.');
+        }
+      };
+      reader.onerror = () => {
+        console.error('[JËZ Ateliê] Falha na leitura do arquivo de vídeo local');
+        showToast('Não foi possível ler o arquivo de vídeo.');
+      };
+      reader.readAsDataURL(file);
+      editVideoFileInput.value = '';
+    });
+  }
+
   if (editExtraPhotosGrid) {
     editExtraPhotosGrid.addEventListener('click', (e) => {
       const btn = e.target.closest('.btn-remove-extra-photo');
@@ -1512,7 +1797,7 @@ const initAdmin = () => {
       e.stopPropagation();
       const idx = parseInt(btn.getAttribute('data-idx'), 10);
       if (!isNaN(idx) && idx > 0 && idx < editCarouselItems.length) {
-        editCarouselItems.splice(idx, 1);
+        const removed = editCarouselItems.splice(idx, 1)[0];
         if (activeCarouselIdx >= editCarouselItems.length) {
           activeCarouselIdx = editCarouselItems.length - 1;
         } else if (activeCarouselIdx === idx) {
@@ -1520,7 +1805,8 @@ const initAdmin = () => {
         }
         renderEditCarousel();
         loadActiveCarouselPhoto();
-        showToast('Foto removida do carrossel.');
+        const wasVideo = removed && isVideoUrl(removed.url);
+        showToast(wasVideo ? 'Vídeo removido do carrossel.' : 'Foto removida do carrossel.');
       }
     });
   }
@@ -1630,7 +1916,14 @@ const initAdmin = () => {
         };
 
         const finalImages = editCarouselItems.map(item => sanitizeImageUrl(item.url));
-        const coverImage = finalImages[0] || (currentEditingPiece ? currentEditingPiece.image : existingPiece.image || 'assets/products/tote_cherry.jpg');
+        let coverImage = finalImages[0] || (currentEditingPiece ? currentEditingPiece.image : existingPiece.image || 'assets/products/tote_cherry.jpg');
+        if (isVideoUrl(coverImage)) {
+          const firstStatic = finalImages.find(img => !isVideoUrl(img));
+          coverImage = firstStatic || (existingPiece && !isVideoUrl(existingPiece.image) ? existingPiece.image : 'assets/products/tote_cherry.jpg');
+          if (isVideoUrl(coverImage)) {
+            coverImage = 'assets/products/tote_cherry.jpg';
+          }
+        }
         const updatedImages = finalImages.length > 0 ? [...finalImages] : [coverImage];
 
         catalog = currentCatalog.map(p => {

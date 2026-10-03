@@ -57,4 +57,12 @@
   --admin-card-border: 1.5px dashed rgba(254, 191, 151, 0.45);
   --admin-card-text: var(--color-bg-light);
   --admin-input-bg: #23192d;
+
+  /* Mídia Mista & Vídeos Curtos em Loop (JEZ-032 — Ariel) */
+  --media-badge-bg: rgba(35, 25, 45, 0.90);
+  --media-badge-border: 1px dashed rgba(254, 191, 151, 0.55);
+  --media-badge-text: var(--color-bg-light);
+  --media-badge-accent: var(--color-primary);
+  --media-thumb-overlay: rgba(35, 25, 45, 0.65);
+  --media-stitch-pattern: 1.5px dashed rgba(254, 191, 151, 0.5);
 }

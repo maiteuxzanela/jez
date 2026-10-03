@@ -39,7 +39,7 @@ class JezFirebaseService {
       this.db = getFirestore(this.app);
       this.isInitialized = true;
       this.isOnline = true;
-      console.log('[JËZ Cloud] Firebase Firestore inicializado com sucesso (Projeto: jez-collection)');
+      console.debug('[JËZ Cloud] Firebase Firestore inicializado com sucesso (Projeto: jez-collection)');
       this.notifyConnectionListeners(true);
     } catch (err) {
       console.warn('[JËZ Cloud] Falha ao inicializar Firebase (operando em modo offline/fallback local):', err);
@@ -132,13 +132,13 @@ class JezFirebaseService {
       const colRef = collection(this.db, 'products');
       const snap = await getDocs(colRef);
       if (snap.empty) {
-        console.log('[JËZ Cloud] Banco de dados vazio. Populando acervo inicial de peças da Jéssica...');
+        console.debug('[JËZ Cloud] Banco de dados vazio. Populando acervo inicial de peças da Jéssica...');
         const promises = defaultProducts.map(p => {
           const docRef = doc(this.db, 'products', p.id);
           return setDoc(docRef, { ...p, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
         });
         await Promise.all(promises);
-        console.log('[JËZ Cloud] Acervo inicial de 9 peças gravado no Firestore com sucesso!');
+        console.debug('[JËZ Cloud] Acervo inicial de 9 peças gravado no Firestore com sucesso!');
       }
     } catch (err) {
       console.warn('[JËZ Cloud] Não foi possível verificar/popular acervo inicial (regras pendentes):', err.message);

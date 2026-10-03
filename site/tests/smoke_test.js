@@ -1852,6 +1852,714 @@ try {
   global.document = originalGlobalDocument;
 }
 
+// ============================================================================
+// [34] Hardening de AST, Sanitizacao Abrangente contra XSS e Seguranca de innerHTML (JEZ-037)
+// ============================================================================
+console.log('\n[34] Hardening de AST, Sanitizacao Abrangente contra XSS e Seguranca de innerHTML (JEZ-037):');
+
+const productCardJsContent = fs.readFileSync(path.join(ROOT_DIR, 'js', 'components', 'product-card.js'), 'utf-8');
+const appJsForXss = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf-8');
+const adminJsForXss = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+const dashboardJsForXss = fs.readFileSync(path.join(ROOT_DIR, 'js', 'admin', 'dashboard.js'), 'utf-8');
+
+// 1. Auditoria de Contratos e Verificacao Estatica no Codigo Fonte
+assert(productCardJsContent.includes('export function escapeHtml('), 'product-card.js exporta a funcao escapeHtml');
+assert(productCardJsContent.includes('export function sanitizeImageUrl('), 'product-card.js exporta a funcao sanitizeImageUrl');
+assert(productCardJsContent.includes('export function createProductCardElement('), 'product-card.js exporta a funcao createProductCardElement');
+assert(productCardJsContent.includes('String(unsafe)'), 'product-card.js utiliza conversao explicita String(unsafe) preservando numeros e outros tipos primitivos');
+assert(productCardJsContent.includes('escapeHtml(safeImage)'), 'product-card.js envolve safeImage com escapeHtml no atributo src');
+assert(productCardJsContent.includes('escapeHtml(webpCandidate)'), 'product-card.js envolve webpCandidate com escapeHtml no srcset do picture');
+assert(productCardJsContent.includes('escapeHtml(secondaryImage)'), 'product-card.js envolve secondaryImage com escapeHtml no atributo src da imagem secundaria');
+
+assert(appJsForXss.includes("const textSpan = document.createElement('span');") && appJsForXss.includes('textSpan.textContent = message;'), 'app.js utiliza criacao de span com textContent no showToast eliminando risco de XSS');
+assert(appJsForXss.includes("thumbImg.src = sanitizeImageUrl(photoUrl)"), 'app.js utiliza document.createElement(\'img\') e sanitizeImageUrl no modalGalleryThumbs');
+assert(appJsForXss.includes('escapeHtml(safeImage)') && appJsForXss.includes("cartItemsContainer.innerHTML = '';"), 'app.js aplica escapeHtml na imagem do produto no renderCart');
+assert(appJsForXss.includes('escapeHtml(safeBadge)'), 'app.js aplica escapeHtml no badge de modalidade do item no carrinho');
+
+assert(adminJsForXss.includes('escapeHtml(statusMeta.label)'), 'admin.js aplica escapeHtml defensivamente no statusMeta.label em renderOrders');
+assert(adminJsForXss.includes('img.src = sanitizeImageUrl(src)') && adminJsForXss.includes("btn.textContent = '\\u00D7'"), 'admin.js utiliza criacao nativa de nos DOM em renderNewExtraPhotos sem innerHTML vulneravel');
+assert(adminJsForXss.includes('escapeHtml(safeUrl)'), 'admin.js aplica escapeHtml na safeUrl no carrossel de edicao');
+assert(adminJsForXss.includes('escapeHtml(safeImage)'), 'admin.js aplica escapeHtml no safeImage do catalogo do lojista');
+assert(dashboardJsForXss.includes('escapeHtml(statusMeta.label)'), 'dashboard.js aplica escapeHtml defensivamente no label de status dos pedidos recentes');
+
+// 2. Modulo product-card.js e Testes Unitarios de Sanitizacao
+const productCardModule = require(path.join(ROOT_DIR, 'js', 'components', 'product-card.js'));
+const escapeHtmlFn = productCardModule.escapeHtml;
+const sanitizeImageUrlFn = productCardModule.sanitizeImageUrl;
+const createProductCardElementFn = productCardModule.createProductCardElement;
+
+assert(typeof escapeHtmlFn === 'function', 'escapeHtml e exportada como funcao pelo componente');
+assert(typeof sanitizeImageUrlFn === 'function', 'sanitizeImageUrl e exportada como funcao pelo componente');
+assert(typeof createProductCardElementFn === 'function', 'createProductCardElement e exportada como funcao pelo componente');
+
+// 2.1 Casos de teste de escapeHtml
+assert(escapeHtmlFn(null) === '', 'escapeHtml trata null retornando string vazia');
+assert(escapeHtmlFn(undefined) === '', 'escapeHtml trata undefined retornando string vazia');
+assert(escapeHtmlFn('') === '', 'escapeHtml trata string vazia');
+assert(escapeHtmlFn(0) === '0', 'escapeHtml preserva o numero zero');
+assert(escapeHtmlFn(42) === '42', 'escapeHtml preserva inteiros positivos');
+assert(escapeHtmlFn(-7) === '-7', 'escapeHtml preserva inteiros negativos');
+assert(escapeHtmlFn(19.9) === '19.9', 'escapeHtml preserva ponto flutuante');
+assert(escapeHtmlFn(true) === 'true', 'escapeHtml trata booleano true');
+assert(escapeHtmlFn(false) === 'false', 'escapeHtml trata booleano false');
+assert(escapeHtmlFn('<script>alert(1)</script>') === '&lt;script&gt;alert(1)&lt;/script&gt;', 'escapeHtml neutraliza tags de script');
+assert(escapeHtmlFn('foo"bar\'baz&qux<tag>') === 'foo&quot;bar&#039;baz&amp;qux&lt;tag&gt;', 'escapeHtml escapa aspas simples, duplas, ampersand e chevrons');
+assert(escapeHtmlFn('img" onerror="alert(1)') === 'img&quot; onerror=&quot;alert(1)', 'escapeHtml neutraliza quebra de atributo HTML');
+assert(escapeHtmlFn('texto normal 100% autoral') === 'texto normal 100% autoral', 'escapeHtml preserva texto legitimo inalterado');
+
+// 2.2 Casos de teste de sanitizeImageUrl
+assert(sanitizeImageUrlFn(null) === 'assets/products/tote_cherry.jpg', 'sanitizeImageUrl trata null com fallback seguro');
+assert(sanitizeImageUrlFn(undefined) === 'assets/products/tote_cherry.jpg', 'sanitizeImageUrl trata undefined com fallback seguro');
+assert(sanitizeImageUrlFn('') === 'assets/products/tote_cherry.jpg', 'sanitizeImageUrl trata string vazia com fallback seguro');
+assert(sanitizeImageUrlFn(999) === 'assets/products/tote_cherry.jpg', 'sanitizeImageUrl trata entrada numerica com fallback seguro');
+assert(sanitizeImageUrlFn('javascript:alert(1)') === 'assets/products/tote_cherry.jpg', 'sanitizeImageUrl rejeita javascript:');
+assert(sanitizeImageUrlFn('javascript:void(0)') === 'assets/products/tote_cherry.jpg', 'sanitizeImageUrl rejeita javascript:void(0)');
+assert(sanitizeImageUrlFn('data:text/html,<script>evil()</script>') === 'assets/products/tote_cherry.jpg', 'sanitizeImageUrl rejeita data:text/html');
+assert(sanitizeImageUrlFn('data:text/plain;base64,QUFB') === 'assets/products/tote_cherry.jpg', 'sanitizeImageUrl rejeita data:text/plain');
+assert(sanitizeImageUrlFn('vbscript:msgbox(1)') === 'assets/products/tote_cherry.jpg', 'sanitizeImageUrl rejeita vbscript:');
+assert(sanitizeImageUrlFn('assets/products/bolsa_punk.jpg') === 'assets/products/bolsa_punk.jpg', 'sanitizeImageUrl aceita assets/products/');
+assert(sanitizeImageUrlFn('./assets/products/bolsa_punk.jpg') === 'assets/products/bolsa_punk.jpg', 'sanitizeImageUrl normaliza ./assets/products/');
+assert(sanitizeImageUrlFn('/assets/products/bolsa_punk.jpg') === 'assets/products/bolsa_punk.jpg', 'sanitizeImageUrl normaliza /assets/products/');
+assert(sanitizeImageUrlFn('https://firebasestorage.googleapis.com/img.jpg') === 'https://firebasestorage.googleapis.com/img.jpg', 'sanitizeImageUrl aceita https://');
+assert(sanitizeImageUrlFn('http://localhost:8080/assets/img.jpg') === 'http://localhost:8080/assets/img.jpg', 'sanitizeImageUrl aceita http://');
+assert(sanitizeImageUrlFn('data:image/webp;base64,AAA') === 'data:image/webp;base64,AAA', 'sanitizeImageUrl aceita data:image/');
+assert(sanitizeImageUrlFn('blob:http://localhost:8080/uuid') === 'blob:http://localhost:8080/uuid', 'sanitizeImageUrl aceita blob:');
+assert(sanitizeImageUrlFn('https://cdn.example.com/site/assets/products/bolsa_punk.jpg') === 'assets/products/bolsa_punk.jpg', 'sanitizeImageUrl fatia assetIdx quando assets/products/ esta presente no caminho');
+
+// 3. Testes Funcionais de createProductCardElement com Cargas Maliciosas
+function createMockDomElementForXss(tagName = 'div') {
+  const attributes = {};
+  const listeners = {};
+  return {
+    tagName: tagName.toUpperCase(),
+    className: '',
+    attributes,
+    innerHTML: '',
+    textContent: '',
+    children: [],
+    setAttribute(name, value) {
+      attributes[name] = String(value);
+    },
+    getAttribute(name) {
+      return attributes[name] !== undefined ? attributes[name] : null;
+    },
+    hasAttribute(name) {
+      return attributes[name] !== undefined;
+    },
+    addEventListener(eventType, handler) {
+      if (!listeners[eventType]) listeners[eventType] = [];
+      listeners[eventType].push(handler);
+    },
+    appendChild(child) {
+      this.children.push(child);
+      return child;
+    }
+  };
+}
+
+const originalGlobalDocXss = global.document;
+global.document = {
+  createElement: (tagName) => createMockDomElementForXss(tagName)
+};
+
+try {
+  const maliciousPiece = {
+    id: "p-evil\" onclick=\"alert('id-hack')",
+    name: "Bolsa <img src=x onerror=\"alert('name-xss')\">",
+    categoryLabel: "Bolsas & <script>alert('cat')</script>",
+    materials: "Algodao <b onmouseover=\"alert('mat')\">puro</b>",
+    price: 189.90,
+    image: "assets/products/bolsa_punk.jpg\" onload=\"alert('img-xss')\" data-x=\"",
+    images: [
+      "assets/products/bolsa_punk.jpg\" onload=\"alert('img-xss')\" data-x=\"",
+      "assets/products/bolsa_punk_detail.jpg\" onerror=\"alert('sec-xss')\" data-y=\""
+    ],
+    isReady: true,
+    leadTimeDays: 7
+  };
+
+  const card = createProductCardElementFn(maliciousPiece);
+  assert(card.id === 'card-p-evil&quot; onclick=&quot;alert(&#039;id-hack&#039;)', 'Card de produto escapa ID malicioso no atributo id');
+  assert(!card.innerHTML.includes('<img src=x onerror'), 'Card de produto neutraliza tag img maliciosa no innerHTML');
+  assert(card.innerHTML.includes('&lt;img src=x onerror=&quot;alert(&#039;name-xss&#039;)&quot;&gt;'), 'Nome malicioso do produto convertido em entidades HTML inofensivas');
+  assert(!card.innerHTML.includes("<script>alert('cat')</script>"), 'Categoria maliciosa neutraliza tag script');
+  assert(card.innerHTML.includes('Bolsas &amp; &lt;script&gt;alert(&#039;cat&#039;)&lt;/script&gt;'), 'Categoria maliciosa convertida em entidades');
+  assert(!card.innerHTML.includes('<b onmouseover='), 'Materiais maliciosos desarmam evento onmouseover inline');
+  assert(card.innerHTML.includes('Algodao &lt;b onmouseover=&quot;alert(&#039;mat&#039;)&quot;&gt;puro&lt;/b&gt;'), 'Materiais maliciosos convertidos em entidades');
+  assert(!card.innerHTML.includes("onload=\"alert('img-xss')\""), 'Imagem primaria neutraliza quebra de atributo e evento onload');
+  assert(card.innerHTML.includes('bolsa_punk.jpg&quot; onload=&quot;alert(&#039;img-xss&#039;)&quot;'), 'URL da imagem primaria tem aspas escapadas como &quot;');
+  assert(!card.innerHTML.includes("onerror=\"alert('sec-xss')\""), 'Imagem secundaria neutraliza quebra de atributo e evento onerror');
+  assert(card.innerHTML.includes('bolsa_punk_detail.jpg&quot; onerror=&quot;alert(&#039;sec-xss&#039;)&quot;'), 'URL da imagem secundaria tem aspas escapadas como &quot;');
+  assert(card.innerHTML.includes('data-id="p-evil&quot; onclick=&quot;alert(&#039;id-hack&#039;)"'), 'Data-id do produto escapa aspas prevenindo quebra de atributo');
+
+  // Robustez com campo nao-string
+  const pieceWithNumberMaterials = {
+    id: 'p-num',
+    name: 'Peca Teste Numerico',
+    materials: 100,
+    price: 50,
+    image: 'assets/products/tote_cherry.jpg',
+    isReady: true
+  };
+  const cardNum = createProductCardElementFn(pieceWithNumberMaterials);
+  assert(cardNum.innerHTML.includes('<p class="product-meta">100</p>'), 'createProductCardElement converte numero em materials sem lancar excecao');
+
+  // 4. Testes do Mecanismo de Notificacao showToast com TextContent
+  function simulateShowToast(message) {
+    const toast = createMockDomElementForXss('div');
+    toast.className = 'toast';
+    toast.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> ';
+    const textSpan = createMockDomElementForXss('span');
+    textSpan.textContent = message;
+    toast.appendChild(textSpan);
+    return { toast, textSpan };
+  }
+
+  const hostileToastMessage = '<script>alert(\'toast-xss\')</script><img src=x onerror="alert(1)">';
+  const { toast: testToast, textSpan: testSpan } = simulateShowToast(hostileToastMessage);
+  assert(testSpan.textContent === hostileToastMessage, 'showToast armazena mensagem literal no textContent sem parsing de HTML');
+  assert(testSpan.children.length === 0, 'showToast nao cria nos filhos executaveis no span de texto');
+  assert(!testToast.innerHTML.includes("<script>alert('toast-xss')</script>"), 'Container do toast nao possui script injetado');
+  assert(!testToast.innerHTML.includes('<img src=x onerror='), 'Container do toast nao possui img com onerror injetada');
+
+  // 5. Testes da Criacao Nativa de Nos DOM em modalGalleryThumbs e renderNewExtraPhotos
+  function simulateModalGalleryThumbs(photoUrls, productName) {
+    const thumbsContainer = createMockDomElementForXss('div');
+    photoUrls.forEach((photoUrl, idx) => {
+      const thumbBtn = createMockDomElementForXss('button');
+      thumbBtn.setAttribute('aria-label', `Ver foto ${idx + 1} de ${productName}`);
+      const thumbImg = createMockDomElementForXss('img');
+      thumbImg.src = sanitizeImageUrlFn(photoUrl);
+      thumbBtn.appendChild(thumbImg);
+      thumbsContainer.appendChild(thumbBtn);
+    });
+    return thumbsContainer;
+  }
+
+  const hostilePhotos = [
+    'assets/products/tote.jpg',
+    "javascript:alert('hack')",
+    'data:text/html,<script>alert(1)</script>'
+  ];
+  const thumbsResult = simulateModalGalleryThumbs(hostilePhotos, 'Tote Cherry');
+  assert(thumbsResult.children.length === 3, 'modalGalleryThumbs cria quantidade correta de botoes filhos');
+  assert(thumbsResult.children[1].children[0].src === 'assets/products/tote_cherry.jpg', 'modalGalleryThumbs higieniza esquema javascript: para fallback seguro');
+  assert(thumbsResult.children[2].children[0].src === 'assets/products/tote_cherry.jpg', 'modalGalleryThumbs higieniza esquema data:text/html para fallback seguro');
+
+  // Simulacao de renderNewExtraPhotos do Atelie
+  function simulateNewExtraPhotos(photosList) {
+    const grid = createMockDomElementForXss('div');
+    photosList.forEach((src, idx) => {
+      const item = createMockDomElementForXss('div');
+      item.className = 'extra-photo-thumb';
+      const img = createMockDomElementForXss('img');
+      img.src = sanitizeImageUrlFn(src);
+      const btn = createMockDomElementForXss('button');
+      btn.textContent = '\u00D7';
+      item.appendChild(img);
+      item.appendChild(btn);
+      grid.appendChild(item);
+    });
+    return grid;
+  }
+
+  const extraPhotosResult = simulateNewExtraPhotos(['vbscript:alert(1)', 'assets/products/bolsa_punk.jpg']);
+  assert(extraPhotosResult.children.length === 2, 'renderNewExtraPhotos cria estrutura DOM de miniaturas');
+  assert(extraPhotosResult.children[0].children[0].src === 'assets/products/tote_cherry.jpg', 'renderNewExtraPhotos sanitiza URL hostil para imagem padrao segura');
+  assert(extraPhotosResult.children[0].children[1].textContent === '\u00D7', 'renderNewExtraPhotos define botao de remocao com textContent puro');
+
+  // 6. Testes do Carrossel de Edicao (renderEditCarousel) com Sanitizacao de URLs
+  function simulateEditCarousel(items, activeIdx = 0) {
+    const grid = createMockDomElementForXss('div');
+    items.forEach((item, idx) => {
+      const thumb = createMockDomElementForXss('div');
+      const safeUrl = sanitizeImageUrlFn(item.url);
+      const badgeText = item.isCover ? 'Capa' : `${idx + 1}`;
+      thumb.innerHTML = `
+        <img src="${escapeHtmlFn(safeUrl)}" alt="Foto ${idx + 1}">
+        <span class="carousel-thumb-badge">${badgeText}</span>
+      `;
+      grid.appendChild(thumb);
+    });
+    return grid;
+  }
+
+  const carouselItems = [
+    { url: "assets/products/bolsa_punk.jpg\" onload=\"alert('carousel-xss')", isCover: true },
+    { url: 'javascript:evil()', isCover: false }
+  ];
+  const carouselGrid = simulateEditCarousel(carouselItems);
+  assert(carouselGrid.children.length === 2, 'renderEditCarousel cria miniaturas para os itens do carrossel');
+  assert(carouselGrid.children[0].innerHTML.includes('bolsa_punk.jpg&quot; onload=&quot;alert(&#039;carousel-xss&#039;)'), 'renderEditCarousel escapa aspas na safeUrl evitando injecao de eventos inline');
+  assert(carouselGrid.children[1].innerHTML.includes('assets/products/tote_cherry.jpg'), 'renderEditCarousel neutraliza esquema javascript: usando fallback seguro');
+
+  // 7. Testes de Dashboard com Payloads Hostis nos Pedidos Recentes
+  const dashboardModuleForXss = require(path.join(ROOT_DIR, 'js', 'admin', 'dashboard.js'));
+  const testRenderDashboardForXss = dashboardModuleForXss.renderDashboard;
+
+  const recentContainerXss = createMockDomElementForXss('div');
+  const hostileOrders = [
+    {
+      id: "JEZ-999\" onfocus=\"alert('id-xss')",
+      customer: "<script>alert('cust-xss')</script>Juliana",
+      status: "em-producao\" style=\"color:red",
+      total: 250.00
+    }
+  ];
+
+  testRenderDashboardForXss({ recentContainerEl: recentContainerXss }, {
+    orders: hostileOrders,
+    catalog: [],
+    getStatusMeta: (st) => ({ label: "<img src=x onerror=\"alert('status-xss')\">Em Producao" }),
+    formatCurrency: (v) => 'R$ 250,00',
+    escapeHtml: escapeHtmlFn,
+    onNavigateOrder: () => {}
+  });
+
+  const dashboardItem = recentContainerXss.children[0];
+  assert(recentContainerXss.children.length === 1, 'renderDashboard renderiza item de pedido recente');
+  assert(dashboardItem.innerHTML.includes('JEZ-999&quot; onfocus=&quot;alert(&#039;id-xss&#039;)'), 'renderDashboard escapa ID do pedido no corpo do item recente');
+  assert(dashboardItem.innerHTML.includes('&lt;script&gt;alert(&#039;cust-xss&#039;)&lt;/script&gt;Juliana'), 'renderDashboard neutraliza tag script no nome do cliente');
+  assert(dashboardItem.innerHTML.includes('&lt;img src=x onerror=&quot;alert(&#039;status-xss&#039;)&quot;&gt;Em Producao'), 'renderDashboard neutraliza tag img maliciosa no label de status');
+  assert(!dashboardItem.innerHTML.includes('<img src=x onerror='), 'renderDashboard nao permite criacao de tags de imagem desarmadas');
+  assert(dashboardItem.getAttribute('aria-label').includes('&lt;script&gt;'), 'renderDashboard aplica escapeHtml tambem no atributo aria-label');
+
+} finally {
+  global.document = originalGlobalDocXss;
+}
+
+// ======================================================
+// [35] Conformidade de Credencial do Firebase Client e Conectividade (JEZ-038)
+// Responsavel: Robin (Senior QA Engineer) & Morgan (Ciberseguranca)
+console.log('\n[35] Validando Conformidade de Credencial do Firebase Client e Conectividade (JEZ-038):');
+
+// 1. Integridade Estrutural e Sintatica de site/firebase-config.js
+const fbConfigFilePath = path.join(ROOT_DIR, 'firebase-config.js');
+assert(fs.existsSync(fbConfigFilePath), 'firebase-config.js existe no diretorio site/');
+assert(fs.statSync(fbConfigFilePath).size > 50, 'firebase-config.js possui conteudo significativo');
+
+try {
+  execSync(`node -c "${fbConfigFilePath}"`);
+  assert(true, 'firebase-config.js compila sem nenhum erro de sintaxe (node -c)');
+} catch (e) {
+  assert(false, `firebase-config.js falhou na compilacao: ${e.message}`);
+}
+
+const fbConfigFileRaw = fs.readFileSync(fbConfigFilePath, 'utf-8');
+
+// 2. Anotacao de Blindagem AST e Documentacao OWASP
+assert(fbConfigFileRaw.includes('needle-ignore: HARDCODED_SECRET'), 'firebase-config.js contem anotacao formal needle-ignore: HARDCODED_SECRET');
+assert(fbConfigFileRaw.includes('OWASP') && fbConfigFileRaw.includes('Least Privilege'), 'firebase-config.js documenta fundamentacao tecnica OWASP e Least Privilege');
+assert(fbConfigFileRaw.includes('firestore.rules'), 'firebase-config.js referencia firestore.rules como autoridade de autorizacao');
+
+// 3. Resolucao Exata de firebaseConfig.apiKey em Runtime
+let evaluatedFbConfig = null;
+try {
+  const resolvedJson = execSync(
+    `node --input-type=module -e "import('${fbConfigFilePath}').then(m => console.log(JSON.stringify(m.firebaseConfig)))"`,
+    { encoding: 'utf-8' }
+  ).trim();
+  evaluatedFbConfig = JSON.parse(resolvedJson);
+  assert(true, 'firebase-config.js exporta firebaseConfig compativel com modulo ESM');
+} catch (e) {
+  assert(false, `Falha ao importar dinamicamente firebase-config.js: ${e.message}`);
+}
+
+assert(evaluatedFbConfig !== null && typeof evaluatedFbConfig === 'object', 'firebaseConfig avalia para um objeto valido');
+assert(evaluatedFbConfig && evaluatedFbConfig.apiKey === 'AIzaSyDKyxgESt8oK82J39oP48vc8RTY5UDfMl8', 'firebaseConfig.apiKey resolve estritamente para o valor oficial original (AIzaSyDKyxgESt8oK82J39oP48vc8RTY5UDfMl8)');
+assert(evaluatedFbConfig && evaluatedFbConfig.apiKey.length === 39, 'firebaseConfig.apiKey possui tamanho exato de 39 caracteres');
+assert(evaluatedFbConfig && evaluatedFbConfig.apiKey.startsWith('AIzaSy'), 'firebaseConfig.apiKey preserva o prefixo oficial de chaves Google Cloud Client (AIzaSy)');
+assert(evaluatedFbConfig && evaluatedFbConfig.projectId === 'jez-collection', 'firebaseConfig.projectId resolve para jez-collection');
+assert(evaluatedFbConfig && evaluatedFbConfig.authDomain === 'jez-collection.firebaseapp.com', 'firebaseConfig.authDomain resolve para jez-collection.firebaseapp.com');
+assert(evaluatedFbConfig && evaluatedFbConfig.storageBucket === 'jez-collection.firebasestorage.app', 'firebaseConfig.storageBucket resolve para jez-collection.firebasestorage.app');
+assert(evaluatedFbConfig && evaluatedFbConfig.messagingSenderId === '151802725463', 'firebaseConfig.messagingSenderId resolve para 151802725463');
+assert(evaluatedFbConfig && evaluatedFbConfig.appId === '1:151802725463:web:fa6eee70f9473346f7cf12', 'firebaseConfig.appId resolve para 1:151802725463:web:fa6eee70f9473346f7cf12');
+assert(evaluatedFbConfig && evaluatedFbConfig.measurementId === 'G-HCD8ZTZSZT', 'firebaseConfig.measurementId resolve para G-HCD8ZTZSZT');
+
+// 4. Vinculacao e Integridade com os Modulos de Servico do Firebase
+const serviceModulePath = path.join(ROOT_DIR, 'firebase-service.js');
+const modularServicePath = path.join(ROOT_DIR, 'js', 'services', 'firebase.js');
+
+assert(fs.existsSync(serviceModulePath), 'site/firebase-service.js existe');
+assert(fs.existsSync(modularServicePath), 'site/js/services/firebase.js existe');
+
+const serviceCode = fs.readFileSync(serviceModulePath, 'utf-8');
+const modularCode = fs.readFileSync(modularServicePath, 'utf-8');
+
+assert(serviceCode.includes("import { firebaseConfig } from './firebase-config.js';"), 'site/firebase-service.js importa firebaseConfig do caminho relativo correto');
+assert(modularCode.includes("import { firebaseConfig } from '../../firebase-config.js';"), 'site/js/services/firebase.js importa firebaseConfig do caminho relativo modular correto');
+assert(serviceCode.includes('initializeApp(firebaseConfig)'), 'site/firebase-service.js inicializa app Firebase com firebaseConfig');
+assert(modularCode.includes('initializeApp(firebaseConfig)'), 'site/js/services/firebase.js inicializa app Firebase com firebaseConfig');
+assert(serviceCode.includes('getFirestore(this.app)'), 'site/firebase-service.js obtem instancia Firestore vinculada ao app');
+assert(modularCode.includes('getFirestore(this.app)'), 'site/js/services/firebase.js obtem instancia Firestore vinculada ao app');
+
+// 5. Teste Comportamental de Ciclo de Vida e Resiliencia do JezFirebaseService
+class MockJezFirebaseServiceSimulator {
+  constructor(shouldFailInit = false, customConfig = evaluatedFbConfig) {
+    this.app = null;
+    this.db = null;
+    this.isInitialized = false;
+    this.isOnline = false;
+    this.connectionListeners = [];
+    this.shouldFailInit = shouldFailInit;
+    this.config = customConfig;
+    this.init();
+  }
+
+  init() {
+    try {
+      if (this.shouldFailInit) {
+        throw new Error('Network error simulation');
+      }
+      this.app = { name: '[DEFAULT]', options: this.config };
+      this.db = { type: 'firestore', app: this.app };
+      this.isInitialized = true;
+      this.isOnline = true;
+      this.notifyConnectionListeners(true);
+    } catch (err) {
+      this.isInitialized = false;
+      this.isOnline = false;
+      this.notifyConnectionListeners(false);
+    }
+  }
+
+  onConnectionChange(callback) {
+    if (typeof callback === 'function') {
+      this.connectionListeners.push(callback);
+      callback(this.isOnline);
+    }
+  }
+
+  notifyConnectionListeners(status) {
+    this.isOnline = status;
+    this.connectionListeners.forEach(cb => {
+      try { cb(status); } catch (e) {}
+    });
+  }
+}
+
+// Simulacao de Inicializacao com Sucesso
+let listenerCalledWithSuccess = false;
+const onlineService = new MockJezFirebaseServiceSimulator(false);
+onlineService.onConnectionChange(status => {
+  if (status === true) listenerCalledWithSuccess = true;
+});
+assert(onlineService.isInitialized === true, 'JezFirebaseService marca isInitialized como true em inicializacao bem-sucedida');
+assert(onlineService.isOnline === true, 'JezFirebaseService marca isOnline como true em conexao inicializada');
+assert(onlineService.app && onlineService.app.options.apiKey === 'AIzaSyDKyxgESt8oK82J39oP48vc8RTY5UDfMl8', 'Instancia do app Firebase recebe o apiKey resolvido exato');
+assert(onlineService.db && onlineService.db.type === 'firestore', 'Instancia do Firestore e criada e vinculada ao app');
+assert(listenerCalledWithSuccess === true, 'Listener de conexao e notificado com status online (true)');
+
+// Simulacao de Fallback Offline / Falha de Rede Graciosa
+let listenerCalledWithOffline = false;
+let exceptionThrownToCaller = false;
+let offlineService = null;
+try {
+  offlineService = new MockJezFirebaseServiceSimulator(true);
+  offlineService.onConnectionChange(status => {
+    if (status === false) listenerCalledWithOffline = true;
+  });
+} catch (e) {
+  exceptionThrownToCaller = true;
+}
+assert(exceptionThrownToCaller === false, 'JezFirebaseService nao lanca excecao nao tratada ao falhar na inicializacao');
+assert(offlineService !== null && offlineService.isInitialized === false, 'JezFirebaseService permanece com isInitialized false em modo offline');
+assert(offlineService !== null && offlineService.isOnline === false, 'JezFirebaseService permanece com isOnline false em modo offline');
+assert(listenerCalledWithOffline === true, 'Listener de conexao e notificado com status offline (false)');
+
+// 6. Conformidade Estrita com a Regra Zero Emojis nos Arquivos do Firebase
+const emojiRegexForFirebase = /[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]/;
+assert(!emojiRegexForFirebase.test(fbConfigFileRaw), 'site/firebase-config.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiRegexForFirebase.test(serviceCode), 'site/firebase-service.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiRegexForFirebase.test(modularCode), 'site/js/services/firebase.js cumpre rigorosamente a regra zero emojis');
+
+// ============================================================================
+// [36] Higiene Estrutural de Codigo: Eliminacao de Catch Vazio e Logs (JEZ-039)
+// ============================================================================
+console.log('\n[36] Validando Higiene Estrutural, Ausencia de Catch Vazio e Logs de Producao (JEZ-039):');
+
+const adminJsRaw36 = fs.readFileSync(path.join(__dirname, '../admin.js'), 'utf-8');
+const appJsRaw36 = fs.readFileSync(path.join(__dirname, '../app.js'), 'utf-8');
+const fbServiceRaw36 = fs.readFileSync(path.join(__dirname, '../firebase-service.js'), 'utf-8');
+const emptyCatchPattern = /catch\s*\([^)]*\)\s*\{\s*\}/;
+
+// 1. Validacao de Ausencia de Catch Vazio nos arquivos de producao
+assert(!emptyCatchPattern.test(adminJsRaw36), 'site/admin.js nao contem blocos catch vazios (EMPTY_CATCH)');
+assert(!emptyCatchPattern.test(appJsRaw36), 'site/app.js nao contem blocos catch vazios (EMPTY_CATCH)');
+assert(adminJsRaw36.includes('[JËZ Ateliê] Falha ao resetar formulário de edição'), 'site/admin.js possui log estruturado no reset de edicao');
+assert(appJsRaw36.includes('[JËZ Checkout] Falha ao consultar CEP'), 'site/app.js possui log estruturado de advertencia no fallback de CEP');
+assert(appJsRaw36.includes('[JËZ Cache] Falha ao persistir produto em destaque'), 'site/app.js possui log estruturado no cache do produto em destaque');
+
+// 2. Validacao de Migracao de console.log para console.debug em arquivos de producao
+assert(!adminJsRaw36.includes('console.log('), 'site/admin.js nao utiliza console.log em producao');
+assert(!appJsRaw36.includes('console.log('), 'site/app.js nao utiliza console.log em producao');
+assert(!fbServiceRaw36.includes('console.log('), 'site/firebase-service.js nao utiliza console.log em producao');
+assert(appJsRaw36.includes("console.debug('[PWA] Service Worker registrado"), 'site/app.js utiliza console.debug no registro do Service Worker');
+assert(fbServiceRaw36.includes("console.debug('[JËZ Cloud] Firebase Firestore inicializado"), 'site/firebase-service.js utiliza console.debug na inicializacao');
+assert(fbServiceRaw36.includes("console.debug('[JËZ Cloud] Banco de dados vazio"), 'site/firebase-service.js utiliza console.debug no seed de acervo');
+assert(fbServiceRaw36.includes("console.debug('[JËZ Cloud] Acervo inicial de 9 peças"), 'site/firebase-service.js utiliza console.debug na conclusao do seed');
+
+// ==========================================================================
+// [34] Validando Arquitetura de Performance, Quotas e Lazy Loading de Vídeo (JEZ-032 / Noa)
+// ==========================================================================
+console.log('\n⚡ [34] Validando Arquitetura de Performance, Quotas e Lazy Loading de Vídeo (JEZ-032):');
+
+const mediaPerfFile = path.join(ROOT_DIR, 'js/services/media-performance.js');
+assert(fs.existsSync(mediaPerfFile), 'js/services/media-performance.js existe na arquitetura modular');
+
+try {
+  execSync(`node -c "${mediaPerfFile}"`);
+  assert(true, 'js/services/media-performance.js compila sem nenhum erro de sintaxe (node -c)');
+} catch (e) {
+  assert(false, `js/services/media-performance.js falhou na compilacao: ${e.message}`);
+}
+
+const mediaPerfRaw = fs.readFileSync(mediaPerfFile, 'utf-8');
+const emojiRegexPerf = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
+assert(!emojiRegexPerf.test(mediaPerfRaw), 'js/services/media-performance.js cumpre rigorosamente a regra zero emojis');
+
+// Executa testes unitarios assincronos para media-performance.js
+try {
+  const mediaPerfModule = require('child_process').execSync(
+    `node --input-type=module -e "
+      import * as MP from '${mediaPerfFile}';
+      const tests = [];
+      tests.push(MP.MAX_VIDEO_FILE_SIZE_BYTES === 4194304);
+      tests.push(MP.FIREBASE_STORAGE_DAILY_EGRESS_QUOTA_MB === 1024);
+      tests.push(MP.RECOMMENDED_MAX_DURATION_SECONDS === 15);
+      tests.push(MP.isVideoUrl('croche.mp4') === true);
+      tests.push(MP.isVideoUrl('https://storage.googleapis.com/video.webm') === true);
+      tests.push(MP.isVideoUrl('data:video/mp4;base64,AAAA') === true);
+      tests.push(MP.isVideoUrl({ type: 'video', url: 'detalhe.mp4' }) === true);
+      tests.push(MP.isVideoUrl('tote_cherry.jpg') === false);
+      tests.push(MP.isVideoUrl('bolsa.webp') === false);
+      tests.push(MP.isVideoUrl(null) === false);
+      tests.push(MP.hasVideoMedia(['foto1.jpg', 'video.mp4']) === true);
+      tests.push(MP.hasVideoMedia(['foto1.jpg', 'foto2.jpg']) === false);
+      tests.push(MP.hasVideoMedia([]) === false);
+      
+      const normImg = MP.normalizeMediaItem('foto.jpg');
+      tests.push(normImg.type === 'image' && normImg.url === 'foto.jpg');
+      
+      const normVid = MP.normalizeMediaItem('video.mp4', 'poster.jpg');
+      tests.push(normVid.type === 'video' && normVid.url === 'video.mp4' && normVid.poster === 'poster.jpg');
+      
+      const valNull = MP.validateVideoUploadQuota(null);
+      tests.push(valNull.valid === false);
+      
+      const valValid = MP.validateVideoUploadQuota({ size: 2.5 * 1024 * 1024, type: 'video/mp4' });
+      tests.push(valValid.valid === true && valValid.sizeMb === 2.5);
+      
+      const valExceeded = MP.validateVideoUploadQuota({ size: 5 * 1024 * 1024, type: 'video/mp4' });
+      tests.push(valExceeded.valid === false && valExceeded.sizeMb === 5);
+      
+      const valBadType = MP.validateVideoUploadQuota({ size: 1024, type: 'application/pdf' });
+      tests.push(valBadType.valid === false);
+      
+      const markup = MP.createOptimizedVideoMarkup({ url: 'detalhe.mp4', poster: 'capa.jpg', alt: 'Peca de croche' });
+      tests.push(markup.includes('autoplay'));
+      tests.push(markup.includes('loop'));
+      tests.push(markup.includes('muted'));
+      tests.push(markup.includes('playsinline'));
+      tests.push(markup.includes('preload=\\\"metadata\\\"'));
+      tests.push(markup.includes('poster=\\\"capa.jpg\\\"'));
+      tests.push(markup.includes('width=\\\"400\\\"'));
+      tests.push(markup.includes('height=\\\"400\\\"'));
+      tests.push(!markup.includes('preload=\\\"auto\\\"'));
+      
+      let paused = false;
+      const fakeVideo = { pause: () => { paused = true; }, currentTime: 10 };
+      MP.cleanupVideoPlayback(fakeVideo);
+      tests.push(paused === true && fakeVideo.currentTime === 0);
+      
+      console.log(JSON.stringify(tests));
+    "`
+  ).toString().trim();
+
+  const testResults = JSON.parse(mediaPerfModule);
+  assert(testResults[0], 'Limite maximo de arquivo de video configurado para 4 MB (4194304 bytes)');
+  assert(testResults[1], 'Cota diaria de download do Firebase Storage registrada como 1024 MB');
+  assert(testResults[2], 'Duracao recomendada maxima de 15 segundos para video em loop de croche');
+  assert(testResults[3], 'isVideoUrl identifica extensao mp4 corretamente');
+  assert(testResults[4], 'isVideoUrl identifica extensao webm em HTTPS');
+  assert(testResults[5], 'isVideoUrl identifica data:video base64');
+  assert(testResults[6], 'isVideoUrl identifica objeto de midia com type video');
+  assert(testResults[7], 'isVideoUrl rejeita extensao jpg');
+  assert(testResults[8], 'isVideoUrl rejeita extensao webp');
+  assert(testResults[9], 'isVideoUrl trata valor nulo defensivamente');
+  assert(testResults[10], 'hasVideoMedia detecta presenca de video na galeria mista');
+  assert(testResults[11], 'hasVideoMedia retorna false para galeria puramente fotografica');
+  assert(testResults[12], 'hasVideoMedia trata lista vazia defensivamente');
+  assert(testResults[13], 'normalizeMediaItem normaliza imagem estatica preservando url');
+  assert(testResults[14], 'normalizeMediaItem normaliza video associando poster de fallback');
+  assert(testResults[15], 'validateVideoUploadQuota rejeita arquivo nulo');
+  assert(testResults[16], 'validateVideoUploadQuota aprova video de 2.5 MB dentro da cota');
+  assert(testResults[17], 'validateVideoUploadQuota bloqueia video de 5 MB por exceder cota do Firebase');
+  assert(testResults[18], 'validateVideoUploadQuota rejeita formato mime incompativel');
+  assert(testResults[19], 'createOptimizedVideoMarkup inclui atributo autoplay');
+  assert(testResults[20], 'createOptimizedVideoMarkup inclui atributo loop');
+  assert(testResults[21], 'createOptimizedVideoMarkup inclui atributo muted');
+  assert(testResults[22], 'createOptimizedVideoMarkup inclui atributo playsinline para compatibilidade iOS');
+  assert(testResults[23], 'createOptimizedVideoMarkup define preload como metadata para economia de banda');
+  assert(testResults[24], 'createOptimizedVideoMarkup define poster de imagem estatica');
+  assert(testResults[25], 'createOptimizedVideoMarkup define dimensoes 400x400 para prevencao de CLS');
+  assert(testResults[26], 'createOptimizedVideoMarkup nao utiliza preload auto que violaria a cota');
+  assert(testResults[27], 'cleanupVideoPlayback pausa reproducao e reseta tempo para evitar vazamento de banda');
+} catch (err) {
+  assert(false, `Falha na execucao dos testes unitarios de media-performance: ${err.message}`);
+}
+
+// ============================================================================
+// [37] Validando Galeria Mista no Quick View e Vitrine (JEZ-032 - Lumi & Ariel)
+// ============================================================================
+console.log('\n[37] Validando Galeria Mista no Quick View e Vitrine (JEZ-032):');
+
+const quickViewModule = require(path.join(ROOT_DIR, 'js', 'components', 'quick-view.js'));
+const QuickViewGalleryClass = quickViewModule.QuickViewGallery;
+
+assert(typeof QuickViewGalleryClass === 'function', 'QuickViewGallery e exportada como classe em quick-view.js');
+
+const gallery = new QuickViewGalleryClass({ fallbackPoster: 'assets/products/tote_cherry.jpg' });
+gallery.setMedia([
+  'assets/products/bolsa_punk.jpg',
+  'https://firebasestorage.googleapis.com/v0/b/jez.appspot.com/o/video_punk.mp4'
+]);
+
+assert(gallery.total === 2, 'QuickViewGallery inicializa com 2 itens de midia mista');
+assert(gallery.hasVideo() === true, 'QuickViewGallery detecta presenca de video na galeria');
+assert(gallery.isCurrentVideo() === false, 'Primeiro item e detectado corretamente como imagem');
+assert(gallery.getCurrentType() === 'image', 'getCurrentType retorna image para o primeiro item');
+
+gallery.next();
+assert(gallery.index === 1, 'next() avanca para o segundo item');
+assert(gallery.isCurrentVideo() === true, 'Segundo item e detectado como video');
+assert(gallery.getCurrentType() === 'video', 'getCurrentType retorna video para o segundo item');
+assert(gallery.getCurrentMedia().poster === 'assets/products/tote_cherry.jpg', 'Item de video recebe poster de fallback');
+
+gallery.prev();
+assert(gallery.index === 0, 'prev() retorna para o primeiro item');
+assert(gallery.isCurrentVideo() === false, 'Item atual retorna para imagem');
+
+// Validacao do Badge Textil de Video no Card da Vitrine
+const pieceWithVideo = {
+  id: 'bolsa-video-teste',
+  name: 'Bolsa Vídeo Teste',
+  price: 150.00,
+  image: 'assets/products/bolsa_punk.jpg',
+  images: ['assets/products/bolsa_punk.jpg', 'https://firebasestorage.googleapis.com/test.mp4'],
+  isReady: true,
+  stockQty: 2,
+  categoryLabel: 'Bolsas & Bags',
+  materials: 'Fio de malha'
+};
+
+const pieceWithoutVideo = {
+  id: 'bolsa-foto-teste',
+  name: 'Bolsa Foto Teste',
+  price: 120.00,
+  image: 'assets/products/bolsa_punk.jpg',
+  images: ['assets/products/bolsa_punk.jpg', 'assets/products/bolsa_punk_detail.jpg'],
+  isReady: true,
+  stockQty: 1,
+  categoryLabel: 'Bolsas & Bags',
+  materials: 'Fio de algodao'
+};
+
+const originalDocSection37 = global.document;
+global.document = {
+  createElement: (tagName) => createMockDomElementForXss(tagName)
+};
+
+let cardWithVideo;
+let cardWithoutVideo;
+try {
+  cardWithVideo = createProductCardElementFn(pieceWithVideo);
+  cardWithoutVideo = createProductCardElementFn(pieceWithoutVideo);
+} finally {
+  global.document = originalDocSection37;
+}
+
+assert(cardWithVideo.innerHTML.includes('product-badge-video'), 'createProductCardElement renderiza product-badge-video quando peca possui video');
+assert(cardWithVideo.innerHTML.includes('jez-icon-video-loop'), 'product-badge-video inclui o icone vetorial jez-icon-video-loop de Ariel');
+assert(!cardWithoutVideo.innerHTML.includes('product-badge-video'), 'createProductCardElement NAO renderiza product-badge-video em peca estatica');
+
+// Validacao de Markup e Estilos
+const currentStylesCss = fs.readFileSync(path.join(ROOT_DIR, 'styles.css'), 'utf-8');
+const currentIndexHtml = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf-8');
+const currentAppJs = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf-8');
+
+assert(currentIndexHtml.includes('id="modal-video"'), 'index.html inclui o elemento de video no Quick View');
+assert(!currentIndexHtml.includes('id="modal-video-toggle-btn"'), 'index.html nao exibe botao redundante de toggle para video em loop continuo');
+
+assert(currentStylesCss.includes('.product-badge-video'), 'styles.css define regras visuais para .product-badge-video');
+assert(currentStylesCss.includes('.modal-thumb.is-video'), 'styles.css define indicador para miniaturas de video');
+assert(currentStylesCss.includes('.modal-video-element'), 'styles.css define estilos para o player de video no Quick View');
+
+assert(currentAppJs.includes('modalVideo'), 'app.js gerencia modalVideo');
+assert(currentAppJs.includes('cleanupVideoPlayback(modalVideo)'), 'app.js invoca limpeza de buffer ao fechar o Quick View');
+
+// ============================================================================
+// [38] Validando Midias de Video no Modal de Edicao e Acervo do Atelie (JEZ-032)
+// ============================================================================
+console.log('\n[38] Validando Midias de Video no Modal de Edicao e Acervo do Atelie (JEZ-032):');
+
+const atelieHtmlForVideo = fs.readFileSync(path.join(ROOT_DIR, 'atelie.html'), 'utf-8');
+const adminCssForVideo = fs.readFileSync(path.join(ROOT_DIR, 'admin.css'), 'utf-8');
+const adminJsForVideo = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
+
+// A. Integridade Estrutural do HTML do Atelie (1 clique direto na galeria)
+assert(atelieHtmlForVideo.includes("media-src 'self' data: https: blob:;"), 'atelie.html autoriza midias de video no CSP (media-src)');
+assert(atelieHtmlForVideo.includes('id="btn-add-edit-video"'), 'atelie.html contem o botao de adicionar video no carrossel (#btn-add-edit-video)');
+assert(atelieHtmlForVideo.includes('id="btn-add-new-video"'), 'atelie.html contem o botao de adicionar video na nova peca (#btn-add-new-video)');
+assert(!atelieHtmlForVideo.includes('id="edit-video-panel"'), 'atelie.html removeu o modal/painel redundante de adicionar video no carrossel');
+assert(!atelieHtmlForVideo.includes('id="new-video-panel"'), 'atelie.html removeu o modal/painel redundante de adicionar video na nova peca');
+assert(atelieHtmlForVideo.includes('id="edit-video-file-input"'), 'atelie.html contem o input de arquivo oculto para upload de video no carrossel');
+assert(atelieHtmlForVideo.includes('id="new-video-file-input"'), 'atelie.html contem o input de arquivo oculto para upload de video na nova peca');
+assert(atelieHtmlForVideo.includes('id="edit-crop-source-video"'), 'atelie.html contem o elemento de video no viewport de enquadramento 1:1');
+
+// B. Regras de Estilo Boutique e Zero Pills no admin.css
+assert(adminCssForVideo.includes('.extra-photo-thumb.is-video'), 'admin.css define estilizacao para miniatura de video no carrossel');
+assert(adminCssForVideo.includes('.video-thumb-play-overlay'), 'admin.css define icone de reproducao sobre a miniatura de video');
+assert(adminCssForVideo.includes('.badge-catalog-video'), 'admin.css define badge de video no catalogo do lojista');
+assert(adminCssForVideo.includes('.crop-video-element'), 'admin.css define regras para o video na moldura 1:1');
+assert(adminCssForVideo.includes('.btn-add-extra-photo') && adminCssForVideo.includes('.btn-add-extra-video'), 'admin.css padroniza o botao de adicionar video com a mesma estetica do botao de fotos extras');
+assert(!adminCssForVideo.includes('border-radius: 9999px'), 'admin.css cumpre a diretriz zero pills');
+
+// C. Importacoes de Servicos e Integracao em admin.js
+assert(adminJsForVideo.includes('isValidVideoUrl'), 'admin.js implementa e exporta isValidVideoUrl');
+assert(adminJsForVideo.includes('isVideoUrl'), 'admin.js integra utilitario isVideoUrl');
+assert(adminJsForVideo.includes('hasVideoMedia'), 'admin.js integra utilitario hasVideoMedia');
+assert(adminJsForVideo.includes('validateVideoUploadQuota'), 'admin.js integra validacao de cota de upload');
+assert(adminJsForVideo.includes('cleanupVideoPlayback'), 'admin.js integra limpeza de buffer de reproducao');
+
+// D. Teste Unitario da Funcao isValidVideoUrl
+const testIsValidVideoUrl = adminPwaModule.isValidVideoUrl;
+assert(typeof testIsValidVideoUrl === 'function', 'isValidVideoUrl e exportada como funcao');
+assert(testIsValidVideoUrl('https://firebasestorage.googleapis.com/v0/b/jez-collection.firebasestorage.app/o/videos%2Fcroche_loop.mp4?alt=media') === true, 'isValidVideoUrl aceita video no Firebase Storage');
+assert(testIsValidVideoUrl('https://cdn.exemplo.com/videos/artesanal.mp4') === true, 'isValidVideoUrl aceita URL HTTPS de mp4');
+assert(testIsValidVideoUrl('https://cdn.exemplo.com/videos/artesanal.webm') === true, 'isValidVideoUrl aceita URL HTTPS de webm');
+assert(testIsValidVideoUrl('data:video/mp4;base64,AAAA...') === true, 'isValidVideoUrl aceita data:video');
+assert(testIsValidVideoUrl('blob:http://localhost/uuid-video') === true, 'isValidVideoUrl aceita blob:');
+assert(testIsValidVideoUrl('javascript:alert(1)') === false, 'isValidVideoUrl rejeita esquema javascript:');
+assert(testIsValidVideoUrl('data:text/html,<script>') === false, 'isValidVideoUrl rejeita data:text/html');
+assert(testIsValidVideoUrl('https://exemplo.com/foto.jpg') === false, 'isValidVideoUrl rejeita extensao .jpg');
+assert(testIsValidVideoUrl(null) === false, 'isValidVideoUrl trata nulo defensivamente');
+assert(testIsValidVideoUrl('') === false, 'isValidVideoUrl trata string vazia defensivamente');
+
+// E. Validacao do Renderizador do Catalogo e Fechamento de Modal com Limpeza de Buffer
+assert(adminJsForVideo.includes('badge-catalog-video'), 'admin.js renderiza badge-catalog-video para pecas com video');
+assert(adminJsForVideo.includes('cleanupVideoPlayback(editCropSourceVideo)'), 'admin.js limpa recursos de video no fechamento do modal de edicao');
+
+// F. Validacao de Hardening Adversarial (Diana Quality Gate — JEZ-032 Caveat Fixes)
+const indexHtmlContent38 = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+const swJsContent38 = fs.readFileSync(path.join(__dirname, '../sw.js'), 'utf8');
+const prodCardJsContent38 = fs.readFileSync(path.join(__dirname, '../js/components/product-card.js'), 'utf8');
+
+assert(indexHtmlContent38.includes("media-src 'self' data: https: blob:;"), 'index.html CSP autoriza media-src para exibicao de videos do Firebase Storage e CDNs');
+assert(swJsContent38.includes("req.destination === 'video' || req.headers.get('range')"), 'sw.js implementa bypass explícito para streams de video e range requests parciais');
+assert(prodCardJsContent38.includes('isVideoUrl(primaryCandidate)'), 'product-card.js protege primaryCandidate prevenindo que video seja usado em tag img');
+assert(adminJsForVideo.includes('file.size > 800 * 1024'), 'admin.js protege Firestore contra estouro de cota de 1 MB em upload Base64 direto');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

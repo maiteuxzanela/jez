@@ -80,6 +80,7 @@ export const defaultProducts = [
     categoryLabel: 'Vestuário Autoral',
     price: 189.90,
     image: 'assets/products/blusa_teia.jpg',
+    images: ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'],
     isReady: false,
     leadTimeDays: 8,
     dimensions: 'Modelagem cropped com manga longa ampla (veste do 36 ao 42)',

@@ -20,6 +20,7 @@ const STATIC_ASSETS = [
   './js/services/firebase.js',
   './js/services/products.js',
   './js/services/orders.js',
+  './js/services/media-performance.js',
   './js/components/cart.js',
   './js/components/product-card.js',
   './js/components/quick-view.js',
@@ -84,6 +85,9 @@ self.addEventListener('fetch', (event) => {
 
   // Não intercepta requisições não-GET
   if (req.method !== 'GET') return;
+
+  // Bypass para fluxos de vídeo e requisições de faixa de bytes (HTTP 206 Range)
+  if (req.destination === 'video' || req.headers.get('range')) return;
 
   // Deixa o SDK nativo do Firebase gerenciar requisições do Firestore e Auth
   if (

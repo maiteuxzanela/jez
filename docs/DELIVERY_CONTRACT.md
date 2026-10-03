@@ -1,7 +1,7 @@
 # Contrato de Entrega e Checklist de Revisão (Delivery Contract)
 
 > **Template Oficial de Submissão de Entregas — JEZ Collection**  
-> **Destinatários:** Desenvolvedores, Subagentes Especialistas, Revisor Crítico e CTO (Alex)  
+> **Destinatários:** Desenvolvedores, Especialistas e CTO (Alex)  
 > **Objetivo:** Garantir que nenhuma alteração seja promovida para produção sem validação determinística de regras de negócio, invariantes, contratos de dados e diretrizes estéticas da marca.
 
 ---
@@ -65,7 +65,7 @@ Copie a seção abaixo (a partir de `## 1. Identificação da Entrega`) e cole n
 
 ---
 
-## 5. Validação Determinística & Suíte de Testes (QA Robin)
+## 5. Validação Determinística & Suíte de Testes dos Desenvolvedores
 
 > *Toda entrega de código DEVE executar a suíte sem erros (`0 falhas`) antes de submeter.*
 

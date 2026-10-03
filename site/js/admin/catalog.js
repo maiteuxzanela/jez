@@ -77,6 +77,7 @@ export const defaultInitialCatalog = [
     categoryLabel: 'Vestuário Autoral',
     price: 189.90,
     image: 'assets/products/blusa_teia.jpg',
+    images: ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'],
     status: 'order',
     isReady: false,
     leadTimeDays: 8,
@@ -190,6 +191,24 @@ export function loadCatalog() {
     if (!Array.isArray(parsed) || parsed.length === 0) {
       localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(defaultInitialCatalog));
       return defaultInitialCatalog;
+    }
+    // Auto-cura do catálogo padrão no Ateliê: sincroniza mídias atualizadas (ex: vídeo da blusa-teia)
+    let updated = false;
+    parsed.forEach(p => {
+      if (p.id === 'blusa-teia') {
+        if (!Array.isArray(p.images) || !p.images.includes('assets/products/blusa_teia_loop.mp4')) {
+          p.images = ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'];
+          p.image = 'assets/products/blusa_teia.jpg';
+          updated = true;
+        }
+      }
+    });
+    if (updated) {
+      try {
+        localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(parsed));
+      } catch (e) {
+        console.debug('[JËZ Ateliê] QuotaExceeded ao salvar auto-cura de catálogo:', e);
+      }
     }
     return sortCatalogByCuratedOrder(parsed);
   } catch {
