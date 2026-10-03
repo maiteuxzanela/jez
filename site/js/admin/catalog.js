@@ -177,6 +177,244 @@ export function sortCatalogByCuratedOrder(list) {
 }
 
 /**
+ * Detecta se uma mídia ou URL corresponde a um formato de vídeo
+ * @param {string | object} media
+ * @returns {boolean}
+ */
+export function isVideoMedia(media) {
+  if (!media) return false;
+  if (typeof media === 'object') {
+    if (media.type === 'video' || media.isVideo === true) return true;
+    if (typeof media.url === 'string') return isVideoMedia(media.url);
+    return false;
+  }
+  if (typeof media !== 'string') return false;
+  const clean = media.trim().toLowerCase();
+  if (clean.startsWith('data:video/')) return true;
+  if (clean.startsWith('blob:video') || clean.includes('mediatype=video')) return true;
+  return /\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i.test(clean);
+}
+
+/**
+ * Cria ou normaliza um objeto de mídia de vídeo com poster associado (JEZ-038).
+ * @param {string | object} url
+ * @param {string} poster
+ * @returns {{ url: string, poster: string, type: 'video', isVideo: true }}
+ */
+export function createVideoMediaItem(url, poster = '') {
+  let finalUrl = '';
+  let finalPoster = poster || '';
+  if (typeof url === 'object' && url) {
+    finalUrl = url.url || '';
+    if (!finalPoster && url.poster) {
+      finalPoster = url.poster;
+    }
+  } else if (typeof url === 'string') {
+    finalUrl = url;
+  }
+  return {
+    url: finalUrl,
+    poster: finalPoster,
+    type: 'video',
+    isVideo: true
+  };
+}
+
+/**
+ * Extrai o primeiro frame de um vídeo usando um canvas off-screen proporcional (1:1),
+ * gerando um dataURL de poster compatível com a moldura quadrada do Ateliê e o blur da vitrine.
+ * @param {string} videoSrc - URL ou dataURL do vídeo
+ * @param {number} targetSize - Dimensão quadrada do canvas (padrão: 540)
+ * @returns {Promise<string>} dataURL JPEG do frame extraído (ou string vazia em caso de falha)
+ */
+export function extractVideoPoster(videoSrc, targetSize = 540) {
+  return new Promise((resolve) => {
+    if (!videoSrc || typeof videoSrc !== 'string') {
+      resolve('');
+      return;
+    }
+
+    if (typeof document === 'undefined' || typeof document.createElement !== 'function') {
+      resolve('');
+      return;
+    }
+
+    let finished = false;
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+
+    const cleanUp = () => {
+      try {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      } catch {
+        // Descarte silencioso do elemento de vídeo
+      }
+    };
+
+    const done = (result = '') => {
+      if (finished) return;
+      finished = true;
+      cleanUp();
+      resolve(result);
+    };
+
+    const timeoutId = setTimeout(() => {
+      done('');
+    }, 4000);
+
+    const capture = () => {
+      try {
+        const vw = video.videoWidth || targetSize;
+        const vh = video.videoHeight || targetSize;
+        const canvas = document.createElement('canvas');
+        canvas.width = targetSize;
+        canvas.height = targetSize;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          clearTimeout(timeoutId);
+          done('');
+          return;
+        }
+
+        // Recorte proporcional 1:1 estilo cover centralizado
+        const side = Math.min(vw, vh);
+        const sx = Math.max(0, (vw - side) / 2);
+        const sy = Math.max(0, (vh - side) / 2);
+
+        // Fundo aubergine da paleta da marca
+        ctx.fillStyle = '#23192d';
+        ctx.fillRect(0, 0, targetSize, targetSize);
+        ctx.drawImage(video, sx, sy, side, side, 0, 0, targetSize, targetSize);
+
+        const posterDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        clearTimeout(timeoutId);
+        done(posterDataUrl);
+      } catch {
+        clearTimeout(timeoutId);
+        done('');
+      }
+    };
+
+    video.addEventListener('seeked', () => {
+      capture();
+    }, { once: true });
+
+    video.addEventListener('loadeddata', () => {
+      try {
+        if (typeof video.currentTime === 'number' && video.duration && video.duration > 0.05) {
+          video.currentTime = 0.05;
+        } else {
+          capture();
+        }
+      } catch {
+        capture();
+      }
+    }, { once: true });
+
+    video.addEventListener('error', () => {
+      clearTimeout(timeoutId);
+      done('');
+    }, { once: true });
+
+    try {
+      video.src = videoSrc;
+      video.load();
+    } catch {
+      clearTimeout(timeoutId);
+      done('');
+    }
+  });
+}
+
+/**
+ * Preserva mídias de fábrica de produtos conhecidos (como blusa-teia mantendo foto e vídeo)
+ * e assegura que a primeira mídia (índice 0) seja SEMPRE a foto estática principal.
+ * @param {object} product
+ * @param {Array} defaultList
+ * @returns {object}
+ */
+export function preserveFactoryMedia(product, defaultList = defaultInitialCatalog) {
+  if (!product || typeof product !== 'object') return product;
+  const cured = { ...product };
+  const factoryItem = Array.isArray(defaultList) ? defaultList.find(d => d && d.id === cured.id) : null;
+
+  if (cured.id === 'blusa-teia') {
+    const factoryPhoto = (factoryItem && factoryItem.image) ? factoryItem.image : 'assets/products/blusa_teia.jpg';
+    const factoryVideo = 'assets/products/blusa_teia_loop.mp4';
+    let images = Array.isArray(cured.images) ? [...cured.images] : [];
+    if (images.length === 0) {
+      images = [factoryPhoto, factoryVideo];
+    } else {
+      const hasLoop = images.some(img => (typeof img === 'string' && img.includes('blusa_teia_loop.mp4')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia_loop.mp4')));
+      if (!hasLoop) {
+        images.push(factoryVideo);
+      }
+      const hasPhoto = images.some(img => (typeof img === 'string' && img.includes('blusa_teia.jpg')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia.jpg')));
+      if (!hasPhoto) {
+        images.unshift(factoryPhoto);
+      }
+    }
+    // Regra inviolável: o vídeo NUNCA deve ser a primeira mídia (índice 0)
+    if (isVideoMedia(images[0])) {
+      const nonVideoIdx = images.findIndex(img => !isVideoMedia(img));
+      if (nonVideoIdx > 0) {
+        const [photo] = images.splice(nonVideoIdx, 1);
+        images.unshift(photo);
+      } else {
+        images.unshift(factoryPhoto);
+      }
+    }
+    cured.images = images;
+    cured.image = factoryPhoto;
+    return cured;
+  }
+
+  if (factoryItem) {
+    if (!cured.image || isVideoMedia(cured.image)) {
+      cured.image = factoryItem.image;
+    }
+    if (!Array.isArray(cured.images) || cured.images.length === 0) {
+      cured.images = Array.isArray(factoryItem.images) ? [...factoryItem.images] : [factoryItem.image];
+    }
+  }
+
+  if (Array.isArray(cured.images) && cured.images.length > 0) {
+    if (isVideoMedia(cured.images[0])) {
+      const nonVideoIdx = cured.images.findIndex(img => !isVideoMedia(img));
+      if (nonVideoIdx > 0) {
+        const [photo] = cured.images.splice(nonVideoIdx, 1);
+        cured.images.unshift(photo);
+      } else if (factoryItem && factoryItem.image) {
+        cured.images.unshift(factoryItem.image);
+      } else {
+        cured.images.unshift('assets/products/tote_cherry.jpg');
+      }
+    }
+    if (!cured.image || isVideoMedia(cured.image)) {
+      const firstMedia = cured.images[0];
+      cured.image = typeof firstMedia === 'object' && firstMedia ? (firstMedia.url || firstMedia.poster || '') : firstMedia;
+    }
+  }
+  return cured;
+}
+
+/**
+ * Processa uma lista de peças do catálogo garantindo a preservação e cura de mídias de fábrica.
+ * @param {Array} products
+ * @param {Array} defaultList
+ * @returns {Array}
+ */
+export function cureProductListMedia(products, defaultList = defaultInitialCatalog) {
+  if (!Array.isArray(products)) return [];
+  return products.map(p => preserveFactoryMedia(p, defaultList));
+}
+
+/**
  * Carrega catálogo persistido do localStorage com fallback para defaultInitialCatalog
  * @returns {Array}
  */
@@ -193,24 +431,16 @@ export function loadCatalog() {
       return defaultInitialCatalog;
     }
     // Auto-cura do catálogo padrão no Ateliê: sincroniza mídias atualizadas (ex: vídeo da blusa-teia)
-    let updated = false;
-    parsed.forEach(p => {
-      if (p.id === 'blusa-teia') {
-        if (!Array.isArray(p.images) || !p.images.includes('assets/products/blusa_teia_loop.mp4')) {
-          p.images = ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'];
-          p.image = 'assets/products/blusa_teia.jpg';
-          updated = true;
-        }
-      }
-    });
+    const cured = cureProductListMedia(parsed, defaultInitialCatalog);
+    const updated = JSON.stringify(cured) !== JSON.stringify(parsed);
     if (updated) {
       try {
-        localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(parsed));
+        localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(cured));
       } catch (e) {
         console.debug('[JËZ Ateliê] QuotaExceeded ao salvar auto-cura de catálogo:', e);
       }
     }
-    return sortCatalogByCuratedOrder(parsed);
+    return sortCatalogByCuratedOrder(cured);
   } catch {
     return defaultInitialCatalog;
   }
@@ -256,7 +486,8 @@ export function handleStorageQuotaExceeded(catalogList, targetProductId = null) 
  * @returns {boolean}
  */
 export function saveCatalog(catalogList, targetProductId = null, onUpdated = null) {
-  const sorted = sortCatalogByCuratedOrder(catalogList);
+  const cured = cureProductListMedia(catalogList, defaultInitialCatalog);
+  const sorted = sortCatalogByCuratedOrder(cured);
   let savedSuccessfully = false;
   try {
     localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(sorted));

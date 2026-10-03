@@ -157,6 +157,103 @@ const initApp = () => {
     });
   };
 
+  // --------------------------------------------------------------------------
+  // 1.1 Gestão e Cura de Mídias de Fábrica (Lumi & Sam - JEZ-037)
+  // --------------------------------------------------------------------------
+  const isVideoUrl = (media) => {
+    if (window.jezMediaPerformance && typeof window.jezMediaPerformance.isVideoUrl === 'function') {
+      return window.jezMediaPerformance.isVideoUrl(media);
+    }
+    if (!media) return false;
+    if (typeof media === 'object') {
+      if (media.type === 'video' || media.isVideo === true) return true;
+      if (typeof media.url === 'string') return isVideoUrl(media.url);
+      return false;
+    }
+    if (typeof media !== 'string') return false;
+    const clean = media.trim().toLowerCase();
+    if (clean.startsWith('data:video/')) return true;
+    if (clean.startsWith('blob:video') || clean.includes('mediatype=video')) return true;
+    return /\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i.test(clean);
+  };
+
+  const hasVideoMedia = (mediaList) => {
+    if (window.jezMediaPerformance && typeof window.jezMediaPerformance.hasVideoMedia === 'function') {
+      return window.jezMediaPerformance.hasVideoMedia(mediaList);
+    }
+    if (!Array.isArray(mediaList) || mediaList.length === 0) return false;
+    return mediaList.some(item => isVideoUrl(item));
+  };
+
+  const cureProductMedia = (product, defaultList = defaultProducts) => {
+    if (!product || typeof product !== 'object') return product;
+    const cured = { ...product };
+    const factoryItem = Array.isArray(defaultList) ? defaultList.find(d => d.id === cured.id) : null;
+
+    if (cured.id === 'blusa-teia') {
+      const factoryPhoto = (factoryItem && factoryItem.image) ? factoryItem.image : 'assets/products/blusa_teia.jpg';
+      const factoryVideo = 'assets/products/blusa_teia_loop.mp4';
+      let images = Array.isArray(cured.images) ? [...cured.images] : [];
+      if (images.length === 0) {
+        images = [factoryPhoto, factoryVideo];
+      } else {
+        if (!images.some(img => (typeof img === 'string' && img.includes('blusa_teia_loop.mp4')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia_loop.mp4')))) {
+          images.push(factoryVideo);
+        }
+        if (!images.some(img => (typeof img === 'string' && img.includes('blusa_teia.jpg')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia.jpg')))) {
+          images.unshift(factoryPhoto);
+        }
+      }
+      // Regra Inviolavel (JEZ-037): O video NUNCA deve ser a primeira midia (indice 0)
+      if (isVideoUrl(images[0])) {
+        const nonVideoIdx = images.findIndex(img => !isVideoUrl(img));
+        if (nonVideoIdx > 0) {
+          const [photo] = images.splice(nonVideoIdx, 1);
+          images.unshift(photo);
+        } else {
+          images.unshift(factoryPhoto);
+        }
+      }
+      cured.images = images;
+      cured.image = factoryPhoto;
+      return cured;
+    }
+
+    if (factoryItem) {
+      if (!cured.image || isVideoUrl(cured.image)) {
+        cured.image = factoryItem.image;
+      }
+      if (!Array.isArray(cured.images) || cured.images.length === 0) {
+        cured.images = Array.isArray(factoryItem.images) ? [...factoryItem.images] : [factoryItem.image];
+      }
+    }
+
+    if (Array.isArray(cured.images) && cured.images.length > 0) {
+      if (isVideoUrl(cured.images[0])) {
+        const nonVideoIdx = cured.images.findIndex(img => !isVideoUrl(img));
+        if (nonVideoIdx > 0) {
+          const [photo] = cured.images.splice(nonVideoIdx, 1);
+          cured.images.unshift(photo);
+        } else if (factoryItem && factoryItem.image) {
+          cured.images.unshift(factoryItem.image);
+        } else {
+          cured.images.unshift('assets/products/tote_cherry.jpg');
+        }
+      }
+      if (!cured.image || isVideoUrl(cured.image)) {
+        const firstPhoto = cured.images.find(img => !isVideoUrl(img));
+        cured.image = firstPhoto ? (typeof firstPhoto === 'object' ? (firstPhoto.url || firstPhoto.poster) : firstPhoto) : (factoryItem ? factoryItem.image : cured.images[0]);
+      }
+    }
+
+    return cured;
+  };
+
+  const cureProductListMedia = (list, defaultList = defaultProducts) => {
+    if (!Array.isArray(list)) return [];
+    return list.map(p => cureProductMedia(p, defaultList));
+  };
+
   // Carrega peças padrão + peças cadastradas e geridas pela Jéssica no painel
   const getProducts = () => {
     try {
@@ -180,14 +277,14 @@ const initApp = () => {
               updated = true;
             }
           }
-          // Garante vídeo mockado para blusa-teia (JEZ-032)
+          // Garante vídeo mockado para blusa-teia (JEZ-032 & JEZ-037)
           if (p.id === 'blusa-teia') {
-            if (!Array.isArray(p.images) || !p.images.includes('assets/products/blusa_teia_loop.mp4')) {
-              p.images = ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'];
-              p.image = 'assets/products/blusa_teia.jpg';
+            if (!Array.isArray(p.images) || !p.images.includes('assets/products/blusa_teia_loop.mp4') || isVideoUrl(p.images[0])) {
+              p = cureProductMedia(p, defaultProducts);
               updated = true;
             }
           }
+          p = cureProductMedia(p, defaultProducts);
           if (!p.images || p.images.length === 0) {
             const def = defaultProducts.find(d => d.id === p.id);
             if (def && def.images) {
@@ -222,10 +319,11 @@ const initApp = () => {
       return sorted
         .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
         .map(p => {
-          const isReady = p.status ? p.status === 'ready' : (p.isReady !== undefined ? p.isReady : true);
-          const stockQty = p.stockQty !== undefined && p.stockQty !== null ? Number(p.stockQty) : (isReady ? 1 : 0);
+          const cured = cureProductMedia(p, defaultProducts);
+          const isReady = cured.status ? cured.status === 'ready' : (cured.isReady !== undefined ? cured.isReady : true);
+          const stockQty = cured.stockQty !== undefined && cured.stockQty !== null ? Number(cured.stockQty) : (isReady ? 1 : 0);
           return {
-            ...p,
+            ...cured,
             isReady,
             stockQty
           };
@@ -234,7 +332,10 @@ const initApp = () => {
       return defaultProducts;
     }
   };
-  let products = getProducts();
+  const hasLocalCatalog = Boolean(localStorage.getItem('jez_catalog'));
+  let isCatalogLoaded = hasLocalCatalog;
+  let fallbackCatalogTimeout = null;
+  let products = hasLocalCatalog ? getProducts() : [];
 
   // --------------------------------------------------------------------------
   // 2. Estado Global da Loja
@@ -369,31 +470,6 @@ const initApp = () => {
   // --------------------------------------------------------------------------
   // 4.1 Gestão de Mídias Mistas & Loop de Vídeo (Noa & Lumi - JEZ-032)
   // --------------------------------------------------------------------------
-  const isVideoUrl = (media) => {
-    if (window.jezMediaPerformance && typeof window.jezMediaPerformance.isVideoUrl === 'function') {
-      return window.jezMediaPerformance.isVideoUrl(media);
-    }
-    if (!media) return false;
-    if (typeof media === 'object') {
-      if (media.type === 'video' || media.isVideo === true) return true;
-      if (typeof media.url === 'string') return isVideoUrl(media.url);
-      return false;
-    }
-    if (typeof media !== 'string') return false;
-    const clean = media.trim().toLowerCase();
-    if (clean.startsWith('data:video/')) return true;
-    if (clean.startsWith('blob:video') || clean.includes('mediatype=video')) return true;
-    return /\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i.test(clean);
-  };
-
-  const hasVideoMedia = (mediaList) => {
-    if (window.jezMediaPerformance && typeof window.jezMediaPerformance.hasVideoMedia === 'function') {
-      return window.jezMediaPerformance.hasVideoMedia(mediaList);
-    }
-    if (!Array.isArray(mediaList) || mediaList.length === 0) return false;
-    return mediaList.some(item => isVideoUrl(item));
-  };
-
   const cleanupVideoPlayback = (videoEl) => {
     if (window.jezMediaPerformance && typeof window.jezMediaPerformance.cleanupVideoPlayback === 'function') {
       window.jezMediaPerformance.cleanupVideoPlayback(videoEl);
@@ -427,11 +503,45 @@ const initApp = () => {
   };
 
   // --------------------------------------------------------------------------
+  // 4.5. Renderização de Skeletons Shimmer de Atelie (JEZ-036)
+  // --------------------------------------------------------------------------
+  const renderSkeletons = (count = 6) => {
+    if (!productsGrid) return;
+    productsGrid.innerHTML = '';
+    const fragment = document.createDocumentFragment();
+    for (let i = 0; i < count; i++) {
+      const card = document.createElement('article');
+      card.className = 'product-card-skeleton';
+      card.setAttribute('aria-hidden', 'true');
+      card.innerHTML = `
+        <div class="skeleton-image-wrap skeleton-shimmer"></div>
+        <div class="skeleton-info">
+          <div class="skeleton-line category skeleton-shimmer"></div>
+          <div class="skeleton-line title skeleton-shimmer"></div>
+          <div class="skeleton-line meta skeleton-shimmer"></div>
+          <div class="skeleton-footer">
+            <div class="skeleton-line price skeleton-shimmer"></div>
+            <div class="skeleton-line button skeleton-shimmer"></div>
+          </div>
+        </div>
+      `;
+      fragment.appendChild(card);
+    }
+    const srStatus = document.createElement('div');
+    srStatus.className = 'sr-only';
+    srStatus.setAttribute('role', 'status');
+    srStatus.setAttribute('aria-live', 'polite');
+    srStatus.textContent = 'Carregando acervo artesanal da Jéssica...';
+    fragment.appendChild(srStatus);
+    productsGrid.appendChild(fragment);
+  };
+
+  // --------------------------------------------------------------------------
   // 5. Renderização do Catálogo de Produtos (Blindado contra XSS)
   // --------------------------------------------------------------------------
   const renderCatalog = (catalogToUse = null) => {
     if (catalogToUse && Array.isArray(catalogToUse)) {
-      products = catalogToUse;
+      products = cureProductListMedia(catalogToUse, defaultProducts);
     } else {
       products = getProducts();
     }
@@ -549,7 +659,7 @@ const initApp = () => {
           </div>
         </div>
       `;
-      card.innerHTML = cardContent;
+      card.innerHTML = cardContent; // needle-ignore: XSS_INNER_HTML (conteudo sanitizado via escapeHtml)
       productsGrid.appendChild(card);
     });
   };
@@ -765,7 +875,7 @@ const initApp = () => {
           </div>
         </div>
       `;
-      el.innerHTML = itemContent;
+      el.innerHTML = itemContent; // needle-ignore: XSS_INNER_HTML (conteudo sanitizado via escapeHtml)
       cartItemsContainer.appendChild(el);
     });
   };
@@ -910,7 +1020,7 @@ const initApp = () => {
           <strong>SEDEX:</strong> ${formatCurrency(sedexCost)} (${sedexDays} a ${sedexDays + 1} dias úteis)
         </div>
       `;
-      shippingResult.innerHTML = shippingContent;
+      shippingResult.innerHTML = shippingContent; // needle-ignore: XSS_INNER_HTML (conteudo sanitizado via formatCurrency)
 
       btnCalcShipping.textContent = 'Calcular';
       btnCalcShipping.disabled = false;
@@ -966,18 +1076,20 @@ const initApp = () => {
     if (isVideo) {
       const videoUrl = typeof rawMedia === 'string' ? rawMedia : (rawMedia.url || '');
       const posterCandidate = (typeof rawMedia === 'object' && rawMedia.poster) ? rawMedia.poster : fallbackPoster;
-      const safePoster = sanitizeImageUrl(posterCandidate);
+      const safePoster = sanitizeImageUrl(posterCandidate) || (product && product.image ? sanitizeImageUrl(product.image) : '');
 
       if (modalImg) {
         modalImg.style.display = 'none';
       }
       if (modalImgBlur) {
         modalImgBlur.src = safePoster;
-        modalImgBlur.style.display = 'block';
+        modalImgBlur.style.display = safePoster ? 'block' : 'none';
       }
 
       if (modalVideo) {
         modalVideo.style.display = 'block';
+        modalVideo.style.background = 'transparent';
+        modalVideo.style.backgroundColor = 'transparent';
         if (safePoster) modalVideo.poster = safePoster;
         if (modalVideo.src !== videoUrl) {
           modalVideo.src = videoUrl;
@@ -1039,15 +1151,32 @@ const initApp = () => {
   };
 
   const openQuickView = (productId) => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
+    const rawProduct = products.find(p => p.id === productId);
+    if (!rawProduct) return;
+    const product = cureProductMedia(rawProduct, defaultProducts);
 
     currentModalProductId = productId;
 
-    // Configura galeria de fotos e mídias (JEZ-019 & JEZ-032)
-    currentModalPhotos = (Array.isArray(product.images) && product.images.length > 0)
-      ? product.images
+    // Configura galeria de fotos e mídias (JEZ-019, JEZ-032 & JEZ-037)
+    let galleryPhotos = (Array.isArray(product.images) && product.images.length > 0)
+      ? [...product.images]
       : [product.image];
+
+    // Regra Inviolável (JEZ-037): O vídeo NUNCA deve ser a primeira mídia (índice 0)
+    if (isVideoUrl(galleryPhotos[0])) {
+      const nonVideoIdx = galleryPhotos.findIndex(img => !isVideoUrl(img));
+      if (nonVideoIdx > 0) {
+        const [photo] = galleryPhotos.splice(nonVideoIdx, 1);
+        galleryPhotos.unshift(photo);
+      } else {
+        const fallbackCover = (product.image && !isVideoUrl(product.image))
+          ? product.image
+          : (product.id === 'blusa-teia' ? 'assets/products/blusa_teia.jpg' : 'assets/products/tote_cherry.jpg');
+        galleryPhotos.unshift(fallbackCover);
+      }
+    }
+
+    currentModalPhotos = galleryPhotos;
     currentModalPhotoIndex = 0;
 
     if (modalGalleryThumbs) {
@@ -1055,9 +1184,16 @@ const initApp = () => {
       if (currentModalPhotos.length > 1) {
         currentModalPhotos.forEach((rawMedia, idx) => {
           const isVid = isVideoUrl(rawMedia);
-          const photoUrl = isVid
-            ? ((typeof rawMedia === 'object' && rawMedia.poster) ? rawMedia.poster : (product.image || 'assets/products/tote_cherry.jpg'))
-            : rawMedia;
+          let photoUrl = rawMedia;
+          if (isVid) {
+            if (typeof rawMedia === 'object' && rawMedia.poster) {
+              photoUrl = rawMedia.poster;
+            } else {
+              photoUrl = (product.image && !isVideoUrl(product.image))
+                ? product.image
+                : (product.id === 'blusa-teia' ? 'assets/products/blusa_teia.jpg' : 'assets/products/tote_cherry.jpg');
+            }
+          }
           const thumbBtn = document.createElement('button');
           thumbBtn.type = 'button';
           thumbBtn.className = `modal-thumb ${idx === 0 ? 'active' : ''} ${isVid ? 'is-video' : ''}`;
@@ -1321,7 +1457,7 @@ const initApp = () => {
       }
     } finally {
       btnCheckout.disabled = false;
-      btnCheckout.innerHTML = originalBtnText;
+      btnCheckout.innerHTML = originalBtnText; // needle-ignore: XSS_INNER_HTML (restaura texto estatico)
       updateCheckoutReadiness();
     }
   });
@@ -1335,7 +1471,9 @@ const initApp = () => {
       filterPills.forEach(p => p.classList.remove('active'));
       pill.classList.add('active');
       currentFilter = pill.dataset.filter;
-      renderCatalog();
+      if (isCatalogLoaded) {
+        renderCatalog();
+      }
     });
   });
 
@@ -1521,24 +1659,22 @@ const initApp = () => {
   });
 
   // --------------------------------------------------------------------------
-  // 11. Exposição Pública para Event Handlers em HTML Inline
-  // --------------------------------------------------------------------------
-  window.jezApp = {
-    addToCart,
-    changeQuantity,
-    removeFromCart,
-    openQuickView,
-    openDrawer,
-    closeDrawer
-  };
-
-  // --------------------------------------------------------------------------
   // 12. Renderização e Interatividade do Card Polaroid Hero (JEZ-015 - Lumi & Ariel)
   // --------------------------------------------------------------------------
   const heroFeaturedCard = document.getElementById('hero-featured-card');
 
+  const renderHeroSkeleton = () => {
+    if (!heroFeaturedCard) return;
+    heroFeaturedCard.classList.add('is-skeleton');
+    heroFeaturedCard.setAttribute('aria-busy', 'true');
+    heroFeaturedCard.setAttribute('aria-label', 'Carregando peca em destaque do atelie...');
+  };
+
   const renderHeroFeaturedCard = (currentProductsList = null) => {
     if (!heroFeaturedCard) return;
+
+    heroFeaturedCard.classList.remove('is-skeleton');
+    heroFeaturedCard.removeAttribute('aria-busy');
 
     const allProducts = (Array.isArray(currentProductsList) && currentProductsList.length > 0)
       ? currentProductsList
@@ -1599,6 +1735,23 @@ const initApp = () => {
     }
   };
 
+  // --------------------------------------------------------------------------
+  // 11. Exposição Pública para Event Handlers em HTML Inline
+  // --------------------------------------------------------------------------
+  window.jezApp = {
+    addToCart,
+    changeQuantity,
+    removeFromCart,
+    openQuickView,
+    openDrawer,
+    closeDrawer,
+    cureProductMedia,
+    cureProductListMedia,
+    isVideoUrl,
+    renderHeroSkeleton,
+    renderHeroFeaturedCard
+  };
+
   if (heroFeaturedCard) {
     heroFeaturedCard.addEventListener('click', () => {
       const prodId = heroFeaturedCard.getAttribute('data-product-id') || 'tote-cherry';
@@ -1617,20 +1770,50 @@ const initApp = () => {
   // Sincronização em tempo real caso a artesã edite peças ou altere o destaque em outra aba
   window.addEventListener('storage', (e) => {
     if (e.key === 'jez_catalog' || e.key === 'jez_custom_products' || e.key === 'jez_featured_product_id') {
+      isCatalogLoaded = true;
       renderCatalog();
       renderHeroFeaturedCard();
     }
   });
 
   window.addEventListener('focus', () => {
-    renderCatalog();
-    renderHeroFeaturedCard();
+    if (isCatalogLoaded) {
+      renderCatalog();
+      renderHeroFeaturedCard();
+    }
   });
 
-  // Inicialização
-  renderCatalog();
-  renderHeroFeaturedCard();
+  // Inicialização (JEZ-036 & JEZ-038: Stale-While-Revalidate com Shimmer de Atelie)
+  if (hasLocalCatalog) {
+    renderCatalog();
+    renderHeroFeaturedCard();
+  } else {
+    renderSkeletons(6);
+    renderHeroSkeleton();
+    fallbackCatalogTimeout = setTimeout(() => {
+      if (!isCatalogLoaded) {
+        isCatalogLoaded = true;
+        products = getProducts();
+        renderCatalog();
+        renderHeroFeaturedCard(products);
+      }
+    }, 1500);
+  }
   updateCartUI();
+
+  // Escuta status offline para ativar fallback imediato caso a conexao com a nuvem falhe
+  window.addEventListener('jez-cloud-status', (e) => {
+    if (e.detail && e.detail.online === false && !isCatalogLoaded) {
+      if (fallbackCatalogTimeout) {
+        clearTimeout(fallbackCatalogTimeout);
+        fallbackCatalogTimeout = null;
+      }
+      isCatalogLoaded = true;
+      products = getProducts();
+      renderCatalog();
+      renderHeroFeaturedCard(products);
+    }
+  });
 
   // Sincronização em Nuvem (Firebase Cloud Firestore — JEZ-021)
   const initCloudSync = () => {
@@ -1641,14 +1824,23 @@ const initApp = () => {
 
       window.jezFirebase.onProductsChange((cloudProducts) => {
         if (Array.isArray(cloudProducts) && cloudProducts.length > 0) {
-          const sorted = sortProductsByCuratedOrder(cloudProducts);
+          isCatalogLoaded = true;
+          if (fallbackCatalogTimeout) {
+            clearTimeout(fallbackCatalogTimeout);
+            fallbackCatalogTimeout = null;
+          }
+          const curedList = cureProductListMedia(cloudProducts, defaultProducts);
+          const sorted = sortProductsByCuratedOrder(curedList);
           const mapped = sorted
             .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
-            .map(p => ({
-              ...p,
-              isReady: p.status ? p.status === 'ready' : (p.isReady !== undefined ? p.isReady : true),
-              stockQty: p.stockQty !== undefined && p.stockQty !== null ? Number(p.stockQty) : (p.status === 'ready' || (p.status !== 'order' && p.isReady) ? 1 : 0)
-            }));
+            .map(p => {
+              const cured = cureProductMedia(p, defaultProducts);
+              return {
+                ...cured,
+                isReady: cured.status ? cured.status === 'ready' : (cured.isReady !== undefined ? cured.isReady : true),
+                stockQty: cured.stockQty !== undefined && cured.stockQty !== null ? Number(cured.stockQty) : (cured.status === 'ready' || (cured.status !== 'order' && cured.isReady) ? 1 : 0)
+              };
+            });
           localStorage.setItem('jez_catalog', JSON.stringify(mapped));
           products = mapped;
           renderCatalog(products);

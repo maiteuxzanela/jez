@@ -21,7 +21,7 @@ flowchart TD
         DeliveryVerify["Needle 3 Delivery Verify\n(Testes Reais + AST Guard)"]
     end
     
-    subgraph Camada3["Camada 3: Subagentes Especialistas do JEZ"]
+    subgraph Camada3["Camada 3: Squad Especialista JEZ (AgentTeams)"]
         Ariel["@Ariel (Brand & Craft Design)"]
         Lumi["@Lumi (UI/UX Frontend Boutique)"]
         Sam["@Sam (E-commerce & Checkout Pix)"]
@@ -37,10 +37,10 @@ flowchart TD
     Orchestrator -- "1. Contexto restrito (sem dump de monólitos)" --> Needle3
     Needle3 -- "Trechos cirúrgicos (max 1000 tokens)" --> Orchestrator
     
-    Orchestrator -- "2. Roteamento probabilístico (choice)" --> OpenJevChoice
-    OpenJevChoice -- "Subagente Eleito" --> Orchestrator
+    Orchestrator -- "2. Eleição em dúvida (choice)" --> OpenJevChoice
+    OpenJevChoice -- "Especialista Eleito" --> Orchestrator
     
-    Orchestrator -- "3. Despacho da demanda" --> Camada3
+    Orchestrator -- "3. Orquestração Squad (AgentTeams DAG)" --> Camada3
     
     Camada3 -- "4. Pré-execução crítica (noul)" --> OpenJevNoul
     OpenJevNoul -- "Veredito (P >= 0.70)" --> Camada3
@@ -99,11 +99,11 @@ Configurado em `~/.gemini/config/mcp_config.json`:
 
 ---
 
-## 3. Matriz de Especialistas (Subagentes da JEZ Collection)
+## 3. Matriz de Especialistas (Squad da JEZ Collection)
 
-O orquestrador Alex opera com autonomia plena de desenvolvimento, coordenação e refatoração. Em conformidade com as Diretrizes Globais (~/.dsh/AGENTS.md), quando a tarefa exigir colaboração entre múltiplos especialistas, ela opera compulsoriamente via plugin **AgentTeams** com DAG e mailbox durável.
+O orquestrador Alex atua na coordenação geral, diagnóstico técnico, arquitetura e governança. Em conformidade com as Diretrizes Globais (~/.dsh/AGENTS.md), toda implementação funcional que envolva os domínios dos especialistas opera compulsoriamente via plugin **AgentTeams** com DAG, ingestão de personas e mailbox durável.
 
-| Subagente | Arquivo de Persona | Especialidade Principal | Quando Acionar |
+| Especialista | Arquivo de Persona | Especialidade Principal | Quando Acionar |
 | :--- | :--- | :--- | :--- |
 | **@Alex** | [`./personas/alex_cto.md`](./personas/alex_cto.md) | CTO & Arquiteto Líder | Arquitetura geral, code reviews, decisões estruturais e coordenação técnica. |
 | **@Ariel** | [`./personas/ariel_brand_art_direction.md`](./personas/ariel_brand_art_direction.md) | Direção de Arte & Craft Design | Identidade visual artesanal, texturas têxteis e combate ao design genérico de IA. |
@@ -124,8 +124,9 @@ O orquestrador Alex opera com autonomia plena de desenvolvimento, coordenação 
   * `max_tokens`: Entre **500 e 1.200 tokens**.
   * `scope`: Especificar os arquivos alvo para não inflacionar o grafo.
 
-### Protocolo 2: Orquestração de Squad via AgentTeams
-- O orquestrador tem autonomia para desenvolver e refatorar diretamente. Sempre que houver demanda por debate ou colaboração de squad (ex: @Lumi para design/componentes, @Sam para checkout/pagamentos), deve instanciar a equipe via plugin **AgentTeams** com DAG e mailbox durável.
+### Protocolo 2: Orquestração Mandatória de Squad via AgentTeams
+- O orquestrador Alex atua como Capitão, conduzindo a arquitetura e governança. Toda tarefa de implementação que envolva especialistas (ex: @Lumi para design/componentes, @Sam para checkout/pagamentos, @Cris para painel do lojista, @Morgan para segurança) DEVE ser instanciada compulsoriamente via plugin **AgentTeams** com DAG e mailbox durável.
+- Quando a usuária já tiver autorizado previamente o início da execução no chat, a equipe pode ser criada com `approval: "automatic"`, despachando as tarefas do grafo imediatamente para os especialistas sem introduzir latência desnecessária de turnos.
 
 ### Protocolo 3: Guardrail de Pré-Execução Crítica (`noul`)
 - **Ações Críticas Obrigatórias para Bloqueio:**

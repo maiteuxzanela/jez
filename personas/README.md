@@ -11,7 +11,7 @@ Este diretório reúne as personas e prompts de especialistas que guiam a arquit
 
 ---
 
-## 👥 Subagents Especialistas
+## 👥 Especialistas do Squad
 
 | Especialista | Documento de Persona | Área de Atuação Principal |
 | :--- | :--- | :--- |
@@ -27,6 +27,6 @@ Este diretório reúne as personas e prompts de especialistas que guiam a arquit
 
 ## 💡 Como os Especialistas São Utilizados na Prática
 
-1. **Invocação Contextualizada:** Sempre que uma tarefa específica é iniciada (ex.: criar um componente de galeria ou estruturar o webhook de pagamento do Pix), Alex injeta o prompt e os checklists de aceite do respectivo especialista.
+1. **Orquestração Mandatória de Squad (AgentTeams):** Sempre que uma tarefa envolver debate, colaboração ou múltiplos especialistas, Alex instancia a equipe compulsoriamente via plugin **AgentTeams** com DAG e mailbox durável. Quando a usuária já tiver autorizado a execução no chat, a criação é feita com `approval: "automatic"`. Finalizada a rodada, a equipe é encerrada via `agent_teams_delete`.
 2. **Revisão Multidisciplinar & Regressão (Quality Gate):** Funcionalidades críticas passam por mais de um olhar técnico (exemplo: a tela de checkout é projetada por **Lumi**, integrada funcionalmente por **Sam**, blindada em segurança por **Morgan**, otimizada por **Noa** e validada via testes automatizados no `smoke_test.js` e `needle_verify_delivery`).
 3. **Coerência de Decisões:** As personas garantem que nenhum código seja escrito sem levar em consideração o ecossistema completo da JEZ Collection.

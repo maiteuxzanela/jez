@@ -42,6 +42,11 @@ import {
   saveCatalog,
   determineReactivatedStatus,
   mutatePieceStatus,
+  isVideoMedia,
+  preserveFactoryMedia,
+  cureProductListMedia,
+  extractVideoPoster,
+  createVideoMediaItem,
   STORAGE_CATALOG_KEY,
   STORAGE_CUSTOM_PRODUCTS_KEY
 } from './js/admin/catalog.js';
@@ -173,6 +178,9 @@ export {
   handleStorageQuotaExceeded,
   determineReactivatedStatus,
   mutatePieceStatus,
+  isVideoMedia,
+  preserveFactoryMedia,
+  cureProductListMedia,
   loadOrders,
   saveOrders,
   isItemCustomProduction,
@@ -187,7 +195,9 @@ export {
   isVideoUrl,
   hasVideoMedia,
   validateVideoUploadQuota,
-  cleanupVideoPlayback
+  cleanupVideoPlayback,
+  extractVideoPoster,
+  createVideoMediaItem
 };
 
 /**
@@ -902,7 +912,12 @@ const initAdmin = () => {
 
       const safeId = escapeHtml(piece.id);
       const safeName = escapeHtml(piece.name);
-      const safeImage = sanitizeImageUrl(piece.image);
+      let candidateThumb = piece.image;
+      if (isVideoUrl(candidateThumb) || isVideoMedia(candidateThumb)) {
+        const staticImg = Array.isArray(piece.images) ? piece.images.find(img => !isVideoUrl(img) && !isVideoMedia(img)) : null;
+        candidateThumb = staticImg || 'assets/products/tote_cherry.jpg';
+      }
+      const safeImage = sanitizeImageUrl(candidateThumb);
       const safeLeadTime = parseInt(piece.leadTimeDays, 10) || 7;
 
       const cardContent = `
@@ -1138,12 +1153,16 @@ const initAdmin = () => {
       item.className = 'extra-photo-thumb';
 
       const isVideo = isVideoUrl(src);
-      const safeSrc = sanitizeImageUrl(src);
+      const rawUrl = (typeof src === 'object' && src) ? (src.url || '') : src;
+      const rawPoster = (typeof src === 'object' && src) ? (src.poster || '') : '';
+      const safeSrc = sanitizeImageUrl(rawUrl);
+      const safePoster = rawPoster ? sanitizeImageUrl(rawPoster) : '';
 
       if (isVideo) {
         item.classList.add('is-video');
         const video = document.createElement('video');
         video.src = safeSrc;
+        if (safePoster) video.poster = safePoster;
         video.muted = true;
         video.playsInline = true;
         video.preload = 'metadata';
@@ -1224,10 +1243,23 @@ const initAdmin = () => {
       }
 
       const reader = new FileReader();
-      reader.onload = (event) => {
-        newPieceExtraPhotos.push(event.target.result);
-        renderNewExtraPhotos();
-        showToast(`Vídeo (${quotaCheck.sizeMb} MB) adicionado com sucesso!`);
+      reader.onload = async (event) => {
+        try {
+          const videoDataUrl = event.target.result;
+          let posterDataUrl = '';
+          try {
+            posterDataUrl = await extractVideoPoster(videoDataUrl, 540);
+          } catch (e) {
+            console.debug('[JËZ Ateliê] Falha ao extrair poster 1:1 do vídeo na nova peça:', e);
+          }
+
+          newPieceExtraPhotos.push(createVideoMediaItem(videoDataUrl, posterDataUrl));
+          renderNewExtraPhotos();
+          showToast(`Vídeo (${quotaCheck.sizeMb} MB) adicionado com sucesso!`);
+        } catch (err) {
+          console.error('[JËZ Ateliê] Erro ao carregar vídeo na nova peça:', err);
+          showToast('Erro ao processar vídeo.');
+        }
       };
       reader.readAsDataURL(file);
       newVideoFileInput.value = '';
@@ -1300,7 +1332,21 @@ const initAdmin = () => {
         };
 
         const extraImages = [...newPieceExtraPhotos];
-        const allImages = [photoToUse, ...extraImages];
+        let allImages = [photoToUse, ...extraImages];
+        // Garantir que a primeira midia (indice 0) seja SEMPRE a foto principal estatica
+        if (allImages.length > 0 && (isVideoUrl(allImages[0]) || isVideoMedia(allImages[0]))) {
+          const nonVideoIdx = allImages.findIndex(img => !isVideoUrl(img) && !isVideoMedia(img));
+          if (nonVideoIdx > 0) {
+            const [photo] = allImages.splice(nonVideoIdx, 1);
+            allImages.unshift(photo);
+          } else {
+            allImages.unshift(!isVideoUrl(photoToUse) ? photoToUse : 'assets/products/tote_cherry.jpg');
+          }
+        }
+        let finalCover = allImages.find(img => !isVideoUrl(img) && !isVideoMedia(img)) || (!isVideoUrl(photoToUse) ? photoToUse : 'assets/products/tote_cherry.jpg');
+        if (typeof finalCover === 'object' && finalCover) {
+          finalCover = finalCover.url || finalCover.poster || 'assets/products/tote_cherry.jpg';
+        }
 
         const newPiece = {
           id: 'custom-' + Date.now(),
@@ -1308,7 +1354,7 @@ const initAdmin = () => {
           category,
           categoryLabel: categoryLabels[category] || 'Peças Autorais',
           price,
-          image: photoToUse,
+          image: finalCover,
           images: allImages,
           status: modality,
           isReady: modality === 'ready',
@@ -1400,6 +1446,11 @@ const initAdmin = () => {
 
       if (editCropSourceVideo) {
         editCropSourceVideo.src = current.url;
+        if (current.poster) {
+          editCropSourceVideo.poster = current.poster;
+        } else {
+          editCropSourceVideo.removeAttribute('poster');
+        }
         editCropSourceVideo.style.display = 'block';
         try {
           const playPromise = editCropSourceVideo.play();
@@ -1464,7 +1515,7 @@ const initAdmin = () => {
     editExtraPhotosGrid.innerHTML = '';
 
     editCarouselItems.forEach((item, idx) => {
-      const isVideo = isVideoUrl(item.url);
+      const isVideo = isVideoUrl(item.url) || item.isVideo;
       const thumb = document.createElement('div');
       thumb.className = `extra-photo-thumb ${idx === activeCarouselIdx ? 'active-thumb' : ''} ${item.isCover ? 'is-cover' : ''} ${isVideo ? 'is-video' : ''}`;
       thumb.setAttribute('data-idx', String(idx));
@@ -1474,6 +1525,7 @@ const initAdmin = () => {
       );
 
       const safeUrl = sanitizeImageUrl(item.url);
+      const safePoster = item.poster ? sanitizeImageUrl(item.poster) : '';
       const badgeText = item.isCover ? 'Capa' : `${idx + 1}`;
       const removeBtn = !item.isCover ? `
         <button type="button" class="btn-remove-extra-photo" data-idx="${idx}" aria-label="Remover do carrossel" title="Remover mídia">
@@ -1483,8 +1535,9 @@ const initAdmin = () => {
 
       let thumbContent = '';
       if (isVideo) {
+        const posterAttr = safePoster ? `poster="${escapeHtml(safePoster)}"` : '';
         thumbContent = `
-          <video src="${escapeHtml(safeUrl)}" preload="metadata" muted playsinline></video>
+          <video src="${escapeHtml(safeUrl)}" ${posterAttr} preload="metadata" muted playsinline></video>
           <span class="video-thumb-play-overlay" aria-hidden="true">
             <svg class="jez-craft-icon jez-icon-play-craft" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
           </span>
@@ -1584,20 +1637,41 @@ const initAdmin = () => {
 
     if (modalEditBackdrop) modalEditBackdrop.style.display = 'flex';
 
-    // Monta itens do carrossel: capa (0) + extras (1..4)
-    const initialPhotos = (Array.isArray(piece.images) && piece.images.length > 0)
+    // Monta itens do carrossel: capa estatica (0) + extras (1..4)
+    let initialPhotos = (Array.isArray(piece.images) && piece.images.length > 0)
       ? [...piece.images]
       : [piece.image || 'assets/products/tote_cherry.jpg'];
 
-    editCarouselItems = initialPhotos.map((url, idx) => ({
-      url: sanitizeImageUrl(url),
-      isCover: idx === 0,
-      isModified: false,
-      isVideo: isVideoUrl(url),
-      zoom: 1,
-      offsetX: 0,
-      offsetY: 0
-    }));
+    // Se houver video na primeira posicao, reordena para manter foto estatica no indice 0
+    if (initialPhotos.length > 0 && (isVideoUrl(initialPhotos[0]) || isVideoMedia(initialPhotos[0]))) {
+      const nonVideoIdx = initialPhotos.findIndex(img => !isVideoUrl(img) && !isVideoMedia(img));
+      if (nonVideoIdx > 0) {
+        const [photo] = initialPhotos.splice(nonVideoIdx, 1);
+        initialPhotos.unshift(photo);
+      } else {
+        const fallbackPhoto = (piece.image && !isVideoUrl(piece.image) && !isVideoMedia(piece.image))
+          ? piece.image
+          : 'assets/products/tote_cherry.jpg';
+        initialPhotos.unshift(fallbackPhoto);
+      }
+    }
+
+    editCarouselItems = initialPhotos.map((item, idx) => {
+      const isVideo = isVideoUrl(item) || isVideoMedia(item);
+      const url = (typeof item === 'object' && item) ? (item.url || '') : item;
+      const poster = (typeof item === 'object' && item) ? (item.poster || '') : '';
+      return {
+        url: sanitizeImageUrl(url),
+        poster: poster ? sanitizeImageUrl(poster) : '',
+        isCover: idx === 0,
+        isModified: false,
+        isVideo: isVideo,
+        type: isVideo ? 'video' : 'image',
+        zoom: 1,
+        offsetX: 0,
+        offsetY: 0
+      };
+    });
 
     activeCarouselIdx = 0;
     renderEditCarousel();
@@ -1761,12 +1835,21 @@ const initAdmin = () => {
       reader.onload = async (event) => {
         try {
           const videoDataUrl = event.target.result;
+          let posterDataUrl = '';
+          try {
+            posterDataUrl = await extractVideoPoster(videoDataUrl, 540);
+          } catch (e) {
+            console.debug('[JËZ Ateliê] Falha ao extrair poster 1:1 do vídeo no carrossel:', e);
+          }
+
           const newIdx = editCarouselItems.length;
           editCarouselItems.push({
             url: videoDataUrl,
+            poster: posterDataUrl || '',
             isCover: newIdx === 0,
             isModified: true,
             isVideo: true,
+            type: 'video',
             zoom: 1,
             offsetX: 0,
             offsetY: 0
@@ -1915,16 +1998,35 @@ const initAdmin = () => {
           acessorios: 'Acessórios'
         };
 
-        const finalImages = editCarouselItems.map(item => sanitizeImageUrl(item.url));
-        let coverImage = finalImages[0] || (currentEditingPiece ? currentEditingPiece.image : existingPiece.image || 'assets/products/tote_cherry.jpg');
-        if (isVideoUrl(coverImage)) {
-          const firstStatic = finalImages.find(img => !isVideoUrl(img));
-          coverImage = firstStatic || (existingPiece && !isVideoUrl(existingPiece.image) ? existingPiece.image : 'assets/products/tote_cherry.jpg');
-          if (isVideoUrl(coverImage)) {
-            coverImage = 'assets/products/tote_cherry.jpg';
+        const finalImages = editCarouselItems.map(item => {
+          if (item.isVideo || isVideoUrl(item.url) || isVideoMedia(item)) {
+            return createVideoMediaItem(sanitizeImageUrl(item.url), item.poster ? sanitizeImageUrl(item.poster) : '');
+          }
+          return sanitizeImageUrl(item.url);
+        });
+        let updatedImages = finalImages.length > 0 ? [...finalImages] : [];
+
+        // Garantir que se houver vídeo em images, o índice 0 seja SEMPRE a foto principal estática
+        if (updatedImages.length > 0 && (isVideoUrl(updatedImages[0]) || isVideoMedia(updatedImages[0]))) {
+          const nonVideoIdx = updatedImages.findIndex(img => !isVideoUrl(img) && !isVideoMedia(img));
+          if (nonVideoIdx > 0) {
+            const [photo] = updatedImages.splice(nonVideoIdx, 1);
+            updatedImages.unshift(photo);
+          } else {
+            const fallbackPhoto = (existingPiece && !isVideoUrl(existingPiece.image) && !isVideoMedia(existingPiece.image))
+              ? existingPiece.image
+              : 'assets/products/tote_cherry.jpg';
+            updatedImages.unshift(fallbackPhoto);
           }
         }
-        const updatedImages = finalImages.length > 0 ? [...finalImages] : [coverImage];
+
+        let coverCandidate = updatedImages.find(img => !isVideoUrl(img) && !isVideoMedia(img))
+          || (currentEditingPiece && !isVideoUrl(currentEditingPiece.image) ? currentEditingPiece.image : (existingPiece && !isVideoUrl(existingPiece.image) ? existingPiece.image : 'assets/products/tote_cherry.jpg'));
+        let coverImage = typeof coverCandidate === 'object' && coverCandidate ? (coverCandidate.url || coverCandidate.poster || 'assets/products/tote_cherry.jpg') : coverCandidate;
+
+        if (updatedImages.length === 0) {
+          updatedImages = [coverImage];
+        }
 
         catalog = currentCatalog.map(p => {
           if (p.id === id) {
@@ -2207,11 +2309,12 @@ const initAdmin = () => {
         });
       }
 
-      // Ouve catálogo em tempo real da nuvem
+      // Ouve catálogo em tempo real da nuvem com preservação e auto-cura de mídias de fábrica
       if (typeof window.jezFirebase.onProductsChange === 'function') {
         window.jezFirebase.onProductsChange((cloudCatalog) => {
           if (Array.isArray(cloudCatalog) && cloudCatalog.length > 0) {
-            catalog = sortCatalogByCuratedOrder(cloudCatalog);
+            const curedCatalog = cureProductListMedia(cloudCatalog, defaultInitialCatalog);
+            catalog = sortCatalogByCuratedOrder(curedCatalog);
             localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalog));
             const searchInput = document.getElementById('catalog-search-input');
             renderCatalog(searchInput ? searchInput.value.trim() : '');

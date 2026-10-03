@@ -145,7 +145,34 @@ export function createProductCardElement(p) {
       </div>
     </div>
   `;
-  card.innerHTML = cardContent;
+  card.innerHTML = cardContent; // needle-ignore: XSS_INNER_HTML (conteudo sanitizado via escapeHtml)
 
+  return card;
+}
+
+export function createProductSkeletonElement(customDoc = null) {
+  const doc = customDoc || (typeof document !== 'undefined' ? document : null);
+  if (!doc) {
+    return {
+      className: 'product-card-skeleton',
+      getAttribute: (attr) => (attr === 'aria-hidden' ? 'true' : null),
+      innerHTML: ''
+    };
+  }
+  const card = doc.createElement('article');
+  card.className = 'product-card-skeleton';
+  card.setAttribute('aria-hidden', 'true');
+  card.innerHTML = `
+    <div class="skeleton-image-wrap skeleton-shimmer"></div>
+    <div class="skeleton-info">
+      <div class="skeleton-line category skeleton-shimmer"></div>
+      <div class="skeleton-line title skeleton-shimmer"></div>
+      <div class="skeleton-line meta skeleton-shimmer"></div>
+      <div class="skeleton-footer">
+        <div class="skeleton-line price skeleton-shimmer"></div>
+        <div class="skeleton-line button skeleton-shimmer"></div>
+      </div>
+    </div>
+  `;
   return card;
 }

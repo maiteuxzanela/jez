@@ -135,6 +135,24 @@
           <script>
             (function() {
               try {
+                var card = document.getElementById('hero-featured-card');
+                var hasLocalCat = Boolean(localStorage.getItem('jez_catalog'));
+                var cacheRaw = localStorage.getItem('jez_featured_product_cache');
+                var p = null;
+                if (cacheRaw) {
+                  try { p = JSON.parse(cacheRaw); } catch(err) { /* fallback defensivo */ }
+                }
+
+                // Se primeira visita sem catalogo local nem cache de destaque, ativa skeleton e previne FOUC de mock
+                if (!hasLocalCat && (!p || !p.name)) {
+                  if (card) {
+                    card.classList.add('is-skeleton');
+                    card.setAttribute('aria-busy', 'true');
+                    card.setAttribute('aria-label', 'Carregando peca em destaque do atelie...');
+                  }
+                  return;
+                }
+
                 var featId = localStorage.getItem('jez_featured_product_id') || 'tote-cherry';
                 var quickLookup = {
                   'tote-cherry': { name: 'Tote Bag Cherry com Laço', price: 'R$ 149,90', image: 'assets/products/tote_cherry.jpg', webp: 'assets/products/tote_cherry.webp' },
@@ -147,21 +165,17 @@
                   'cardiga-manteiga': { name: 'Cardigã Cropped Manteiga (Shrug)', price: 'R$ 179,90', image: 'assets/products/cardiga_manteiga.jpg', webp: 'assets/products/cardiga_manteiga.webp' },
                   'porta-airpods': { name: 'Porta-AirPods / Fones em Crochê', price: 'R$ 39,90', image: 'assets/products/porta_airpods.jpg', webp: 'assets/products/porta_airpods.webp' }
                 };
-                var p = null;
-                var cacheRaw = localStorage.getItem('jez_featured_product_cache');
-                if (cacheRaw) {
-                  try { p = JSON.parse(cacheRaw); } catch(e) {}
-                }
                 if ((!p || !p.name) && quickLookup[featId]) {
                   p = quickLookup[featId];
                 }
                 if (p && p.name) {
-                  var card = document.getElementById('hero-featured-card');
                   var nameEl = document.getElementById('hero-featured-name');
                   var priceEl = document.getElementById('hero-featured-price');
                   var imgEl = document.getElementById('hero-featured-img');
                   var webpEl = document.getElementById('hero-featured-webp');
                   if (card) {
+                    card.classList.remove('is-skeleton');
+                    card.removeAttribute('aria-busy');
                     card.setAttribute('data-product-id', featId);
                     card.setAttribute('aria-label', 'Ver detalhes da peça em destaque: ' + p.name);
                   }
@@ -180,7 +194,9 @@
                     }
                   }
                 }
-              } catch(e) {}
+              } catch(err) {
+                /* fallback defensivo para navegadores legados */
+              }
             })();
           </script>
         </div>

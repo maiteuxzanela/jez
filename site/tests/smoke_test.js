@@ -2560,6 +2560,346 @@ assert(swJsContent38.includes("req.destination === 'video' || req.headers.get('r
 assert(prodCardJsContent38.includes('isVideoUrl(primaryCandidate)'), 'product-card.js protege primaryCandidate prevenindo que video seja usado em tag img');
 assert(adminJsForVideo.includes('file.size > 800 * 1024'), 'admin.js protege Firestore contra estouro de cota de 1 MB em upload Base64 direto');
 
+// ============================================================================
+// [39] Validando Shimmer de Atelie, Skeletons e First-Sync Gate (JEZ-036)
+// ============================================================================
+console.log('\n🎨 [39] Validando Shimmer de Atelie, Skeletons e First-Sync Gate (JEZ-036):');
+
+const stylesCssContent39 = fs.readFileSync(path.join(__dirname, '../styles.css'), 'utf8');
+const appJsContent39 = fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8');
+const fbServiceContent39 = fs.readFileSync(path.join(__dirname, '../firebase-service.js'), 'utf8');
+const fbModServiceContent39 = fs.readFileSync(path.join(__dirname, '../js/services/firebase.js'), 'utf8');
+const prodCardModule39 = require(path.join(ROOT_DIR, 'js', 'components', 'product-card.js'));
+
+assert(stylesCssContent39.includes('.product-card-skeleton'), 'styles.css define regras visuais para .product-card-skeleton');
+assert(stylesCssContent39.includes('.skeleton-shimmer'), 'styles.css define animacao e degradê para .skeleton-shimmer');
+assert(stylesCssContent39.includes('.skeleton-image-wrap'), 'styles.css define moldura de imagem 1:1 para .skeleton-image-wrap');
+assert(stylesCssContent39.includes('.skeleton-footer'), 'styles.css define secao de rodape do skeleton');
+assert(stylesCssContent39.includes('.sr-only'), 'styles.css define classe de acessibilidade .sr-only');
+assert(stylesCssContent39.includes('skeletonCraftPulse'), 'styles.css implementa keyframes skeletonCraftPulse');
+
+assert(appJsContent39.includes('renderSkeletons'), 'app.js implementa a funcao de renderizacao de skeletons');
+assert(appJsContent39.includes('product-card-skeleton'), 'app.js cria elementos com a classe product-card-skeleton');
+assert(appJsContent39.includes('hasLocalCatalog'), 'app.js verifica presenca de catalogo previo no localStorage');
+assert(appJsContent39.includes('fallbackCatalogTimeout'), 'app.js configura timeout defensivo para resolucao de catalogo');
+assert(appJsContent39.includes('Carregando acervo artesanal da Jéssica...'), 'app.js inclui anuncio acessivel de carregamento para leitores de tela');
+
+assert(fbServiceContent39.includes('waitForInitialProducts'), 'firebase-service.js implementa metodo waitForInitialProducts');
+assert(fbModServiceContent39.includes('waitForInitialProducts'), 'js/services/firebase.js implementa metodo waitForInitialProducts');
+
+assert(typeof prodCardModule39.createProductSkeletonElement === 'function', 'product-card.js exporta a funcao createProductSkeletonElement');
+const skeletonCardElem = prodCardModule39.createProductSkeletonElement();
+assert(skeletonCardElem.className.includes('product-card-skeleton'), 'createProductSkeletonElement gera card com classe product-card-skeleton');
+assert(skeletonCardElem.getAttribute('aria-hidden') === 'true', 'createProductSkeletonElement define aria-hidden=true');
+
+// Verificacao rigorosa da diretriz Zero Emojis
+const emojiTestRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
+assert(!emojiTestRegex.test(stylesCssContent39), 'styles.css cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(appJsContent39), 'app.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(fbServiceContent39), 'firebase-service.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(fbModServiceContent39), 'js/services/firebase.js cumpre rigorosamente a regra zero emojis');
+
+// ============================================================================
+// [40] Validando Sincronizacao, Cura e Preservacao de Midias de Fabrica (JEZ-037)
+// ============================================================================
+console.log('\n[40] Validando Sincronizacao, Cura e Preservacao de Midias de Fabrica (JEZ-037):');
+
+const productsServiceModule = require(path.join(ROOT_DIR, 'js', 'services', 'products.js'));
+assert(typeof productsServiceModule.preserveFactoryMedia === 'function', 'products.js exporta a funcao preserveFactoryMedia');
+assert(typeof productsServiceModule.cureProductListMedia === 'function', 'products.js exporta a funcao cureProductListMedia');
+assert(typeof productsServiceModule.isVideoMedia === 'function', 'products.js exporta a funcao isVideoMedia');
+
+// 1. Auto-cura da blusa-teia sem video
+const curedBlusa1 = productsServiceModule.preserveFactoryMedia({
+  id: 'blusa-teia',
+  image: 'assets/products/blusa_teia.jpg',
+  images: ['assets/products/blusa_teia.jpg']
+});
+assert(Array.isArray(curedBlusa1.images) && curedBlusa1.images.length === 2, 'preserveFactoryMedia restaura array de 2 midias para blusa-teia incompleta');
+assert(curedBlusa1.images[0] === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia garante foto no indice 0 da blusa-teia');
+assert(curedBlusa1.images[1] === 'assets/products/blusa_teia_loop.mp4', 'preserveFactoryMedia restaura video no indice 1 da blusa-teia');
+assert(curedBlusa1.image === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia garante capa estatica da blusa-teia');
+
+// 2. Invariante inviolavel: video NUNCA deve ser a primeira midia (indice 0)
+const curedBlusa2 = productsServiceModule.preserveFactoryMedia({
+  id: 'blusa-teia',
+  image: 'assets/products/blusa_teia_loop.mp4',
+  images: ['assets/products/blusa_teia_loop.mp4', 'assets/products/blusa_teia.jpg']
+});
+assert(curedBlusa2.images[0] === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia realoca foto para o indice 0 quando video vem no topo');
+assert(curedBlusa2.images[1] === 'assets/products/blusa_teia_loop.mp4', 'preserveFactoryMedia preserva video apos a foto principal');
+assert(curedBlusa2.image === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia nunca permite video no atributo image principal');
+
+// 3. Auto-cura da blusa-teia sem nenhuma imagem definida
+const curedBlusa3 = productsServiceModule.preserveFactoryMedia({ id: 'blusa-teia' });
+assert(curedBlusa3.images[0] === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia preenche foto de fabrica para blusa-teia vazia');
+assert(curedBlusa3.images[1] === 'assets/products/blusa_teia_loop.mp4', 'preserveFactoryMedia preenche video de fabrica para blusa-teia vazia');
+
+// 4. Invariante de peca com video mockado sem foto estatica
+const curedGenericWithVideo = productsServiceModule.preserveFactoryMedia({
+  id: 'bolsa-punk',
+  images: ['assets/products/clip.mp4']
+});
+assert(curedGenericWithVideo.images[0] === 'assets/products/bolsa_punk.jpg', 'preserveFactoryMedia injeta foto de fabrica no indice 0 quando lista so contem video');
+
+// 5. Validacao de integracao em lote com cureProductListMedia
+const sampleCatalogForCure40 = [
+  { id: 'bolsa-punk', images: [] },
+  { id: 'blusa-teia', images: ['assets/products/blusa_teia.jpg'] }
+];
+const curedList40 = productsServiceModule.cureProductListMedia(sampleCatalogForCure40);
+assert(curedList40.length === 2, 'cureProductListMedia processa toda a lista de pecas');
+assert(curedList40[1].images.includes('assets/products/blusa_teia_loop.mp4'), 'cureProductListMedia cura blusa-teia na colecao');
+
+// 6. Validacao nos servicos Firebase (firebase-service.js e js/services/firebase.js)
+const fbRaw40 = fs.readFileSync(path.join(ROOT_DIR, 'firebase-service.js'), 'utf8');
+const fbModRaw40 = fs.readFileSync(path.join(ROOT_DIR, 'js', 'services', 'firebase.js'), 'utf8');
+
+assert(fbRaw40.includes('patchProductMediaIfNeeded'), 'firebase-service.js implementa patchProductMediaIfNeeded');
+assert(fbModRaw40.includes('patchProductMediaIfNeeded'), 'js/services/firebase.js implementa patchProductMediaIfNeeded');
+assert(fbRaw40.includes("import { defaultProducts, preserveFactoryMedia } from './js/services/products.js';"), 'firebase-service.js importa servico de produtos com caminho relativo correto');
+assert(fbModRaw40.includes("import { defaultProducts, preserveFactoryMedia } from './products.js';"), 'js/services/firebase.js importa servico de produtos com caminho modular correto');
+assert(fbRaw40.includes('preserveFactoryMedia(raw, defaultProducts)'), 'firebase-service.js aplica preserveFactoryMedia no onProductsChange');
+assert(fbModRaw40.includes('preserveFactoryMedia(raw, defaultProducts)'), 'js/services/firebase.js aplica preserveFactoryMedia no onProductsChange');
+assert(fbRaw40.includes('assets/products/blusa_teia_loop.mp4'), 'firebase-service.js referencia video da blusa-teia no patch do Firestore');
+assert(fbModRaw40.includes('assets/products/blusa_teia_loop.mp4'), 'js/services/firebase.js referencia video da blusa-teia no patch do Firestore');
+
+// 7. Conformidade estrita Zero Emojis
+assert(!emojiTestRegex.test(fbRaw40), 'firebase-service.js mantem conformidade estrita zero emojis apos JEZ-037');
+assert(!emojiTestRegex.test(fbModRaw40), 'js/services/firebase.js mantem conformidade estrita zero emojis apos JEZ-037');
+const productsRaw40 = fs.readFileSync(path.join(ROOT_DIR, 'js', 'services', 'products.js'), 'utf8');
+assert(!emojiTestRegex.test(productsRaw40), 'js/services/products.js mantem conformidade estrita zero emojis apos JEZ-037');
+
+// [41] Validando Protecao de Catalogo e Midias no Painel Admin (JEZ-037):
+console.log('\n[41] Validando Protecao de Catalogo e Midias no Painel Admin (JEZ-037):');
+
+// 1. Modulo js/admin/catalog.js exporta funcoes de cura e preservacao
+assert(typeof adminCatalogModule.preserveFactoryMedia === 'function', 'catalog.js exporta preserveFactoryMedia');
+assert(typeof adminCatalogModule.cureProductListMedia === 'function', 'catalog.js exporta cureProductListMedia');
+assert(typeof adminCatalogModule.isVideoMedia === 'function', 'catalog.js exporta isVideoMedia');
+
+// 2. Preservacao de fabrica em catalog.js para blusa-teia e capa estatica
+const curedAdminTeia = adminCatalogModule.preserveFactoryMedia({
+  id: 'blusa-teia',
+  image: 'assets/products/blusa_teia_loop.mp4',
+  images: ['assets/products/blusa_teia_loop.mp4', 'assets/products/blusa_teia.jpg']
+});
+assert(curedAdminTeia.image === 'assets/products/blusa_teia.jpg', 'catalog.js preserveFactoryMedia assegura capa estatica da blusa-teia');
+assert(curedAdminTeia.images[0] === 'assets/products/blusa_teia.jpg', 'catalog.js preserveFactoryMedia coloca foto no indice 0');
+assert(curedAdminTeia.images[1] === 'assets/products/blusa_teia_loop.mp4', 'catalog.js preserveFactoryMedia preserva video no indice 1');
+
+// 3. Integracao e re-exportacoes em admin.js
+const adminJsContent41 = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf8');
+assert(adminJsContent41.includes('cureProductListMedia') && adminJsContent41.includes('preserveFactoryMedia'), 'admin.js importa e re-exporta cureProductListMedia e preserveFactoryMedia');
+assert(adminJsContent41.includes('cureProductListMedia(cloudCatalog, defaultInitialCatalog)'), 'admin.js aplica cureProductListMedia no onProductsChange');
+
+// 4. Garantia de foto estatica no indice 0 no cadastro e edicao do admin.js
+assert(adminJsContent41.includes('isVideoUrl(allImages[0])') || adminJsContent41.includes('isVideoMedia(allImages[0])'), 'admin.js valida que allImages no cadastro nao tenha video no indice 0');
+assert(adminJsContent41.includes('isVideoUrl(updatedImages[0])') || adminJsContent41.includes('isVideoMedia(updatedImages[0])'), 'admin.js valida que updatedImages na edicao nao tenha video no indice 0');
+
+// 5. Garantia de miniatura estatica na listagem do admin
+assert(adminJsContent41.includes('candidateThumb'), 'admin.js protege thumbnail da listagem do acervo contra URLs de video');
+
+// 6. Zero Emojis nos arquivos do admin
+const catalogJsContent41 = fs.readFileSync(path.join(ROOT_DIR, 'js', 'admin', 'catalog.js'), 'utf8');
+assert(!emojiTestRegex.test(catalogJsContent41), 'js/admin/catalog.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(adminJsContent41), 'admin.js cumpre rigorosamente a regra zero emojis');
+
+// [42] Validando Garantia de Invariante de Mídia na Vitrine e Modal de Detalhes (JEZ-037):
+console.log('\n[42] Validando Garantia de Invariante de Mídia na Vitrine e Modal de Detalhes (JEZ-037):');
+
+// 1. Invariante de mídia e funções de cura em app.js
+const appJsContent42 = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf8');
+assert(appJsContent42.includes('cureProductMedia') && appJsContent42.includes('cureProductListMedia'), 'app.js implementa funcoes cureProductMedia e cureProductListMedia');
+assert(appJsContent42.includes('cureProductListMedia(cloudProducts, defaultProducts)'), 'app.js aplica cura de midias cloudProducts no onProductsChange');
+assert(appJsContent42.includes('cureProductListMedia(catalogToUse, defaultProducts)'), 'app.js aplica cura de midias no renderCatalog');
+
+// 2. Protecao contra video no indice 0 no modal de detalhes (Quick View)
+assert(appJsContent42.includes('isVideoUrl(galleryPhotos[0])'), 'app.js protege a primeira midia do Quick View contra videos no indice 0');
+assert(appJsContent42.includes('selectModalPhoto(0)'), 'app.js inicializa Quick View sempre com a foto estatica de capa no indice 0');
+
+// 3. Exposicao publica em window.jezApp para interoperabilidade
+assert(appJsContent42.includes('cureProductMedia,') && appJsContent42.includes('cureProductListMedia,'), 'window.jezApp expoe funcoes de cura de midia');
+
+// 4. QuickViewGallery reposiciona video se fornecido no indice 0
+const galleryInvariantTest = new QuickViewGalleryClass({ fallbackPoster: 'assets/products/tote_cherry.jpg' });
+galleryInvariantTest.setMedia([
+  'https://firebasestorage.googleapis.com/v0/b/jez.appspot.com/o/video_punk.mp4',
+  'assets/products/bolsa_punk.jpg'
+]);
+assert(galleryInvariantTest.getCurrentType() === 'image', 'QuickViewGallery garante que indice 0 seja imagem estatica mesmo recebendo video primeiro');
+assert(galleryInvariantTest.getCurrentPhoto() === 'assets/products/bolsa_punk.jpg', 'QuickViewGallery reposiciona foto estatica para o indice 0');
+galleryInvariantTest.next();
+assert(galleryInvariantTest.getCurrentType() === 'video', 'QuickViewGallery mantem o video acessivel no indice 1');
+
+// 5. Zero Emojis na Vitrine e componentes de Quick View
+assert(!emojiTestRegex.test(appJsContent42), 'app.js cumpre rigorosamente a regra zero emojis');
+const quickViewJsContent42 = fs.readFileSync(path.join(ROOT_DIR, 'js', 'components', 'quick-view.js'), 'utf8');
+assert(!emojiTestRegex.test(quickViewJsContent42), 'js/components/quick-view.js cumpre rigorosamente a regra zero emojis');
+
+// [43] Validando Hero Card com Shimmer Skeleton e Zero FOUC (JEZ-038 - Lumi & Alex)
+console.log('\n[43] Validando Hero Card com Shimmer Skeleton e Zero FOUC (JEZ-038):');
+const htmlRef43 = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf8');
+const stylesContent43 = fs.readFileSync(path.join(ROOT_DIR, 'styles.css'), 'utf8');
+const appJsContent43 = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf8');
+
+assert(stylesContent43.includes('.hero-card-featured.is-skeleton'), 'styles.css define regra para .hero-card-featured.is-skeleton');
+assert(stylesContent43.includes('skeletonCraftPulse'), 'styles.css utiliza animacao skeletonCraftPulse no shimmer artesanal do Hero Card');
+assert(stylesContent43.includes('.hero-card-featured.is-skeleton picture'), 'styles.css dimensiona a moldura de imagem do skeleton mantendo CLS=0');
+assert(htmlRef43.includes("card.classList.add('is-skeleton')"), 'index.html ativa is-skeleton preventivamente na primeira visita sem catalogo');
+assert(appJsContent43.includes('renderHeroSkeleton'), 'app.js implementa funcao renderHeroSkeleton');
+assert(appJsContent43.includes("heroFeaturedCard.classList.remove('is-skeleton')"), 'app.js remove is-skeleton ao renderizar peca real');
+assert(!appJsContent43.includes('renderHeroFeaturedCard(getProducts())'), 'app.js nao renderiza mock padrao com hasLocalCatalog falso eliminando FOUC');
+assert(appJsContent43.includes('renderHeroSkeleton();'), 'app.js invoca renderHeroSkeleton na inicializacao quando !hasLocalCatalog');
+assert(appJsContent43.includes('renderHeroSkeleton,') && appJsContent43.includes('renderHeroFeaturedCard'), 'window.jezApp expoe renderHeroSkeleton e renderHeroFeaturedCard');
+assert(!emojiTestRegex.test(stylesContent43), 'styles.css cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(appJsContent43), 'app.js cumpre rigorosamente a regra zero emojis');
+
+// [44] Validando Enquadramento 1:1 de Video sem Barras Escuras e Fundo Blur no Quick View (JEZ-038 - Lumi & Alex)
+console.log('\n[44] Validando Enquadramento 1:1 de Video sem Barras Escuras e Fundo Blur no Quick View (JEZ-038):');
+const stylesContent44 = fs.readFileSync(path.join(ROOT_DIR, 'styles.css'), 'utf8');
+const appJsContent44 = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf8');
+
+assert(!stylesContent44.includes('background-color: var(--color-dark);\n}'), 'styles.css removeu background-color escuro de .modal-video-element');
+assert(stylesContent44.includes('.modal-video-element') && stylesContent44.includes('aspect-ratio: 1 / 1;'), 'styles.css aplica proporcao 1:1 com aspect-ratio: 1 / 1 em .modal-video-element');
+assert(stylesContent44.includes('background: transparent;') || stylesContent44.includes('background-color: transparent;'), 'styles.css define fundo transparente para .modal-video-element');
+assert(appJsContent44.includes("modalVideo.style.background = 'transparent'") || appJsContent44.includes("modalVideo.style.backgroundColor = 'transparent'"), 'app.js define background transparente no elemento de video');
+assert(appJsContent44.includes('modalImgBlur.style.display = safePoster ? \'block\' : \'none\'') || appJsContent44.includes('modalImgBlur.src = safePoster'), 'app.js exibe o modal-img-blur correspondente ao poster ou capa da peca');
+assert(!emojiTestRegex.test(stylesContent44), 'styles.css cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(appJsContent44), 'app.js cumpre rigorosamente a regra zero emojis');
+
+// [45] Validando Enquadramento 1:1 e Extracao de Poster de Video no Atelie (JEZ-038 - Cris & Alex)
+console.log('\n[45] Validando Enquadramento 1:1 e Extracao de Poster de Video no Atelie (JEZ-038):');
+const adminJsContent45 = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf8');
+const catalogJsContent45 = fs.readFileSync(path.join(ROOT_DIR, 'js', 'admin', 'catalog.js'), 'utf8');
+
+assert(typeof adminCatalogModule.extractVideoPoster === 'function', 'catalog.js exporta a funcao extractVideoPoster');
+assert(typeof adminCatalogModule.createVideoMediaItem === 'function', 'catalog.js exporta a funcao createVideoMediaItem');
+assert(adminJsContent45.includes('extractVideoPoster') && adminJsContent45.includes('createVideoMediaItem'), 'admin.js importa e re-exporta extractVideoPoster e createVideoMediaItem');
+
+// Teste unitario de createVideoMediaItem
+const testVideoItem1 = adminCatalogModule.createVideoMediaItem('assets/products/loop.mp4', 'data:image/jpeg;base64,mockposter');
+assert(testVideoItem1.url === 'assets/products/loop.mp4', 'createVideoMediaItem preserva a URL do video');
+assert(testVideoItem1.poster === 'data:image/jpeg;base64,mockposter', 'createVideoMediaItem vincula o poster 1:1 ao objeto');
+assert(testVideoItem1.isVideo === true && testVideoItem1.type === 'video', 'createVideoMediaItem define flags isVideo e type video');
+
+const testVideoItemObj = adminCatalogModule.createVideoMediaItem({ url: 'blob:video-1', poster: 'data:image/jpeg;base64,p1' });
+assert(testVideoItemObj.url === 'blob:video-1' && testVideoItemObj.poster === 'data:image/jpeg;base64,p1', 'createVideoMediaItem normaliza objeto existente');
+
+const posterPromise = adminCatalogModule.extractVideoPoster(null);
+assert(posterPromise instanceof Promise, 'extractVideoPoster retorna uma Promise defensiva');
+
+// Verificacao no fluxo de nova peca e carrossel de edicao no admin.js
+assert(adminJsContent45.includes('extractVideoPoster(videoDataUrl, 540)'), 'admin.js aciona extractVideoPoster com dimensao 1:1 de 540px');
+assert(adminJsContent45.includes('createVideoMediaItem(videoDataUrl, posterDataUrl)'), 'admin.js vincula poster gerado ao adicionar video em nova peca');
+assert(adminJsContent45.includes('video.poster = safePoster'), 'admin.js exibe poster na pre-visualizacao de nova peca');
+assert(adminJsContent45.includes('editCropSourceVideo.poster = current.poster'), 'admin.js exibe poster no player de edicao do carrossel');
+
+assert(!emojiTestRegex.test(catalogJsContent45), 'js/admin/catalog.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(adminJsContent45), 'admin.js cumpre rigorosamente a regra zero emojis');
+
+// [46] Validando Integracao do Hero Skeleton, Video 1:1 e Extracao de Poster (JEZ-038 - Sam):
+console.log('\n[46] Validando Integracao do Hero Skeleton, Video 1:1 e Extracao de Poster (JEZ-038):');
+
+// 1. Integracao Comportamental e Acessibilidade do Hero Skeleton
+const heroStylesContent46 = fs.readFileSync(path.join(ROOT_DIR, 'styles.css'), 'utf8');
+const heroAppJsContent46 = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf8');
+const heroHtmlContent46 = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf8');
+
+// Regras visuais avancadas de Shimmer e Skeleton no styles.css
+assert(heroStylesContent46.includes('@keyframes skeletonCraftPulse'), 'styles.css define keyframes skeletonCraftPulse para shimmer artesanal');
+assert(heroStylesContent46.includes('.hero-card-featured.is-skeleton picture::before'), 'styles.css define pseudo-elemento shimmer animado sobre a moldura');
+assert(heroStylesContent46.includes('.hero-card-featured.is-skeleton picture img') && heroStylesContent46.includes('opacity: 0'), 'styles.css oculta imagem padrao enquanto skeleton estiver ativo prevenindo FOUC');
+assert(heroStylesContent46.includes('.hero-card-featured.is-skeleton .hero-card-name') && heroStylesContent46.includes('height: 18px'), 'styles.css define dimensoes reservadas para placeholder de nome no skeleton');
+assert(heroStylesContent46.includes('.hero-card-featured.is-skeleton .hero-card-price') && heroStylesContent46.includes('height: 22px'), 'styles.css define dimensoes reservadas para placeholder de preco no skeleton');
+assert(heroStylesContent46.includes('.hero-card-featured.is-skeleton picture') && heroStylesContent46.includes('height: 210px'), 'styles.css ajusta altura proporcional da moldura do skeleton em dispositivos moveis');
+
+// Script inline de protecao contra FOUC no index.html
+assert(heroHtmlContent46.includes("localStorage.getItem('jez_catalog')"), 'index.html verifica cache de catalogo local no script inline de inicializacao');
+assert(heroHtmlContent46.includes("localStorage.getItem('jez_featured_product_cache')"), 'index.html verifica cache do produto de destaque para renderizacao imediata');
+assert(heroHtmlContent46.includes("card.classList.add('is-skeleton')") && heroHtmlContent46.includes("card.setAttribute('aria-busy', 'true')"), 'index.html ativa skeleton e aria-busy preventivamente quando nao ha dados no cache');
+
+// Teste comportamental simulado da transicao de estado do Hero Card
+const mockHeroElement = {
+  classes: new Set(),
+  attributes: {},
+  classList: {
+    add(cls) { mockHeroElement.classes.add(cls); },
+    remove(cls) { mockHeroElement.classes.delete(cls); },
+    contains(cls) { return mockHeroElement.classes.has(cls); }
+  },
+  setAttribute(attr, val) { mockHeroElement.attributes[attr] = String(val); },
+  getAttribute(attr) { return mockHeroElement.attributes[attr] || null; },
+  removeAttribute(attr) { delete mockHeroElement.attributes[attr]; }
+};
+
+// Simulacao do estado de skeleton
+mockHeroElement.classList.add('is-skeleton');
+mockHeroElement.setAttribute('aria-busy', 'true');
+mockHeroElement.setAttribute('aria-label', 'Carregando peca em destaque do atelie...');
+
+assert(mockHeroElement.classList.contains('is-skeleton'), 'Hero card recebe classe is-skeleton durante carregamento inicial');
+assert(mockHeroElement.getAttribute('aria-busy') === 'true', 'Hero card ativa atributo aria-busy durante carregamento');
+assert(mockHeroElement.getAttribute('aria-label').includes('Carregando'), 'Hero card possui aria-label informativo durante o estado skeleton');
+
+// Simulacao do estado hidratado
+mockHeroElement.classList.remove('is-skeleton');
+mockHeroElement.removeAttribute('aria-busy');
+mockHeroElement.setAttribute('data-product-id', 'tote-cherry');
+mockHeroElement.setAttribute('aria-label', 'Ver detalhes da peca em destaque: Tote Bag Cherry com Laco');
+
+assert(!mockHeroElement.classList.contains('is-skeleton'), 'Hero card remove classe is-skeleton ao renderizar peca');
+assert(mockHeroElement.getAttribute('aria-busy') === null, 'Hero card remove aria-busy apos conclusao do carregamento');
+assert(mockHeroElement.getAttribute('data-product-id') === 'tote-cherry', 'Hero card vincula id da peca em destaque');
+
+// 2. Integracao do Player de Video 1:1 e Fundo Blur no Quick View
+assert(!/\.modal-video-element\s*\{[^}]*background(?:-color)?\s*:\s*var\(--color-dark\)/i.test(heroStylesContent46), 'styles.css nao utiliza background escuro ou var(--color-dark) em .modal-video-element');
+assert(/\.modal-video-element\s*\{[^}]*aspect-ratio\s*:\s*1\s*\/\s*1/i.test(heroStylesContent46), 'styles.css garante proporcao 1:1 com aspect-ratio: 1 / 1 em .modal-video-element');
+assert(/\.modal-video-element\s*\{[^}]*object-fit\s*:\s*cover/i.test(heroStylesContent46), 'styles.css garante preenchimento harmonioso com object-fit: cover em .modal-video-element');
+assert(/\.modal-img-blur\s*\{[^}]*filter\s*:[^;]*blur/i.test(heroStylesContent46), 'styles.css aplica desfoque artistico de fundo em .modal-img-blur');
+
+// Camadas e Visibilidade: video sobrepoe o blur com background transparente
+assert(heroAppJsContent46.includes("modalVideo.style.display = 'block'"), 'app.js exibe modalVideo ao selecionar video no Quick View');
+assert(heroAppJsContent46.includes("modalVideo.style.background = 'transparent'") || heroAppJsContent46.includes("modalVideo.style.backgroundColor = 'transparent'"), 'app.js define background transparente no modalVideo garantindo visibilidade do blur');
+assert(heroAppJsContent46.includes("modalImgBlur.style.display = safePoster ? 'block' : 'none'"), 'app.js exibe o blur com o poster correspondente quando video esta ativo');
+
+// 3. Integracao e Contrato de Extracao e Criacao de Poster de Video no Atelie
+const adminCssContent46 = fs.readFileSync(path.join(ROOT_DIR, 'admin.css'), 'utf8');
+assert(adminCssContent46.includes('.crop-viewport') && adminCssContent46.includes('aspect-ratio: 1 / 1'), 'admin.css define proporcao 1:1 para crop-viewport no Atelie');
+assert(adminCssContent46.includes('.crop-video-element') && adminCssContent46.includes('object-fit: cover'), 'admin.css aplica object-fit: cover para video no enquadramento do Atelie');
+assert(adminCssContent46.includes('.extra-photo-thumb') && adminCssContent46.includes('aspect-ratio: 1 / 1'), 'admin.css define proporcao quadrada 1:1 para miniaturas complementares no Atelie');
+
+// Contratos funcionais de midia de video
+const videoItemString = adminCatalogModule.createVideoMediaItem('https://storage.googleapis.com/test.mp4', 'data:image/jpeg;base64,sampleposter');
+assert(videoItemString.url === 'https://storage.googleapis.com/test.mp4', 'createVideoMediaItem mapeia URL de video');
+assert(videoItemString.poster === 'data:image/jpeg;base64,sampleposter', 'createVideoMediaItem mapeia poster do frame 1:1');
+assert(videoItemString.isVideo === true && videoItemString.type === 'video', 'createVideoMediaItem define tipo video');
+
+const defensiveNullItem = adminCatalogModule.createVideoMediaItem(null);
+assert(defensiveNullItem.url === '' && defensiveNullItem.poster === '', 'createVideoMediaItem trata entrada nula com fallback seguro');
+
+const defensiveEmptyObjItem = adminCatalogModule.createVideoMediaItem({});
+assert(defensiveEmptyObjItem.url === '' && defensiveEmptyObjItem.poster === '', 'createVideoMediaItem trata objeto sem propriedades com fallback seguro');
+
+const posterNullCall = adminCatalogModule.extractVideoPoster(null);
+assert(posterNullCall instanceof Promise, 'extractVideoPoster retorna Promise com entrada nula');
+
+const posterNonStringCall = adminCatalogModule.extractVideoPoster(99999);
+assert(posterNonStringCall instanceof Promise, 'extractVideoPoster retorna Promise com entrada numerica');
+
+// 4. Auditoria de Higiene: Zero console.log e Zero Emojis em Producao
+assert(!heroAppJsContent46.includes('console.log('), 'app.js nao possui console.log em producao');
+const adminJsHygContent = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf8');
+assert(!adminJsHygContent.includes('console.log('), 'admin.js nao possui console.log em producao');
+const catalogJsHygContent = fs.readFileSync(path.join(ROOT_DIR, 'js', 'admin', 'catalog.js'), 'utf8');
+assert(!catalogJsHygContent.includes('console.log('), 'js/admin/catalog.js nao possui console.log em producao');
+
+assert(!emojiTestRegex.test(heroStylesContent46), 'styles.css cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(heroAppJsContent46), 'app.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(adminJsHygContent), 'admin.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(catalogJsHygContent), 'js/admin/catalog.js cumpre rigorosamente a regra zero emojis');
+assert(!emojiTestRegex.test(adminCssContent46), 'admin.css cumpre rigorosamente a regra zero emojis');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);

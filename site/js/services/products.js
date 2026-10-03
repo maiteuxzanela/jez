@@ -191,3 +191,86 @@ export function filterActiveProducts(list) {
   if (!Array.isArray(list)) return [];
   return list.filter(p => p && p.status !== 'suspended');
 }
+
+export function isVideoMedia(media) {
+  if (!media) return false;
+  if (typeof media === 'object') {
+    if (media.type === 'video' || media.isVideo === true) return true;
+    if (typeof media.url === 'string') return isVideoMedia(media.url);
+    return false;
+  }
+  if (typeof media !== 'string') return false;
+  const clean = media.trim().toLowerCase();
+  if (clean.startsWith('data:video/')) return true;
+  if (clean.startsWith('blob:video') || clean.includes('mediatype=video')) return true;
+  return /\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i.test(clean);
+}
+
+export function preserveFactoryMedia(product, defaultList = defaultProducts) {
+  if (!product || typeof product !== 'object') return product;
+  const cured = { ...product };
+  const factoryItem = Array.isArray(defaultList) ? defaultList.find(d => d.id === cured.id) : null;
+
+  if (cured.id === 'blusa-teia') {
+    const factoryPhoto = (factoryItem && factoryItem.image) ? factoryItem.image : 'assets/products/blusa_teia.jpg';
+    const factoryVideo = 'assets/products/blusa_teia_loop.mp4';
+    let images = Array.isArray(cured.images) ? [...cured.images] : [];
+    if (images.length === 0) {
+      images = [factoryPhoto, factoryVideo];
+    } else {
+      const hasLoop = images.some(img => (typeof img === 'string' && img.includes('blusa_teia_loop.mp4')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia_loop.mp4')));
+      if (!hasLoop) {
+        images.push(factoryVideo);
+      }
+      const hasPhoto = images.some(img => (typeof img === 'string' && img.includes('blusa_teia.jpg')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia.jpg')));
+      if (!hasPhoto) {
+        images.unshift(factoryPhoto);
+      }
+    }
+    // Regra inviolavel: o video NUNCA deve ser a primeira midia (indice 0)
+    if (isVideoMedia(images[0])) {
+      const nonVideoIdx = images.findIndex(img => !isVideoMedia(img));
+      if (nonVideoIdx > 0) {
+        const [photo] = images.splice(nonVideoIdx, 1);
+        images.unshift(photo);
+      } else {
+        images.unshift(factoryPhoto);
+      }
+    }
+    cured.images = images;
+    cured.image = factoryPhoto;
+    return cured;
+  }
+
+  if (factoryItem) {
+    if (!cured.image || isVideoMedia(cured.image)) {
+      cured.image = factoryItem.image;
+    }
+    if (!Array.isArray(cured.images) || cured.images.length === 0) {
+      cured.images = Array.isArray(factoryItem.images) ? [...factoryItem.images] : [factoryItem.image];
+    }
+  }
+
+  if (Array.isArray(cured.images) && cured.images.length > 0) {
+    if (isVideoMedia(cured.images[0])) {
+      const nonVideoIdx = cured.images.findIndex(img => !isVideoMedia(img));
+      if (nonVideoIdx > 0) {
+        const [photo] = cured.images.splice(nonVideoIdx, 1);
+        cured.images.unshift(photo);
+      } else if (factoryItem && factoryItem.image) {
+        cured.images.unshift(factoryItem.image);
+      } else {
+        cured.images.unshift('assets/products/tote_cherry.jpg');
+      }
+    }
+    if (!cured.image || isVideoMedia(cured.image)) {
+      cured.image = cured.images[0];
+    }
+  }
+  return cured;
+}
+
+export function cureProductListMedia(products, defaultList = defaultProducts) {
+  if (!Array.isArray(products)) return [];
+  return products.map(p => preserveFactoryMedia(p, defaultList));
+}

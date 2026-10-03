@@ -39,11 +39,28 @@ export class QuickViewGallery {
   }
 
   setMedia(mediaList = [], fallbackPoster = '') {
-    const list = Array.isArray(mediaList) && mediaList.length > 0 ? mediaList : [];
+    const list = Array.isArray(mediaList) && mediaList.length > 0 ? [...mediaList] : [];
     const poster = fallbackPoster || this.fallbackPoster;
 
+    let normalized = list.map(item => normalizeMediaItem(item, poster));
+
+    // Regra Inviolavel (JEZ-037): O video NUNCA deve ser a primeira midia (indice 0)
+    if (normalized.length > 0 && normalized[0].type === 'video') {
+      const nonVideoIdx = normalized.findIndex(item => item.type !== 'video');
+      if (nonVideoIdx > 0) {
+        const [staticMedia] = normalized.splice(nonVideoIdx, 1);
+        const [staticPhoto] = list.splice(nonVideoIdx, 1);
+        normalized.unshift(staticMedia);
+        list.unshift(staticPhoto);
+      } else {
+        const fallback = this.fallbackPoster || 'assets/products/tote_cherry.jpg';
+        normalized.unshift(normalizeMediaItem(fallback, fallback));
+        list.unshift(fallback);
+      }
+    }
+
     this.currentPhotos = list;
-    this.currentMedia = list.map(item => normalizeMediaItem(item, poster));
+    this.currentMedia = normalized;
     this.currentIndex = 0;
 
     return this.getCurrentMedia();

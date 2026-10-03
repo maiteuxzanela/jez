@@ -495,6 +495,104 @@ a {
 }
 
 /* --------------------------------------------------------------------------
+   4.8. Hero Card Skeleton Shimmer de Atelie (JEZ-038 - Zero FOUC)
+   -------------------------------------------------------------------------- */
+.hero-card-featured.is-skeleton {
+  cursor: default;
+  pointer-events: none;
+  border-color: rgba(254, 191, 151, 0.45);
+  box-shadow: 6px 6px 0px rgba(253, 10, 84, 0.25), 0 20px 40px rgba(0, 0, 0, 0.25);
+  animation: heroSkeletonBorderPulse 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes heroSkeletonBorderPulse {
+  0% {
+    border-color: rgba(254, 191, 151, 0.35);
+    box-shadow: 6px 6px 0px rgba(253, 10, 84, 0.2), 0 20px 40px rgba(0, 0, 0, 0.2);
+  }
+  100% {
+    border-color: rgba(254, 191, 151, 0.7);
+    box-shadow: 6px 6px 0px rgba(253, 10, 84, 0.4), 0 20px 40px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.hero-card-featured.is-skeleton picture {
+  display: block;
+  width: 100%;
+  height: 260px;
+  border-radius: 2px;
+  background-color: #1a1322;
+  border: 1.5px dashed rgba(254, 191, 151, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-card-featured.is-skeleton picture::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(254, 191, 151, 0.05) 0%,
+    rgba(245, 236, 183, 0.18) 50%,
+    rgba(254, 191, 151, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonCraftPulse 1.8s ease-in-out infinite;
+}
+
+.hero-card-featured.is-skeleton picture img {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.hero-card-featured.is-skeleton .hero-card-caption {
+  position: relative;
+}
+
+.hero-card-featured.is-skeleton .hero-card-name,
+.hero-card-featured.is-skeleton .hero-card-price {
+  color: transparent !important;
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.hero-card-featured.is-skeleton .hero-card-name {
+  background-color: rgba(245, 236, 183, 0.16);
+  min-width: 140px;
+  height: 18px;
+  display: inline-block;
+  background-image: linear-gradient(
+    90deg,
+    rgba(254, 191, 151, 0.06) 0%,
+    rgba(245, 236, 183, 0.2) 50%,
+    rgba(254, 191, 151, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonCraftPulse 1.8s ease-in-out infinite;
+}
+
+.hero-card-featured.is-skeleton .hero-card-price {
+  background-color: rgba(254, 191, 151, 0.25);
+  min-width: 68px;
+  height: 18px;
+  display: inline-block;
+  background-image: linear-gradient(
+    90deg,
+    rgba(254, 191, 151, 0.06) 0%,
+    rgba(245, 236, 183, 0.2) 50%,
+    rgba(254, 191, 151, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonCraftPulse 1.8s ease-in-out infinite;
+}
+
+/* --------------------------------------------------------------------------
    5. Filtros por Categoria & Controles
    -------------------------------------------------------------------------- */
 .catalog-section {
@@ -928,6 +1026,134 @@ a {
 
 .btn-add-cart:active {
   transform: translateY(0);
+}
+
+/* --------------------------------------------------------------------------
+   6.5. Skeleton Shimmer de Atelie (JEZ-036 - Carregamento Suave sem FOUC)
+   -------------------------------------------------------------------------- */
+.product-card-skeleton {
+  background: var(--color-dark, #23192d);
+  border-radius: 4px;
+  border: 2px solid var(--color-dark, #23192d);
+  overflow: hidden;
+  box-shadow: 4px 4px 0px rgba(253, 10, 84, 0.35);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  pointer-events: none;
+  min-height: 420px;
+}
+
+/* Micro-rotacoes organicas identicas aos cards de produtos */
+.product-card-skeleton:nth-child(4n+1) {
+  transform: rotate(-0.6deg);
+}
+
+.product-card-skeleton:nth-child(4n+2) {
+  transform: rotate(0.6deg);
+}
+
+.product-card-skeleton:nth-child(4n+3) {
+  transform: rotate(-0.4deg);
+}
+
+.product-card-skeleton:nth-child(4n+4) {
+  transform: rotate(0.5deg);
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(254, 191, 151, 0.06) 0%,
+    rgba(245, 236, 183, 0.16) 50%,
+    rgba(254, 191, 151, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonCraftPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes skeletonCraftPulse {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-image-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background-color: #1a1322;
+  border-bottom: 2px dashed rgba(254, 191, 151, 0.25);
+}
+
+.skeleton-info {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-grow: 1;
+}
+
+.skeleton-line {
+  border-radius: 3px;
+}
+
+.skeleton-line.category {
+  width: 35%;
+  height: 12px;
+  background-color: rgba(245, 117, 118, 0.22);
+}
+
+.skeleton-line.title {
+  width: 85%;
+  height: 20px;
+  background-color: rgba(245, 236, 183, 0.18);
+}
+
+.skeleton-line.meta {
+  width: 65%;
+  height: 14px;
+  margin-bottom: 12px;
+  background-color: rgba(245, 236, 183, 0.12);
+}
+
+.skeleton-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(254, 191, 151, 0.25);
+}
+
+.skeleton-line.price {
+  width: 32%;
+  height: 24px;
+  background-color: rgba(254, 191, 151, 0.25);
+}
+
+.skeleton-line.button {
+  width: 44%;
+  height: 38px;
+  border: 1.5px dashed rgba(253, 10, 84, 0.45);
+  border-radius: 4px;
+  background-color: rgba(253, 10, 84, 0.15);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -1559,21 +1785,23 @@ a {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23F5ECB7' stroke='%23F5ECB7' stroke-width='2'%3E%3Cpolygon points='8 5 19 12 8 19 8 5'/%3E%3C/svg%3E");
 }
 
-/* Player de Vídeo em Loop no Quick View (JEZ-032) */
+/* Player de Vídeo em Loop no Quick View (JEZ-032 & JEZ-038) */
 .modal-video-element {
   position: relative;
   z-index: 3;
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
   object-position: center;
   display: block;
   border-radius: var(--radius-md);
   filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.4));
   transition: max-height 0.2s ease, margin-bottom 0.2s ease;
-  background-color: var(--color-dark);
+  background: transparent;
+  background-color: transparent;
 }
 
 .modal-img-wrap.has-gallery .modal-video-element {
@@ -2033,6 +2261,10 @@ a {
     height: 210px;
   }
 
+  .hero-card-featured.is-skeleton picture {
+    height: 210px;
+  }
+
   .washi-tape {
     width: 76px;
     height: 18px;
@@ -2299,15 +2531,18 @@ a {
   .modal-video-element {
     position: relative;
     z-index: 3;
-    width: 100%;
-    height: 100%;
+    width: auto;
+    height: auto;
     max-width: 100%;
     max-height: 100%;
-    object-fit: contain;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
     object-position: center;
     display: block;
     filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.35));
     transition: max-height 0.2s ease, margin-bottom 0.2s ease;
+    background: transparent;
+    background-color: transparent;
   }
 
   .modal-img-wrap.has-gallery .modal-video-element {

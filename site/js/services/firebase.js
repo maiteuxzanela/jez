@@ -20,6 +20,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 
 import { firebaseConfig } from '../../firebase-config.js';
+import { defaultProducts, preserveFactoryMedia } from './products.js';
 
 export class JezFirebaseService {
   constructor() {
@@ -66,6 +67,34 @@ export class JezFirebaseService {
   // --------------------------------------------------------------------------
   // Gestão de Peças do Acervo (Produtos)
   // --------------------------------------------------------------------------
+  patchProductMediaIfNeeded(rawProduct) {
+    if (!this.db || !rawProduct || rawProduct.id !== 'blusa-teia') return;
+    const images = Array.isArray(rawProduct.images) ? rawProduct.images : [];
+    const hasVideo = images.some(img => {
+      const url = typeof img === 'string' ? img : (img && img.url ? img.url : '');
+      return url.includes('blusa_teia_loop.mp4');
+    });
+    const hasPhotoFirst = images.length > 0 && (() => {
+      const first = images[0];
+      const url = typeof first === 'string' ? first : (first && first.url ? first.url : '');
+      return url.includes('blusa_teia.jpg');
+    })();
+    const hasCorrectMainImage = typeof rawProduct.image === 'string' && rawProduct.image.includes('blusa_teia.jpg');
+
+    if (!hasVideo || !hasPhotoFirst || !hasCorrectMainImage || images.length < 2) {
+      const blusaDocRef = doc(this.db, 'products', 'blusa-teia');
+      setDoc(blusaDocRef, {
+        image: 'assets/products/blusa_teia.jpg',
+        images: ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'],
+        updatedAt: serverTimestamp()
+      }, { merge: true }).then(() => {
+        console.debug('[JËZ Cloud] Patch suave de mídia da blusa-teia aplicado com sucesso no Firestore');
+      }).catch(err => {
+        console.debug('[JËZ Cloud] Patch suave de mídia da blusa-teia ignorado:', err.message);
+      });
+    }
+  }
+
   onProductsChange(callback) {
     if (!this.db) return () => {};
     try {
@@ -84,7 +113,12 @@ export class JezFirebaseService {
       return onSnapshot(colRef, (snapshot) => {
         const products = [];
         snapshot.forEach(docSnap => {
-          products.push({ id: docSnap.id, ...docSnap.data() });
+          const raw = { id: docSnap.id, ...docSnap.data() };
+          this.patchProductMediaIfNeeded(raw);
+          const cured = typeof preserveFactoryMedia === 'function'
+            ? preserveFactoryMedia(raw, defaultProducts)
+            : raw;
+          products.push(cured);
         });
         products.sort((a, b) => {
           const idxA = defaultOrder.indexOf(a.id);
@@ -104,6 +138,36 @@ export class JezFirebaseService {
       console.warn('[JËZ Cloud] Exceção ao assinar produtos:', err);
       return () => {};
     }
+  }
+
+  waitForInitialProducts(timeoutMs = 1500) {
+    return new Promise((resolve) => {
+      if (!this.db) {
+        resolve(null);
+        return;
+      }
+      let settled = false;
+      let unsubscribe = () => {};
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          try {
+            unsubscribe();
+          } catch (err) {
+            console.debug('[JËZ Cloud] Erro ao desinscrever listener:', err);
+          }
+          resolve(null);
+        }
+      }, timeoutMs);
+
+      unsubscribe = this.onProductsChange((products) => {
+        if (!settled && Array.isArray(products) && products.length > 0) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(products);
+        }
+      });
+    });
   }
 
   async saveProduct(product) {
