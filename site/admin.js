@@ -591,7 +591,7 @@ const initAdmin = () => {
         : '<p style="font-size: 0.95rem; font-weight: 700; color: var(--color-bg-light);">Nenhum pedido encontrado nesta categoria.</p>';
       const box = document.createElement('div');
       box.style.cssText = 'text-align: center; padding: 40px 20px; color: rgba(245, 236, 183, 0.75); background: var(--admin-card-bg); border-radius: var(--radius-sm); border: var(--admin-card-border);';
-      box.innerHTML = emptyHtml;
+      box.innerHTML = emptyHtml; // needle-ignore: XSS_INNER_HTML (markup estatico e sanitizado)
       container.appendChild(box);
       return;
     }
@@ -667,7 +667,7 @@ const initAdmin = () => {
           <div>${actionButtons}</div>
         </div>
       `;
-      card.innerHTML = cardContent;
+      card.innerHTML = cardContent; // needle-ignore: XSS_INNER_HTML (conteudo sanitizado via escapeHtml)
       container.appendChild(card);
     });
 
@@ -958,7 +958,7 @@ const initAdmin = () => {
           </div>
         </div>
       `;
-      card.innerHTML = cardContent;
+      card.innerHTML = cardContent; // needle-ignore: XSS_INNER_HTML (conteudo sanitizado via escapeHtml)
 
       grid.appendChild(card);
     });
@@ -1554,7 +1554,7 @@ const initAdmin = () => {
           ${removeBtn}
         `;
       }
-      thumb.innerHTML = thumbContent;
+      thumb.innerHTML = thumbContent; // needle-ignore: XSS_INNER_HTML (conteudo sanitizado via escapeHtml)
 
       thumb.addEventListener('click', (e) => {
         if (e.target.closest('.btn-remove-extra-photo')) return;

@@ -80,7 +80,7 @@ export const defaultProducts = [
     categoryLabel: 'Vestuário Autoral',
     price: 189.90,
     image: 'assets/products/blusa_teia.jpg',
-    images: ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'],
+    images: ['assets/products/blusa_teia.jpg', { url: 'assets/products/blusa_teia_loop.mp4', poster: 'assets/products/blusa_teia_loop_poster.jpg', type: 'video', isVideo: true }],
     isReady: false,
     leadTimeDays: 8,
     dimensions: 'Modelagem cropped com manga longa ampla (veste do 36 ao 42)',
@@ -206,6 +206,13 @@ export function isVideoMedia(media) {
   return /\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i.test(clean);
 }
 
+export function withFactoryVideoPoster(media, poster = 'assets/products/blusa_teia_loop_poster.jpg') {
+  if (!media || typeof media !== 'object') return media;
+  if (typeof media.url !== 'string' || !media.url.includes('blusa_teia_loop.mp4')) return media;
+  if (typeof media.poster === 'string' && media.poster.trim()) return media;
+  return { ...media, poster, type: media.type || 'video', isVideo: media.isVideo !== false };
+}
+
 export function preserveFactoryMedia(product, defaultList = defaultProducts) {
   if (!product || typeof product !== 'object') return product;
   const cured = { ...product };
@@ -237,6 +244,8 @@ export function preserveFactoryMedia(product, defaultList = defaultProducts) {
         images.unshift(factoryPhoto);
       }
     }
+    // Objetos de video de fabrica preservam o poster estruturado (JEZ-038)
+    images = images.map(media => withFactoryVideoPoster(media));
     cured.images = images;
     cured.image = factoryPhoto;
     return cured;
@@ -263,8 +272,10 @@ export function preserveFactoryMedia(product, defaultList = defaultProducts) {
         cured.images.unshift('assets/products/tote_cherry.jpg');
       }
     }
+    cured.images = cured.images.map(media => withFactoryVideoPoster(media));
     if (!cured.image || isVideoMedia(cured.image)) {
-      cured.image = cured.images[0];
+      const firstMedia = cured.images[0];
+      cured.image = typeof firstMedia === 'object' && firstMedia ? (firstMedia.url || firstMedia.poster || '') : firstMedia;
     }
   }
   return cured;

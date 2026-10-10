@@ -113,6 +113,52 @@ export function normalizeMediaItem(item, fallbackPoster = '') {
 }
 
 /**
+ * Deriva o caminho local do poster do primeiro frame de um video hospedado
+ * em assets/ seguindo a convencao do atelie: <stem>_poster.jpg (ex.:
+ * assets/products/blusa_teia_loop.mp4 -> assets/products/blusa_teia_loop_poster.jpg).
+ * Retornam string vazia para videos remotos, blob:, data: ou nao identificaveis.
+ * @param {string} videoUrl
+ * @returns {string}
+ */
+export function deriveLocalVideoPoster(videoUrl) {
+  if (typeof videoUrl !== 'string') return '';
+
+  const clean = videoUrl.trim().split('?')[0].split('#')[0];
+  if (!clean || !isVideoUrl(clean)) return '';
+
+  const assetIdx = clean.indexOf('assets/');
+  if (assetIdx === -1) return '';
+
+  return `${clean.slice(assetIdx).replace(/\.[a-z0-9]+$/i, '')}_poster.jpg`;
+}
+
+/**
+ * Resolve o banner/poster do primeiro frame de uma midia de video (JEZ-038).
+ * Cadeia deterministic: (1) poster estruturado do objeto de midia;
+ * (2) poster derivado por convencao ao lado do arquivo local de video.
+ * Nunca devolve a foto estatica anterior da peca: quando indeterminavel,
+ * devolve string vazia para que o chamador aplique o fallback adequado ao
+ * contexto (miniatura têxtil no Quick View, blur/capa no player).
+ * @param {string | object} media
+ * @returns {string}
+ */
+export function resolveVideoPoster(media) {
+  if (!media) return '';
+
+  if (typeof media === 'object') {
+    if (typeof media.poster === 'string' && media.poster.trim()) {
+      return media.poster.trim();
+    }
+    return deriveLocalVideoPoster(media.url);
+  }
+
+  if (typeof media !== 'string') return '';
+  if (!isVideoUrl(media)) return '';
+
+  return deriveLocalVideoPoster(media);
+}
+
+/**
  * Valida se um arquivo de video cumpre a cota de tamanho e formato antes do upload.
  * Impede exaustao da cota de 1 GB do Firebase Storage.
  * @param {File | Blob} file
@@ -249,6 +295,8 @@ if (typeof window !== 'undefined') {
     isVideoUrl,
     hasVideoMedia,
     normalizeMediaItem,
+    deriveLocalVideoPoster,
+    resolveVideoPoster,
     validateVideoUploadQuota,
     shouldAutoplayMotion,
     createOptimizedVideoMarkup,

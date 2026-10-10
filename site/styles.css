@@ -1726,6 +1726,7 @@ a {
 .modal-thumb {
   width: 42px;
   height: 42px;
+  aspect-ratio: 1 / 1;
   border-radius: 4px;
   overflow: hidden;
   border: 2px solid transparent;
@@ -1734,8 +1735,11 @@ a {
   transition: all 0.2s ease;
   flex-shrink: 0;
   padding: 0;
-  background: #1a1222;
+  background-color: var(--color-dark, #1a1222);
   box-sizing: border-box;
+  /* Etiqueta têxtil costurada (woven label): pesponto interno tracejado, nunca pill */
+  outline: 1px dashed rgba(254, 191, 151, 0.35);
+  outline-offset: -4px;
 }
 
 .modal-thumb img {
@@ -1755,11 +1759,25 @@ a {
   border-color: var(--color-accent);
   box-shadow: 0 0 10px rgba(254, 191, 151, 0.6);
   transform: scale(1.08);
+  outline-color: var(--color-accent);
+}
+
+/* Acessibilidade: anel de foco visivel preservado sobre o pesponto têxtil */
+.modal-thumb:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
 }
 
 /* Miniatura com Indicador de Vídeo na Galeria (JEZ-032) */
 .modal-thumb.is-video {
   position: relative;
+  aspect-ratio: 1 / 1;
+}
+
+/* Ativo: o pesponto da etiqueta acompanha o estado selecionado */
+.modal-thumb.is-video.active {
+  border-color: var(--color-accent);
+  outline-color: var(--color-accent);
 }
 
 .modal-thumb.is-video::after {

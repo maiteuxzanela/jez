@@ -12,6 +12,7 @@ import { sanitizeImageUrl } from './product-card.js';
 import {
   isVideoUrl,
   normalizeMediaItem,
+  resolveVideoPoster,
   hasVideoMedia,
   cleanupVideoPlayback,
   shouldAutoplayMotion
@@ -42,7 +43,10 @@ export class QuickViewGallery {
     const list = Array.isArray(mediaList) && mediaList.length > 0 ? [...mediaList] : [];
     const poster = fallbackPoster || this.fallbackPoster;
 
-    let normalized = list.map(item => normalizeMediaItem(item, poster));
+    // Coerencia JEZ-038: cada video recebe o banner/poster do primeiro frame
+    // (poster estruturado ou <stem>_poster.jpg) antes de recorrer ao poster de
+    // fallback da peca, evitando que a miniatura herde a foto estatica anterior.
+    let normalized = list.map(item => normalizeMediaItem(item, resolveVideoPoster(item) || poster));
 
     // Regra Inviolavel (JEZ-037): O video NUNCA deve ser a primeira midia (indice 0)
     if (normalized.length > 0 && normalized[0].type === 'video') {

@@ -77,7 +77,7 @@ export const defaultInitialCatalog = [
     categoryLabel: 'Vestuário Autoral',
     price: 189.90,
     image: 'assets/products/blusa_teia.jpg',
-    images: ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'],
+    images: ['assets/products/blusa_teia.jpg', { url: 'assets/products/blusa_teia_loop.mp4', poster: 'assets/products/blusa_teia_loop_poster.jpg', type: 'video', isVideo: true }],
     status: 'order',
     isReady: false,
     leadTimeDays: 8,
@@ -196,6 +196,20 @@ export function isVideoMedia(media) {
 }
 
 /**
+ * Garante que um objeto de video de fabrica da blusa-teia preserve o poster estruturado (JEZ-038).
+ * Strings simples de video sao mantidas como estao (compatibilidade com poster).
+ * @param {string | object} media
+ * @param {string} poster
+ * @returns {string | object}
+ */
+export function withFactoryVideoPoster(media, poster = 'assets/products/blusa_teia_loop_poster.jpg') {
+  if (!media || typeof media !== 'object') return media;
+  if (typeof media.url !== 'string' || !media.url.includes('blusa_teia_loop.mp4')) return media;
+  if (typeof media.poster === 'string' && media.poster.trim()) return media;
+  return { ...media, poster, type: media.type || 'video', isVideo: media.isVideo !== false };
+}
+
+/**
  * Cria ou normaliza um objeto de mídia de vídeo com poster associado (JEZ-038).
  * @param {string | object} url
  * @param {string} poster
@@ -251,8 +265,8 @@ export function extractVideoPoster(videoSrc, targetSize = 540) {
         video.pause();
         video.removeAttribute('src');
         video.load();
-      } catch {
-        // Descarte silencioso do elemento de vídeo
+      } catch (err) {
+        if (typeof console !== 'undefined' && typeof console.debug === 'function') console.debug('[JËZ Admin] Descarte de vídeo:', err);
       }
     };
 
@@ -369,6 +383,8 @@ export function preserveFactoryMedia(product, defaultList = defaultInitialCatalo
         images.unshift(factoryPhoto);
       }
     }
+    // Objetos de vídeo de fábrica preservam o poster estruturado (JEZ-038)
+    images = images.map(media => withFactoryVideoPoster(media));
     cured.images = images;
     cured.image = factoryPhoto;
     return cured;

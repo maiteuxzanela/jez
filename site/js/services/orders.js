@@ -55,7 +55,7 @@ export async function fetchAddressByCep(cleanCep) {
       }
     }
   } catch (err) {
-    // Timeout ou erro de rede tratado silenciosamente
+    if (typeof console !== 'undefined' && typeof console.debug === 'function') console.debug('[JËZ CEP] Falha de rede:', err);
   }
 
   // Fallback para Montes Claros (Origem da artesã: CEPs 39400 a 39409)

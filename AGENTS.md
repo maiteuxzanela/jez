@@ -208,3 +208,42 @@ O orquestrador Alex atua na coordenação geral, diagnóstico técnico, arquitet
    * `--color-secondary: #F57576` (Coral Suave)
    * `--color-accent: #FEBF97` (Pêssego Têxtil)
    * `--color-bg-light: #F5ECB7` (Creme de Algodão Cru)
+
+---
+
+## 6. Diretriz de Contenção de Gastos de Tokens (Proibição Estrita de Polling, Lead Silencioso e Watchdog Virtual)
+
+*(Cláusula global mandatória — `~/.config/opencode/AGENTS.md` §6.7)*
+
+* 🚨 **PROIBIÇÃO ESTRITA DE POLLING:** Ao disparar subagentes via `team_spawn`, o orquestrador (Alex) DEVE encerrar sua resposta imediatamente e aguardar o evento passivo do sistema (`[System: All team tasks completed on board by <membro>]`). É terminantemente proibido rodar comandos shell de monitoramento, laços de repetição ou inspeções no SQLite (`opencode.db`) enquanto o subagente trabalha.
+* 🔇 **LEAD SILENCIOSO (`silentLead: true`):** Durante a execução ativa da mesa, o orquestrador entra em repouso absoluto (zero tokens). Toda mensagem de texto direcionada ao lead é silenciada pelo plugin (`silentLead: true`) e acumulada no banco de dados. O lead NÃO acorda por conteúdo textual; seu despertar ocorre de forma 100% sistemática quando todas as tarefas no board forem marcadas como concluídas via `team_tasks_complete`. Ao acordar, recebe o histórico completo acumulado de uma só vez.
+* 🛑 **WATCHDOG DE STALL VIRTUAL/DESATIVADO:** O temporizador de inatividade é virtualmente desligado com `stallThresholdMs: 999999999` e `stallMinSteps: 999999`, garantindo que agentes em espera passiva nunca sofram interrupções e o orquestrador nunca seja acordado por ociosidade.
+
+---
+
+## 7. Grafos Cíclicos entre Pares, Posse da Tarefa no Quality Gate e Desacoplamento Mandatório da Diana
+
+*(Cláusula global mandatória — `~/.config/opencode/AGENTS.md` §6.8)*
+
+* 🔄 **GRAFOS CÍCLICOS ENTRE PARES (CYCLIC PEER LOOPS):** Os subagentes dentro do time trabalham em modelo cíclico de vaivém (Implementador <-> Quality Gate), trocando feedback, relatórios e correções de código diretamente via `team_message` sem intermediação do lead.
+* 🔒 **POSSE EXCLUSIVA DA TAREFA PELO QUALITY GATE (CLARA):** No `team_tasks_add`, a tarefa única de entrega deve ser reivindicada com exclusividade pela Clara (`team_spawn(name="clara", claim_task="<task_id>")`). Os implementadores ficam travados pelo plugin de concluir a tarefa no board (`Task claimed by clara`), devendo apenas enviar as entregas para a Clara via `team_message`. Somente a Clara detém a autoridade para chamar `team_tasks_complete` após a homologação determinística.
+* 🚨 **PROIBIÇÃO MANDATÓRIA DA DIANA DENTRO DO TEAM:** É expressamente proibido incluir a Diana no `team_spawn`. A mesa é composta estritamente por especialistas na cota gratuita (`opencode/mimo-v2.6-flash-free`), tendo a Clara como guardiã do Quality Gate do time.
+* 🎯 **ACIONAMENTO ISOLADO DA DIANA PARA REVISÃO CEGA:** Somente após a Clara homologar e concluir a tarefa no board (despertando o lead sistematicamente), o lead acorda, finaliza o time e convoca a Diana em sessão isolada de revisão cega no modelo `google/antigravity-gemini-3.8-flash`, variant `high`.
+
+---
+
+## 8. Proteção de Hardware (Proibição Estrita de Ollama/Qwen em CPU Local)
+
+*(Cláusula global mandatória — `~/.config/opencode/AGENTS.md`)*
+
+* 🚨 **PROIBIÇÃO ESTRITA DE INFERÊNCIA PESADA EM CPU LOCAL:** É expressamente PROIBIDO acionar modelos de LLM locais via Ollama/CPU (`ollama/*`, ex.: `ollama/qwen3.5`, `ollama/qwen-pt`) para smoke tests, execuções de agentes, rascunhos ou comparações. Os recursos de CPU e a memória da GPU (**GTX 1050 Ti Pascal**) são de uso exclusivo do ambiente operacional da usuária e do motor discriminativo **Laya RLCD / Cactus Needle 3**.
+* 🧠 **Modelo dos subagentes especialistas:** estritamente `opencode/mimo-v2.6-flash-free` (fallback `google/antigravity-gemini-3.1-pro`). ⛔ PROIBIDO `deepseek/*` em testes/rascunhos (custo real) e PROIBIDO rodar subagentes no Nemotron.
+
+---
+
+## 9. Arquitetura do Pool Global Único de Especialistas vs Orquestradores Locais Restritos
+
+*(Cláusula global mandatória — `~/.config/opencode/AGENTS.md` §8)*
+
+1. **Orquestradores Locais (Restritos):** Valério (JEV), **Alex (JEZ Collections)**, Zélia (Panela de Sobra), Cecília (Faturamento), Morgan Quant (Predictera) e Dante (OpenCode Harness). Cada orquestrador está confinado exclusivamente ao seu repositório/ecossistema — é terminantemente proibido intervir diretamente em outros repositórios. O papel é estritamente de leitura, diagnóstico, planejamento e delegação via Ensemble (`team_spawn`).
+2. **Pool Global Único de Especialistas:** Cris (unificada web/back-office), Sam, Lumi, Carla, Ariel, Rowan, Kael, Maya, Túlio, Silas, Bia, Juliana, Ana, Iara, Morgan-sec, Letícia, Clara, Otávio, Noa, Érica, Ellis, Beatriz, Camila, Daniela, Fernanda, Gabriela, Isabela — convocáveis por qualquer orquestrador local via `team_spawn` para executar implementações, testes e inspeções dentro do repositório do chamador.

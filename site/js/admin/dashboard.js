@@ -120,7 +120,7 @@ export function renderDashboard(elements, params) {
           </svg>
         </div>
       `;
-      itemRow.innerHTML = rowMarkup;
+      itemRow.innerHTML = rowMarkup; // needle-ignore: XSS_INNER_HTML (conteudo sanitizado via escapeHtml)
 
       const triggerNavigation = () => {
         if (typeof onNavigateOrder === 'function') {

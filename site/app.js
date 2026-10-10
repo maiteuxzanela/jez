@@ -71,7 +71,7 @@ const initApp = () => {
       categoryLabel: 'Vestuário Autoral',
       price: 189.90,
       image: 'assets/products/blusa_teia.jpg',
-      images: ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'],
+      images: ['assets/products/blusa_teia.jpg', { url: 'assets/products/blusa_teia_loop.mp4', poster: 'assets/products/blusa_teia_loop_poster.jpg', type: 'video', isVideo: true }],
       isReady: false,
       leadTimeDays: 8,
       dimensions: 'Modelagem cropped com manga longa ampla (veste do 36 ao 42)',
@@ -177,6 +177,28 @@ const initApp = () => {
     return /\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i.test(clean);
   };
 
+  const withFactoryVideoPoster = (media, poster = 'assets/products/blusa_teia_loop_poster.jpg') => {
+    if (!media || typeof media !== 'object') return media;
+    if (typeof media.url !== 'string' || !media.url.includes('blusa_teia_loop.mp4')) return media;
+    if (typeof media.poster === 'string' && media.poster.trim()) return media;
+    return { ...media, poster, type: media.type || 'video', isVideo: media.isVideo !== false };
+  };
+
+  // Etiqueta textile costurada (woven label) usada como poster têxtil quando um
+  // video nao possui banner do primeiro frame derivavel. Formato 1:1 (42x42),
+  // paleta oficial (aubergine + pesponto pêssego), ZERO emojis e ZERO pills.
+  const VIDEO_THUMB_POSTER_PLACEHOLDER = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2042%2042'%3E%3Crect%20width='42'%20height='42'%20fill='%2323192d'/%3E%3Crect%20x='4'%20y='4'%20width='34'%20height='34'%20fill='none'%20stroke='%23FEBF97'%20stroke-width='1'%20stroke-dasharray='3%202.5'/%3E%3Cpolygon%20points='17,15%2028,21%2017,27'%20fill='%23FEBF97'/%3E%3C/svg%3E";
+
+  // Resolve o banner/poster do primeiro frame de um video (JEZ-038).
+  // Fonte unica: js/services/media-performance.js. Nunca devolve a foto
+  // estatica anterior da peca; quando indeterminavel devolve string vazia.
+  const resolveVideoPoster = (media) => {
+    if (window.jezMediaPerformance && typeof window.jezMediaPerformance.resolveVideoPoster === 'function') {
+      return window.jezMediaPerformance.resolveVideoPoster(media);
+    }
+    return '';
+  };
+
   const hasVideoMedia = (mediaList) => {
     if (window.jezMediaPerformance && typeof window.jezMediaPerformance.hasVideoMedia === 'function') {
       return window.jezMediaPerformance.hasVideoMedia(mediaList);
@@ -214,6 +236,8 @@ const initApp = () => {
           images.unshift(factoryPhoto);
         }
       }
+      // Objetos de video de fabrica preservam o poster estruturado (JEZ-038)
+      images = images.map(media => withFactoryVideoPoster(media));
       cured.images = images;
       cured.image = factoryPhoto;
       return cured;
@@ -270,16 +294,22 @@ const initApp = () => {
               updated = true;
             }
           }
-          if (p.id !== 'tote-cherry' && Array.isArray(p.images) && p.images.length > 0 && (p.images[0] === 'assets/products/tote_cherry.jpg' || p.images[0].endsWith('/tote_cherry.jpg'))) {
-            const def = defaultProducts.find(d => d.id === p.id);
-            if (def && def.image) {
-              p.images[0] = def.image;
-              updated = true;
+          if (p.id !== 'tote-cherry' && Array.isArray(p.images) && p.images.length > 0) {
+            const firstMedia = p.images[0];
+            const firstMediaUrl = typeof firstMedia === 'string' ? firstMedia : (firstMedia && firstMedia.url) || '';
+            if (firstMediaUrl === 'assets/products/tote_cherry.jpg' || firstMediaUrl.endsWith('/tote_cherry.jpg')) {
+              const def = defaultProducts.find(d => d.id === p.id);
+              if (def && def.image) {
+                p.images[0] = def.image;
+                updated = true;
+              }
             }
           }
           // Garante vídeo mockado para blusa-teia (JEZ-032 & JEZ-037)
           if (p.id === 'blusa-teia') {
-            if (!Array.isArray(p.images) || !p.images.includes('assets/products/blusa_teia_loop.mp4') || isVideoUrl(p.images[0])) {
+            const hasFactoryVideo = Array.isArray(p.images) && p.images.some(img => (typeof img === 'string' && img.includes('blusa_teia_loop.mp4')) || (typeof img === 'object' && img && typeof img.url === 'string' && img.url.includes('blusa_teia_loop.mp4')));
+            const videoFirst = Array.isArray(p.images) && isVideoUrl(p.images[0]);
+            if (!hasFactoryVideo || videoFirst) {
               p = cureProductMedia(p, defaultProducts);
               updated = true;
             }
@@ -289,7 +319,7 @@ const initApp = () => {
             const def = defaultProducts.find(d => d.id === p.id);
             if (def && def.images) {
               updated = true;
-              p.images = def.images;
+              p.images = [...def.images];
             }
           }
           if (p.stockQty === undefined || p.stockQty === null) {
@@ -1075,7 +1105,9 @@ const initApp = () => {
 
     if (isVideo) {
       const videoUrl = typeof rawMedia === 'string' ? rawMedia : (rawMedia.url || '');
-      const posterCandidate = (typeof rawMedia === 'object' && rawMedia.poster) ? rawMedia.poster : fallbackPoster;
+      // Poster do primeiro frame do video; a foto da peca so entra como ultimo
+      // recurso do blur/capa (a miniatura nunca herda a foto estatica).
+      const posterCandidate = resolveVideoPoster(rawMedia) || fallbackPoster;
       const safePoster = sanitizeImageUrl(posterCandidate) || (product && product.image ? sanitizeImageUrl(product.image) : '');
 
       if (modalImg) {
@@ -1184,15 +1216,14 @@ const initApp = () => {
       if (currentModalPhotos.length > 1) {
         currentModalPhotos.forEach((rawMedia, idx) => {
           const isVid = isVideoUrl(rawMedia);
-          let photoUrl = rawMedia;
+          const mediaUrl = (rawMedia && typeof rawMedia === 'object' && typeof rawMedia.url === 'string')
+            ? rawMedia.url
+            : rawMedia;
+          let photoUrl = mediaUrl;
           if (isVid) {
-            if (typeof rawMedia === 'object' && rawMedia.poster) {
-              photoUrl = rawMedia.poster;
-            } else {
-              photoUrl = (product.image && !isVideoUrl(product.image))
-                ? product.image
-                : (product.id === 'blusa-teia' ? 'assets/products/blusa_teia.jpg' : 'assets/products/tote_cherry.jpg');
-            }
+            // JEZ-038: a miniatura de video exibe o banner/poster do primeiro
+            // frame e NUNCA herda a foto estatica anterior da peca.
+            photoUrl = resolveVideoPoster(rawMedia) || VIDEO_THUMB_POSTER_PLACEHOLDER;
           }
           const thumbBtn = document.createElement('button');
           thumbBtn.type = 'button';
@@ -1202,6 +1233,13 @@ const initApp = () => {
           thumbImg.src = sanitizeImageUrl(photoUrl);
           thumbImg.alt = '';
           thumbImg.loading = 'lazy';
+          thumbImg.addEventListener('error', () => {
+            // Poster derivado inexistente (404): cai para a etiqueta têxtil
+            // em vez de exibir imagem quebrada ou a foto da peca.
+            if (thumbImg.dataset.posterFallback === '1') return;
+            thumbImg.dataset.posterFallback = '1';
+            thumbImg.src = sanitizeImageUrl(VIDEO_THUMB_POSTER_PLACEHOLDER);
+          });
           thumbBtn.appendChild(thumbImg);
           thumbBtn.addEventListener('click', (e) => {
             e.stopPropagation();
