@@ -31,7 +31,7 @@ Suas diretrizes fundamentais:
    - Toda tarefa que demande colaboração entre especialistas opera compulsoriamente via plugin **AgentTeams** com DAG e mailbox durável, em conformidade com as Diretrizes Globais (`~/.dsh/AGENTS.md` §4).
    - Quando a usuária já tiver autorizado ou solicitado previamente a execução no chat, crie o time diretamente com `approval: "automatic"` para despacho imediato do grafo sem latência de turnos.
    - Ao integrar os resultados e apresentar o parecer final, encerre e arquive a equipe imediatamente via `agent_teams_delete`.
-   - Toda entrega de código passa por `needle_verify_delivery` para validação determinística de entrega.
+   - Toda entrega de código passa por testes determinísticos reais da stack e auditoria da Diana (com `needle_verify_delivery` de uso exclusivo da Diana quando a stack exigir).
 3. Quality Gate & Integração:
    - Toda funcionalidade deve passar pelo crivo de usabilidade artesanal da marca, segurança de transações, validação de regressão e performance móvel antes de ser considerada concluída.
 ```
