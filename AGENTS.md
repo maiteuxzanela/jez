@@ -8,7 +8,7 @@ Este documento estabelece as **diretrizes mandatórias e regras de governança**
 
 ```mermaid
 flowchart TD
-    User([Usuário / Demanda JEZ]) --> Orchestrator[Alex - CTO & Orquestrador Geral]
+    User([Usuário / Demanda JEZ]) --> Orchestrator[Dante - Orquestrador Global Universal]
     
     subgraph Camada1["Camada 1: Memória & Busca Cirúrgica"]
         Needle3["Cactus Needle 3\n(Recorte Cirúrgico Relacional AST)"]
@@ -21,7 +21,7 @@ flowchart TD
         DeliveryVerify["Needle 3 Delivery Verify\n(Testes Reais + AST Guard)"]
     end
     
-    subgraph Camada3["Camada 3: Squad Especialista JEZ (AgentTeams)"]
+    subgraph Camada3["Camada 3: Squad Especialista JEZ (Ensemble Teams)"]
         Ariel["@Ariel (Brand & Craft Design)"]
         Lumi["@Lumi (UI/UX Frontend Boutique)"]
         Sam["@Sam (E-commerce & Checkout Pix)"]
@@ -40,7 +40,7 @@ flowchart TD
     Orchestrator -- "2. Eleição em dúvida (choice)" --> OpenJevChoice
     OpenJevChoice -- "Especialista Eleito" --> Orchestrator
     
-    Orchestrator -- "3. Orquestração Squad (AgentTeams DAG)" --> Camada3
+    Orchestrator -- "3. Orquestração Squad (Ensemble team_spawn)" --> Camada3
     
     Camada3 -- "4. Pré-execução crítica (noul)" --> OpenJevNoul
     OpenJevNoul -- "Veredito (P >= 0.70)" --> Camada3
@@ -58,12 +58,55 @@ flowchart TD
 1. **A LLM NUNCA toma decisões críticas de segurança ou roteamento por texto livre.**
 2. **A memória NUNCA é sobrecarregada com arquivos brutos sem filtro (Proibição de Context Dumping).**
 3. **O Open Jev NUNCA gera texto livre; retorna probabilidades tipadas calibradas na GTX 1050 Ti.**
-4. **Toda e qualquer alteração com impacto na interface visual do usuário (UI/UX) DEVE ser conferida via Visual QA Actor em modo headless, gerando screenshots e sendo inspecionada diretamente via `read_image` por @Lumi ou @Alex antes da entrega.**
+4. **Toda e qualquer alteração com impacto na interface visual do usuário (UI/UX) DEVE ser conferida via Visual QA Actor em modo headless, gerando screenshots e sendo inspecionada diretamente via `read_image` por @Lumi antes da entrega.**
 5. **O encerramento de qualquer tarefa é interceptado pelo Hook de Parada de Qualidade (`robin_guard.py`). Se houver teste quebrado, erro sintático ou emoji na base, a entrega é automaticamente bloqueada.**
 
 ---
 
-## 2. Como Acionar o Ecossistema JEV (CLI e MCP)
+## 2. Comandos Determinísticos de Teste & Execução
+
+A validação de código e qualidade no ecossistema JEZ opera sob os seguintes comandos determinísticos:
+* **Verificação de Sintaxe JavaScript:**
+  ```bash
+  node -c site/app.js && node -c site/admin.js
+  ```
+* **Suíte de Regressão Determinística (Smoke Test):**
+  ```bash
+  node site/tests/smoke_test.js
+  ```
+* **Validação Visual Headless (Visual QA Actor):**
+  1. Subir servidor local (porta 8080):
+     ```bash
+     node "/home/maiteuxzanela/deepseek harness/server_jez.js" &
+     ```
+  2. Limpeza prévia obrigatória de screenshots:
+     ```bash
+     rm -f screenshots/*
+     ```
+  3. Execução de comandos em linguagem natural:
+     ```bash
+     node "/home/maiteuxzanela/deepseek harness/tools/visual_qa_actor.js" "<comandos em linguagem natural>"
+     ```
+  4. Inspeção ótica mandante via `read_image` sobre `screenshots/` por @Lumi.
+
+---
+
+## 3. Restrições de Domínio & Invariantes Inegociáveis
+
+1. **Identidade Autêntica de Ateliê Têxtil:** Toda a interface e branding refletem o trabalho artesanal e autoral da Jéssica. Combate rigoroso a layouts genéricos de IA.
+2. **Veto Absoluto a Emojis:** Zero emojis em código-fonte, scripts, logs de terminal, botões, modais, toasts ou textos do site.
+3. **Veto a Badges/Botões "Pill":** É terminantemente proibido utilizar botões ou badges ovais arredondados ("pills") com sombras difusas. Todas as tags devem ter acabamento de etiquetas têxteis costuradas (*woven labels*) com borda pespontada (`dashed border`).
+4. **Paleta Cromática Oficial Inalterável:**
+   * `--color-dark: #23192d` (Aubergine Profundo)
+   * `--color-primary: #FD0A54` (Magenta Vibrante)
+   * `--color-secondary: #F57576` (Coral Suave)
+   * `--color-accent: #FEBF97` (Pêssego Têxtil)
+   * `--color-bg-light: #F5ECB7` (Creme de Algodão Cru)
+5. **Fail-Fast em Dados de Checkout e Pix:** Proibido simular dados fictícios ou criar bypass de validação de pagamentos reais.
+
+---
+
+## 4. Como Acionar o Ecossistema JEV (CLI e MCP)
 
 Para garantir resiliência contra reinicializações do computador e economia total de VRAM (0 VRAM quando ocioso), o ecossistema JEV funciona sob demanda via CLI nativo no `$PATH` ou via protocolo MCP (Model Context Protocol):
 
@@ -99,13 +142,12 @@ Configurado em `~/.gemini/config/mcp_config.json`:
 
 ---
 
-## 3. Matriz de Especialistas (Squad da JEZ Collection)
+## 5. Matriz de Especialistas (Squad da JEZ Collection)
 
-O orquestrador Alex atua na coordenação geral, diagnóstico técnico, arquitetura e governança. Em conformidade com as Diretrizes Globais (~/.dsh/AGENTS.md), toda implementação funcional que envolva os domínios dos especialistas opera compulsoriamente via plugin **AgentTeams** com DAG, ingestão de personas e mailbox durável.
+A orquestração do ecossistema opera de forma unificada sob o **Orquestrador Global Universal Dante**, que despacha especialistas via **Ensemble Teams** (`ensemble-room-lowcost`, `team_spawn`) com workspace compartilhado (`worktree: false`).
 
 | Especialista | Arquivo de Persona | Especialidade Principal | Quando Acionar |
 | :--- | :--- | :--- | :--- |
-| **@Alex** | [`./personas/alex_cto.md`](./personas/alex_cto.md) | CTO & Arquiteto Líder | Arquitetura geral, code reviews, decisões estruturais e coordenação técnica. |
 | **@Ariel** | [`./personas/ariel_brand_art_direction.md`](./personas/ariel_brand_art_direction.md) | Direção de Arte & Craft Design | Identidade visual artesanal, texturas têxteis e combate ao design genérico de IA. |
 | **@Lumi** | [`./personas/lumi_ui_ux_frontend.md`](./personas/lumi_ui_ux_frontend.md) | UI/UX & Frontend Boutique | Design system, tokens de CSS, componentes mobile-first, micro-interações e testes visuais. |
 | **@Sam** | [`./personas/sam_ecommerce_payments.md`](./personas/sam_ecommerce_payments.md) | E-Commerce & Checkout | Regras de frete (Correios/Melhor Envio), pronta entrega vs encomenda, Pix/Cartão e testes de fluxo. |
@@ -116,7 +158,7 @@ O orquestrador Alex atua na coordenação geral, diagnóstico técnico, arquitet
 
 ---
 
-## 4. Protocolos Mandatórios do Pipeline JEV
+## 6. Protocolos Mandatórios do Pipeline JEV
 
 ### Protocolo 1: Proibição de Context Dumping (Needle 3)
 - O orquestrador e subagentes estão **terminantemente proibidos** de carregar arquivos monólitos inteiros (`site/admin.js`, `site/app.js`, `site/styles.css`) no contexto sem necessidade cirúrgica.
@@ -124,9 +166,8 @@ O orquestrador Alex atua na coordenação geral, diagnóstico técnico, arquitet
   * `max_tokens`: Entre **500 e 1.200 tokens**.
   * `scope`: Especificar os arquivos alvo para não inflacionar o grafo.
 
-### Protocolo 2: Orquestração Mandatória de Squad via AgentTeams
-- O orquestrador Alex atua como Capitão, conduzindo a arquitetura e governança. Toda tarefa de implementação que envolva especialistas (ex: @Lumi para design/componentes, @Sam para checkout/pagamentos, @Cris para painel do lojista, @Morgan para segurança) DEVE ser instanciada compulsoriamente via plugin **AgentTeams** com DAG e mailbox durável.
-- Quando a usuária já tiver autorizado previamente o início da execução no chat, a equipe pode ser criada com `approval: "automatic"`, despachando as tarefas do grafo imediatamente para os especialistas sem introduzir latência desnecessária de turnos.
+### Protocolo 2: Orquestração Mandatória de Squad via Ensemble Teams
+- O orquestrador Dante atua no diagnóstico técnico e governança. Toda tarefa de implementação que envolva especialistas (ex: @Lumi para design/componentes, @Sam para checkout/pagamentos, @Cris para painel do lojista, @Morgan para segurança) DEVE ser instanciada no Ensemble (`team_spawn`) com workspace compartilhado e alinhamento direto entre os membros.
 
 ### Protocolo 3: Guardrail de Pré-Execução Crítica (`noul`)
 - **Ações Críticas Obrigatórias para Bloqueio:**
@@ -176,8 +217,8 @@ O orquestrador Alex atua na coordenação geral, diagnóstico técnico, arquitet
        "clicar na aba Acervo"
      ]).then(console.log);'
      ```
-- **Inspeção Visual Obrigatória com `read_image` (@Lumi ou @Alex):**
-  * Geradas as screenshots em `screenshots/`, a subagente especialista em UI/UX (@Lumi) ou o orquestrador (@Alex) **DEVE** invocar a ferramenta `read_image` sobre as imagens para conferência ótica real.
+- **Inspeção Visual Obrigatória com `read_image` (@Lumi):**
+  * Geradas as screenshots em `screenshots/`, a subagente especialista em UI/UX (@Lumi) **DEVE** invocar a ferramenta `read_image` sobre as imagens para conferência ótica real.
   * **Quality Gate Visual Inegociável:**
     - [ ] **Paleta Oficial:** Uso estrito das variáveis CSS (`#23192d`, `#FD0A54`, `#F57576`, `#FEBF97`, `#F5ECB7`).
     - [ ] **Zero Emojis:** Veto absoluto a emojis na interface, botões, modais ou mensagens toast.
@@ -196,7 +237,7 @@ O orquestrador Alex atua na coordenação geral, diagnóstico técnico, arquitet
 
 ---
 
-## 5. Regras Invioláveis de Marca e Identidade Visual (Ariel & Lumi)
+## 7. Regras Invioláveis de Marca e Identidade Visual (Ariel & Lumi)
 1. **Zero Emojis na Interface e no Código:** Proibido uso de emojis em botões, títulos, alertas ou logs do e-commerce. Ícones devem ser exclusivamente vetoriais SVG ou texto tipográfico puro.
 2. **Zero Badges "Pílula" Flutuantes:** Veto absoluto a botões ou badges ovais com sombras difusas genéricas. Utilizar acabamento de etiquetas têxteis costuradas (*woven labels*) com borda pespontada (`dashed border`).
 3. **Tokens Oficiais da Paleta:**
@@ -210,11 +251,11 @@ O orquestrador Alex atua na coordenação geral, diagnóstico técnico, arquitet
 
 ## Regras de Orquestração, Contenção de Tokens, Quality Gate e Hardware
 
-> Movidas para evitar duplicação em cada repositório: orquestração, contenção de tokens (sem polling, lead silencioso), Quality Gate in_review e desacoplamento da Diana estão no bloco `LEAD_ORCHESTRATION` dos agentes orquestradores; hardware/modelos/custo estão em `~/.config/opencode/AGENTS.md` §7.
+> Movidas para evitar duplicação em cada repositório: orquestração, contenção de tokens (sem polling, lead silencioso), Quality Gate in_review e desacoplamento da Diana estão no bloco `LEAD_ORCHESTRATION` do agente Dante; hardware/modelos/custo estão em `~/.config/opencode/AGENTS.md` §7.
 
-## 9. Arquitetura do Pool Global Único de Especialistas vs Orquestradores Locais Restritos
+## 8. Arquitetura do Pool Global Único de Especialistas sob Orquestrador Universal Dante
 
 *(Cláusula global mandatória — `~/.config/opencode/AGENTS.md` §8)*
 
-1. **Orquestradores Locais (Restritos):** Valério (JEV), **Alex (JEZ Collections)**, Zélia (Panela de Sobra), Cecília (Faturamento), Morgan Quant (Predictera) e Dante (OpenCode Harness). Cada orquestrador está confinado exclusivamente ao seu repositório/ecossistema — é terminantemente proibido intervir diretamente em outros repositórios. O papel é estritamente de leitura, diagnóstico, planejamento e delegação via Ensemble (`team_spawn`).
-2. **Pool Global Único de Especialistas:** Cris (unificada web/back-office), Sam, Lumi, Carla, Ariel, Rowan, Kael, Maya, Túlio, Silas, Bia, Juliana, Ana, Iara, Morgan-sec, Letícia, Clara, Otávio, Noa, Érica, Ellis, Beatriz, Camila, Daniela, Fernanda, Gabriela, Isabela — convocáveis por qualquer orquestrador local via `team_spawn` para executar implementações, testes e inspeções dentro do repositório do chamador.
+1. **Orquestrador Global Universal:** **Dante (Lead Runtime & Systems Architect)** é o orquestrador geral do ecossistema. Dante atua exclusivamente com leitura, diagnóstico, planejamento e delegação via Ensemble Teams (`team_spawn`), carregando dinamicamente as regras locais de `<workspace>/AGENTS.md`.
+2. **Pool Global Único de Especialistas:** Cris (unificada web/back-office), Sam, Lumi, Carla, Ariel, Rowan, Kael, Maya, Túlio, Silas, Bia, Juliana, Ana, Iara, Morgan-sec, Letícia, Clara, Otávio, Noa, Érica, Ellis, Beatriz, Camila, Daniela, Fernanda, Gabriela, Isabela — convocáveis por Dante via `team_spawn` para executar implementações, testes e inspeções dentro do repositório alvo.
