@@ -30,8 +30,9 @@ flowchart TD
         Noa["@Noa (Performance Web & SEO)"]
     end
 
-    subgraph Gates["Governança Nativa & Hooks de Conclusão"]
-        HookStop["Hook de Parada: robin_guard.py\n(Testes de Regressão + Sintaxe + Zero Emojis)"]
+    subgraph Gates["Governança Nativa & Portões de Qualidade"]
+        Portao1["Portão 1: Quality Gate (Clara)\n(Smoke Tests + Sintaxe + Zero Emojis + Commit Atômico)"]
+        Portao2["Portão 2: Revisora Crítica (Diana)\n(Auditoria Adversarial Pré-Push em Lote)"]
     end
 
     Orchestrator -- "1. Contexto restrito (sem dump de monólitos)" --> Needle3
@@ -51,15 +52,16 @@ flowchart TD
     Camada3 -- "6. Alterações de Código" --> DeliveryVerify
     DeliveryVerify -- "Validação Determinística (0 falhas)" --> Orchestrator
 
-    Orchestrator -- "7. Tentativa de finalização" --> HookStop
-    HookStop -- "Smoke tests aprovados (0 falhas)" --> User
+    Orchestrator -- "7. Validação Determinística Portão 1" --> Portao1
+    Portao1 -- "Commit nativo aprovado" --> Portao2
+    Portao2 -- "Aprovado para push" --> User
 ```
 
 1. **A LLM NUNCA toma decisões críticas de segurança ou roteamento por texto livre.**
 2. **A memória NUNCA é sobrecarregada com arquivos brutos sem filtro (Proibição de Context Dumping).**
 3. **O Open Jev NUNCA gera texto livre; retorna probabilidades tipadas calibradas na GTX 1050 Ti.**
 4. **Toda e qualquer alteração com impacto na interface visual do usuário (UI/UX) DEVE ser conferida via Visual QA Actor em modo headless, gerando screenshots e sendo inspecionada diretamente via `read_image` por @Lumi antes da entrega.**
-5. **O encerramento de qualquer tarefa é interceptado pelo Hook de Parada de Qualidade (`robin_guard.py`). Se houver teste quebrado, erro sintático ou emoji na base, a entrega é automaticamente bloqueada.**
+5. **A conclusão de qualquer entrega é validada determinística e obrigatoriamente pela esteira de dois portões: Portão 1 (Quality Gate da Clara com smoke tests reais, validação sintática `node -c` e diretriz Zero Emojis) e Portão 2 (auditoria adversarial da Diana pré-push). Se houver teste quebrado, erro sintático ou emoji na base, a entrega é reprovada.**
 
 ---
 
@@ -226,14 +228,14 @@ A orquestração do ecossistema opera de forma unificada sob o **Orquestrador Gl
     - [ ] **Integridade e Proporção:** Verificar alinhamento vertical, ausência de overflow horizontal e respiro visual em telas móveis e desktop.
     - [ ] **Feedback de Interação:** Verificar estados ativos de modais, drawers, inputs preenchidos e destaques.
 
-### Protocolo 6: Guardião de Parada Automatizado (Quality Stop Hook)
-- O hook de parada em `.agents/hooks.json` executa `.agents/scripts/robin_guard.py` a cada tentativa do agente de concluir o turno.
-- O hook valida automaticamente:
-  1. Se algum arquivo em `site/` foi alterado.
-  2. Ausência de emojis em arquivos de código/UI (diretriz Zero Emojis).
-  3. Sintaxe JavaScript válida (`node -c`).
-  4. Execução completa da suíte de regressão (`node site/tests/smoke_test.js`).
-- Se qualquer um dos itens falhar, o sistema rejeita o encerramento e força o agente a corrigir a falha.
+### Protocolo 6: Validação de Qualidade Determinística (Quality Gate - Portão 1)
+- A homologação determinística é executada no fechamento de cada entrega pelo Quality Gate (Clara / `is_qa`):
+- A validação exige obrigatoriamente:
+  1. Ausência estrita de emojis em arquivos de código/UI (diretriz Zero Emojis).
+  2. Sintaxe JavaScript válida (`node -c site/app.js && node -c site/admin.js`).
+  3. Execução completa da suíte de regressão determinística (`node site/tests/smoke_test.js` com zero falhas).
+  4. Validação visual obrigatória via Visual QA Actor para alterações com impacto em UI.
+- O veredito de aprovação da Clara (`action: 'complete'`) aciona o commit local nativo automático do runtime (Portão 1).
 
 ---
 

@@ -306,7 +306,7 @@ Qualquer alteração ou inclusão neste catálogo deve ser submetida via `docs/D
   * `site/atelie.html`
 * **Testes Associados:**
   * `site/tests/smoke_test.js` — Seções 2, 6, 7 e 23.
-  * Hook de parada de Robin: `.agents/scripts/robin_guard.py`.
+  * Validação determinística do Quality Gate (Portão 1).
 
 ---
 

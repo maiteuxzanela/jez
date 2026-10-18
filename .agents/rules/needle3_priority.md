@@ -14,7 +14,7 @@ Para qualquer arquivo de código com mais de 300 linhas (em especial `site/admin
 
 ## 3. Fallback Restrito
 Ferramentas de busca textual (`grep_search`) e leituras diretas só são permitidas para:
-* Arquivos não-código (`*.md`, `hooks.json`, configs curtas).
+* Arquivos não-código (`*.md`, `*.json`, configs curtas).
 * Situações em que o `needle3_search` foi executado e retornou ausência comprovada de snippets.
 
 ## 4. Política Estrita de Conformidade
