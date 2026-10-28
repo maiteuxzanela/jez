@@ -82,6 +82,172 @@ import {
   cleanupVideoPlayback
 } from './js/services/media-performance.js';
 
+// --------------------------------------------------------------------------
+// Fila de Produção do Ateliê (JEZ-044) — Contratos puros e testáveis
+// A fonte da verdade em nuvem é o documento singleton meta/production_queue,
+// operado exclusivamente pelas funções transacionais de window.jezFirebase.
+// O JSON local é apenas espelho resiliente para operação offline.
+// --------------------------------------------------------------------------
+export const STORAGE_PRODUCTION_QUEUE_KEY = 'jez_production_queue';
+export const PRODUCTION_QUEUE_ACTIVE_STATUSES = ['aguardando-pagamento', 'em-producao', 'preparar-envio', 'pago', 'produzindo'];
+export const PRODUCTION_QUEUE_RELEASE_STATUSES = ['enviado', 'concluido', 'cancelado'];
+const PRODUCTION_QUEUE_RELEASED_CAP = 100;
+
+/**
+ * Normaliza um snapshot da fila de produção, blindando contra valores
+ * negativos, não numéricos ou tipos inesperados vindos do Firestore/localStorage.
+ * @param {object|null} raw
+ * @returns {{ totalBacklogDays: number, activeOrdersCount: number, releasedOrderIds: string[] }}
+ */
+export function normalizeProductionQueue(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const releasedOrderIds = Array.isArray(source.releasedOrderIds)
+    ? source.releasedOrderIds
+      .filter(id => typeof id === 'string' && id.trim().length > 0)
+      .slice(-PRODUCTION_QUEUE_RELEASED_CAP)
+    : [];
+  const toSafeInteger = (value, max) => {
+    const parsed = Math.floor(Number(value));
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.min(max, Math.max(0, parsed));
+  };
+  return {
+    totalBacklogDays: toSafeInteger(source.totalBacklogDays, 3650),
+    activeOrdersCount: toSafeInteger(source.activeOrdersCount, 9999),
+    releasedOrderIds
+  };
+}
+
+/**
+ * Retorna o prazo de produção de um pedido em dias úteis.
+ * Prioridade: orderProductionDays (campo novo do checkout) -> leadTimeDays (legado).
+ * @param {object|null} order
+ * @returns {number}
+ */
+export function getOrderProductionDays(order) {
+  if (!order || typeof order !== 'object') return 0;
+  const candidates = [order.orderProductionDays, order.leadTimeDays];
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined || candidate === '') continue;
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+}
+
+/**
+ * Identifica se o pedido carrega encomenda artesanal sob demanda.
+ * @param {object|null} order
+ * @returns {boolean}
+ */
+export function isProductionQueueOrder(order) {
+  if (!order || typeof order !== 'object') return false;
+  if (order.hasCustomProduction === true) return true;
+  if (getOrderProductionDays(order) > 0) return true;
+  if (Array.isArray(order.items)) {
+    return order.items.some(item => item && (
+      item.isReady === false ||
+      item.status === 'order' ||
+      (Number(item.leadTimeDays) || 0) > 0
+    ));
+  }
+  return false;
+}
+
+/**
+ * Decide se a transição de status deve dar baixa automática na fila.
+ * Só conta saída de status ativo para enviado/concluido/cancelado.
+ * @param {string} previousStatus
+ * @param {string} newStatus
+ * @param {object|null} order
+ * @returns {boolean}
+ */
+export function shouldReleaseProductionQueue(previousStatus, newStatus, order) {
+  if (!PRODUCTION_QUEUE_RELEASE_STATUSES.includes(newStatus)) return false;
+  if (!PRODUCTION_QUEUE_ACTIVE_STATUSES.includes(previousStatus)) return false;
+  return isProductionQueueOrder(order);
+}
+
+/**
+ * Aplica a baixa da fila de forma pura e idempotente (nunca desconta 2x o mesmo pedido).
+ * @param {object|null} queue
+ * @param {object|null} order
+ * @param {string} orderId
+ * @returns {{ changed: boolean, alreadyReleased: boolean, productionDays: number, queue: object }}
+ */
+export function computeProductionQueueRelease(queue, order, orderId) {
+  const current = normalizeProductionQueue(queue);
+  const id = typeof orderId === 'string' && orderId.trim() ? orderId.trim() : (order && order.id ? String(order.id) : '');
+  const productionDays = getOrderProductionDays(order);
+  if (!id) {
+    return { changed: false, alreadyReleased: false, productionDays, queue: current };
+  }
+  if (current.releasedOrderIds.includes(id)) {
+    return { changed: false, alreadyReleased: true, productionDays, queue: current };
+  }
+  return {
+    changed: true,
+    alreadyReleased: false,
+    productionDays,
+    queue: {
+      totalBacklogDays: Math.max(0, current.totalBacklogDays - productionDays),
+      activeOrdersCount: Math.max(0, current.activeOrdersCount - 1),
+      releasedOrderIds: [...current.releasedOrderIds, id].slice(-PRODUCTION_QUEUE_RELEASED_CAP)
+    }
+  };
+}
+
+/**
+ * Reconstrói uma fila inicial coerente a partir dos pedidos locais ativos.
+ * Usada apenas quando ainda não existe espelho local da fila.
+ * @param {Array} ordersList
+ * @returns {{ totalBacklogDays: number, activeOrdersCount: number, releasedOrderIds: string[] }}
+ */
+export function deriveProductionQueueFromOrders(ordersList) {
+  const activeOrders = (Array.isArray(ordersList) ? ordersList : []).filter(order => (
+    order &&
+    PRODUCTION_QUEUE_ACTIVE_STATUSES.includes(order.status) &&
+    isProductionQueueOrder(order)
+  ));
+  return {
+    totalBacklogDays: activeOrders.reduce((total, order) => total + getOrderProductionDays(order), 0),
+    activeOrdersCount: activeOrders.length,
+    releasedOrderIds: []
+  };
+}
+
+/**
+ * Lê o espelho local da fila de produção.
+ * @returns {object}
+ */
+export function readLocalProductionQueue() {
+  if (typeof localStorage === 'undefined') return normalizeProductionQueue(null);
+  try {
+    const raw = localStorage.getItem(STORAGE_PRODUCTION_QUEUE_KEY);
+    if (!raw) return normalizeProductionQueue(null);
+    return normalizeProductionQueue(JSON.parse(raw));
+  } catch {
+    return normalizeProductionQueue(null);
+  }
+}
+
+/**
+ * Persiste o espelho local da fila de produção.
+ * @param {object} queue
+ * @returns {object}
+ */
+export function writeLocalProductionQueue(queue) {
+  const normalized = normalizeProductionQueue(queue);
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(STORAGE_PRODUCTION_QUEUE_KEY, JSON.stringify(normalized));
+    } catch (err) {
+      console.warn('[JËZ Ateliê] Não foi possível gravar a fila de produção localmente:', err.message);
+    }
+  }
+  return normalized;
+}
+
 /**
  * Validação de URL de vídeo compatível com as regras do Ateliê (JEZ-032)
  * Suporta .mp4, .webm, data:video, blob: e URLs seguras do Firebase Storage.
@@ -524,6 +690,208 @@ const initAdmin = () => {
   };
 
   // --------------------------------------------------------------------------
+  // 3.5. Fila de Produção do Ateliê — Widget de Gestão da Jéssica (JEZ-044)
+  // --------------------------------------------------------------------------
+  const productionQueueWidgetEl = document.getElementById('production-queue-widget');
+  const productionQueueDaysEl = document.getElementById('production-queue-days');
+  const productionQueueOrdersEl = document.getElementById('production-queue-orders');
+  const productionQueueSummaryEl = document.getElementById('production-queue-summary');
+  const productionQueueNoteEl = document.getElementById('production-queue-note');
+  const formProductionQueueAdjust = document.getElementById('form-production-queue-adjust');
+  const productionQueueDaysInput = document.getElementById('production-queue-days-input');
+  const productionQueueOrdersInput = document.getElementById('production-queue-orders-input');
+  const btnProductionQueueAdjust = document.getElementById('btn-production-queue-adjust');
+
+  let productionQueue = readLocalProductionQueue();
+  let productionQueueUnsubscribe = null;
+  let productionQueueDerivedFromOrders = false;
+
+  const describeProductionQueue = (queue) => {
+    const days = queue.totalBacklogDays;
+    const count = queue.activeOrdersCount;
+    const dayLabel = days === 1 ? 'dia útil' : 'dias úteis';
+    const orderLabel = count === 1 ? 'encomenda ativa' : 'encomendas ativas';
+    return `${days} ${dayLabel} (${count} ${orderLabel})`;
+  };
+
+  const renderProductionQueue = () => {
+    productionQueue = normalizeProductionQueue(productionQueue);
+    if (productionQueueDaysEl) productionQueueDaysEl.textContent = String(productionQueue.totalBacklogDays);
+    if (productionQueueOrdersEl) productionQueueOrdersEl.textContent = String(productionQueue.activeOrdersCount);
+    if (productionQueueSummaryEl) productionQueueSummaryEl.textContent = describeProductionQueue(productionQueue);
+
+    const ariaSummary = `Fila de Produção do Ateliê: ${productionQueue.totalBacklogDays} dias úteis (${productionQueue.activeOrdersCount} encomendas ativas)`;
+    if (productionQueueWidgetEl) productionQueueWidgetEl.setAttribute('aria-label', ariaSummary);
+
+    if (productionQueueNoteEl) {
+      const isOffline = typeof window !== 'undefined' && window.jezFirebase && window.jezFirebase.isOnline === false;
+      productionQueueNoteEl.textContent = isOffline
+        ? 'Modo local ativo: a baixa automática fica registrada neste dispositivo e sincroniza quando a nuvem voltar.'
+        : 'A baixa é automática ao enviar, concluir ou cancelar uma encomenda. Use a recalibragem para folgas, férias ou ajustes do tear.';
+    }
+
+    if (productionQueueDaysInput && document.activeElement !== productionQueueDaysInput) {
+      productionQueueDaysInput.value = String(productionQueue.totalBacklogDays);
+    }
+    if (productionQueueOrdersInput && document.activeElement !== productionQueueOrdersInput) {
+      productionQueueOrdersInput.value = String(productionQueue.activeOrdersCount);
+    }
+  };
+
+  const persistProductionQueue = (queue) => {
+    productionQueue = writeLocalProductionQueue(queue);
+    return productionQueue;
+  };
+
+  const applyCloudProductionQueue = (snapshot) => {
+    if (!snapshot || typeof snapshot !== 'object') return productionQueue;
+    productionQueue = normalizeProductionQueue({
+      totalBacklogDays: snapshot.totalBacklogDays,
+      activeOrdersCount: snapshot.activeOrdersCount,
+      // O histórico de baixas é local: preserva a idempotência mesmo quando
+      // a nuvem devolve apenas os dois agregados.
+      releasedOrderIds: Array.isArray(snapshot.releasedOrderIds)
+        ? snapshot.releasedOrderIds
+        : productionQueue.releasedOrderIds
+    });
+    // Um documento com agregados reais é a fonte da verdade e encerra a
+    // derivação local usada apenas para pedidos legados sem fila em nuvem.
+    if (productionQueue.totalBacklogDays > 0 || productionQueue.activeOrdersCount > 0) {
+      productionQueueDerivedFromOrders = false;
+    }
+    persistProductionQueue(productionQueue);
+    renderProductionQueue();
+    return productionQueue;
+  };
+
+  const deriveProductionQueueFromCurrentOrders = (ordersList) => {
+    const derived = normalizeProductionQueue(deriveProductionQueueFromOrders(ordersList));
+    productionQueueDerivedFromOrders = true;
+    persistProductionQueue(derived);
+    renderProductionQueue();
+    return productionQueue;
+  };
+
+  const refreshProductionQueue = async () => {
+    renderProductionQueue();
+    if (typeof window === 'undefined' || !window.jezFirebase) return productionQueue;
+    // Em modo offline o SDK pode devolver o fallback 0/0, que jamais deve
+    // sobrescrever o espelho local com as baixas já registradas no dispositivo.
+    if (window.jezFirebase.isOnline === false) return productionQueue;
+    if (typeof window.jezFirebase.getProductionQueue !== 'function') return productionQueue;
+    try {
+      const snapshot = await window.jezFirebase.getProductionQueue();
+      applyCloudProductionQueue(snapshot);
+    } catch (err) {
+      console.warn('[JËZ Ateliê] Não foi possível ler a fila de produção na nuvem:', err.message);
+    }
+    return productionQueue;
+  };
+
+  const releaseProductionQueueForOrder = async (order, orderId, newStatus) => {
+    if (!shouldReleaseProductionQueue(order ? order.status : '', newStatus, order)) {
+      return { success: false, reason: 'not_eligible' };
+    }
+
+    const productionDays = getOrderProductionDays(order);
+    const reason = `status:${newStatus}`;
+
+    if (typeof window !== 'undefined' && window.jezFirebase && typeof window.jezFirebase.releaseProductionBacklog === 'function') {
+      try {
+        const result = await window.jezFirebase.releaseProductionBacklog({ orderId, productionDays, reason });
+        if (result && result.alreadyReleased) {
+          return { success: true, alreadyReleased: true, productionDays };
+        }
+        if (result && result.success) {
+          applyCloudProductionQueue({
+            totalBacklogDays: result.totalBacklogDays,
+            activeOrdersCount: result.activeOrdersCount,
+            releasedOrderIds: [...productionQueue.releasedOrderIds, orderId]
+          });
+          showToast(`Fila de produção atualizada: ${describeProductionQueue(productionQueue)}.`);
+          return { success: true, productionDays, queue: productionQueue };
+        }
+      } catch (err) {
+        console.warn('[JËZ Cloud] Falha na baixa transacional da fila; aplicando espelho local:', err.message);
+      }
+    }
+
+    const release = computeProductionQueueRelease(productionQueue, order, orderId);
+    if (release.alreadyReleased) {
+      return { success: true, alreadyReleased: true, productionDays };
+    }
+    persistProductionQueue(release.queue);
+    renderProductionQueue();
+    showToast(`Fila de produção atualizada localmente: ${describeProductionQueue(productionQueue)}.`);
+    return { success: true, productionDays, queue: productionQueue };
+  };
+
+  const adjustProductionQueue = async () => {
+    const parseField = (input, max) => {
+      if (!input) return 0;
+      const parsed = Math.floor(Number(input.value));
+      if (!Number.isFinite(parsed)) return 0;
+      return Math.min(max, Math.max(0, parsed));
+    };
+
+    const nextDays = parseField(productionQueueDaysInput, 3650);
+    const nextOrders = parseField(productionQueueOrdersInput, 9999);
+    productionQueueDerivedFromOrders = false;
+    persistProductionQueue({ ...productionQueue, totalBacklogDays: nextDays, activeOrdersCount: nextOrders });
+    renderProductionQueue();
+
+    if (typeof window !== 'undefined' && window.jezFirebase && typeof window.jezFirebase.setProductionQueue === 'function') {
+      if (btnProductionQueueAdjust) btnProductionQueueAdjust.disabled = true;
+      try {
+        const result = await window.jezFirebase.setProductionQueue({
+          totalBacklogDays: nextDays,
+          activeOrdersCount: nextOrders
+        });
+        if (result && result.success) {
+          applyCloudProductionQueue({
+            totalBacklogDays: result.totalBacklogDays,
+            activeOrdersCount: result.activeOrdersCount,
+            releasedOrderIds: productionQueue.releasedOrderIds
+          });
+          showToast('Fila de produção recalibrada e sincronizada.');
+        } else {
+          showToast('Fila recalibrada neste dispositivo.');
+        }
+      } catch (err) {
+        console.warn('[JËZ Cloud] Falha ao recalibrar a fila na nuvem:', err.message);
+        showToast('Fila recalibrada neste dispositivo. Sincronização pendente.');
+      } finally {
+        if (btnProductionQueueAdjust) btnProductionQueueAdjust.disabled = false;
+      }
+    } else {
+      showToast(`Fila recalibrada: ${describeProductionQueue(productionQueue)}.`);
+    }
+  };
+
+  if (formProductionQueueAdjust) {
+    formProductionQueueAdjust.addEventListener('submit', (event) => {
+      event.preventDefault();
+      adjustProductionQueue();
+    });
+  }
+
+  // Espelho local inicial: se ainda não há fila persistida, deriva dos pedidos
+  // ativos para o widget nunca abrir zerado num ateliê com encomendas em curso.
+  let hasStoredProductionQueue = false;
+  if (typeof localStorage !== 'undefined') {
+    try {
+      hasStoredProductionQueue = Boolean(localStorage.getItem(STORAGE_PRODUCTION_QUEUE_KEY));
+    } catch {
+      hasStoredProductionQueue = false;
+    }
+  }
+  if (!hasStoredProductionQueue) {
+    productionQueue = normalizeProductionQueue(deriveProductionQueueFromOrders(orders));
+    productionQueueDerivedFromOrders = true;
+  }
+  renderProductionQueue();
+
+  // --------------------------------------------------------------------------
   // 4. Gestão de Peça em Destaque no Hero (JEZ-015)
   // --------------------------------------------------------------------------
   const setFeaturedPiece = (productId) => {
@@ -640,17 +1008,19 @@ const initAdmin = () => {
       const customerContact = order.contact ? `<div style="font-size: 0.78rem; margin-top: 2px; color: rgba(245, 236, 183, 0.8);">Contato: ${escapeHtml(order.contact)}</div>` : '';
 
       let actionButtons = '';
+      const cancelButton = `<button type="button" class="btn-cancel-order-action status-action-cancel" data-id="${escapeHtml(order.id)}" aria-label="Cancelar pedido ${escapeHtml(order.id)}">Cancelar Pedido</button>`;
       if (order.status === 'aguardando-pagamento') {
-        actionButtons = isCustomOrder ?
+        actionButtons = (isCustomOrder ?
           `<button class="btn-status-change btn-order-action status-action-orange" data-id="${escapeHtml(order.id)}" data-newstatus="em-producao">Enviar para o Tear</button>`
-          : `<button class="btn-status-change btn-order-action status-action-blue" data-id="${escapeHtml(order.id)}" data-newstatus="preparar-envio">Confirmar Pix</button>`;
+          : `<button class="btn-status-change btn-order-action status-action-blue" data-id="${escapeHtml(order.id)}" data-newstatus="preparar-envio">Confirmar Pix</button>`) + cancelButton;
       } else if (order.status === 'em-producao') {
-        actionButtons = `<button class="btn-status-change btn-order-action status-action-blue" data-id="${escapeHtml(order.id)}" data-newstatus="preparar-envio">Peça Concluída</button>`;
+        actionButtons = `<button class="btn-status-change btn-order-action status-action-blue" data-id="${escapeHtml(order.id)}" data-newstatus="preparar-envio">Peça Concluída</button>` + cancelButton;
       } else if (order.status === 'preparar-envio') {
         actionButtons = `
           <div class="tracking-input-box" style="align-items: center;">
             <input type="text" class="tracking-input" placeholder="Rastreio (opcional)" id="track-input-${escapeHtml(order.id)}" style="max-width: 170px;" />
             <button class="btn-status-change btn-order-action status-action-purple btn-confirm-postar" data-id="${escapeHtml(order.id)}">Postar e Enviar</button>
+            ${cancelButton}
           </div>
         `;
       } else if (order.status === 'enviado') {
@@ -716,11 +1086,40 @@ const initAdmin = () => {
         }
       });
     });
+
+    // Cancelamento em dois toques (JEZ-044): evita baixa acidental da fila.
+    container.querySelectorAll('.btn-cancel-order-action').forEach(btn => {
+      let armed = false;
+      let resetTimer = null;
+      const disarm = () => {
+        armed = false;
+        btn.classList.remove('is-armed');
+        btn.textContent = 'Cancelar Pedido';
+        if (resetTimer) {
+          clearTimeout(resetTimer);
+          resetTimer = null;
+        }
+      };
+      btn.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        if (!id) return;
+        if (!armed) {
+          armed = true;
+          btn.classList.add('is-armed');
+          btn.textContent = 'Confirmar Cancelamento';
+          resetTimer = setTimeout(disarm, 5000);
+          return;
+        }
+        clearTimeout(resetTimer);
+        updateOrderStatus(id, 'cancelado');
+      });
+    });
   };
 
   const updateOrderStatus = (orderId, newStatus, trackingCode = null) => {
     const sanitizedCode = trackingCode ? sanitizeTrackingCode(trackingCode) : null;
     const currentOrders = loadOrders();
+    const previousOrder = currentOrders.find(order => order && order.id === orderId) || null;
     const result = updateOrderInList(currentOrders, orderId, newStatus, sanitizedCode);
 
     if (!result.success) {
@@ -735,13 +1134,24 @@ const initAdmin = () => {
       showToast(`Pedido ${orderId} atualizado para ${newStatus}!`);
     });
 
+    // Baixa automática da fila de produção (JEZ-044): apenas saídas de status
+    // ativo para enviado/concluido/cancelado de pedidos sob encomenda.
+    releaseProductionQueueForOrder(previousOrder, orderId, newStatus);
+
     // Sincroniza pedido em nuvem com o Cloud Firestore
-    if (typeof window !== 'undefined' && window.jezFirebase && typeof window.jezFirebase.updateOrder === 'function') {
+    if (typeof window !== 'undefined' && window.jezFirebase) {
       const payload = { status: newStatus };
       if (sanitizedCode) payload.trackingCode = sanitizedCode;
-      window.jezFirebase.updateOrder(orderId, payload).catch(err => {
-        console.warn('[JËZ Cloud] Erro ao sincronizar status do pedido:', err.message);
-      });
+      const syncStatus = typeof window.jezFirebase.updateOrderStatus === 'function'
+        ? window.jezFirebase.updateOrderStatus.bind(window.jezFirebase)
+        : (typeof window.jezFirebase.updateOrder === 'function'
+          ? window.jezFirebase.updateOrder.bind(window.jezFirebase)
+          : null);
+      if (syncStatus) {
+        syncStatus(orderId, payload.status, payload.trackingCode || '').catch(err => {
+          console.warn('[JËZ Cloud] Erro ao sincronizar status do pedido:', err.message);
+        });
+      }
     }
 
     return { success: true, orderId, newStatus, trackingCode: sanitizedCode };
@@ -2375,6 +2785,11 @@ const initAdmin = () => {
             localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(orders));
             renderOrders();
             updateDashboard();
+            // Pedidos legados podem anteceder o documento da fila na nuvem:
+            // enquanto a fila estiver zerada e derivada, recalcula pelos pedidos.
+            if (productionQueueDerivedFromOrders && productionQueue.totalBacklogDays === 0 && productionQueue.activeOrdersCount === 0) {
+              deriveProductionQueueFromCurrentOrders(cloudOrders);
+            }
           }
         });
       }
@@ -2411,6 +2826,16 @@ const initAdmin = () => {
             updateDashboard();
           }
         });
+      }
+
+      // Ouve a fila de produção em tempo real da nuvem (JEZ-044)
+      if (typeof window.jezFirebase.onProductionQueueChange === 'function') {
+        if (typeof productionQueueUnsubscribe === 'function') productionQueueUnsubscribe();
+        productionQueueUnsubscribe = window.jezFirebase.onProductionQueueChange((snapshot) => {
+          applyCloudProductionQueue(snapshot);
+        });
+      } else {
+        refreshProductionQueue();
       }
 
       // Semeia o acervo inicial no Firestore caso o banco esteja novo/vazio

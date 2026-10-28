@@ -379,6 +379,21 @@
 
       <!-- Resumo e Botão de Finalização -->
       <div class="drawer-footer" id="drawer-footer">
+        <!-- Fila Dinâmica do Ateliê: prazo transparente de produção (JEZ-044) -->
+        <div class="cart-leadtime-summary" id="cart-leadtime-summary" hidden aria-live="polite">
+          <span class="cart-leadtime-row">
+            <span class="cart-leadtime-label">Fila do ateliê</span>
+            <strong id="cart-leadtime-queue">0 dias úteis</strong>
+          </span>
+          <span class="cart-leadtime-row">
+            <span class="cart-leadtime-label">Confecção</span>
+            <strong id="cart-leadtime-production">0 dias úteis</strong>
+          </span>
+          <span class="cart-leadtime-row cart-leadtime-total">
+            <span class="cart-leadtime-label">Prazo total estimado</span>
+            <strong id="cart-leadtime-total">0 dias úteis</strong>
+          </span>
+        </div>
         <div class="cart-summary-row">
           <span>Subtotal:</span>
           <span id="cart-subtotal">R$ 0,00</span>

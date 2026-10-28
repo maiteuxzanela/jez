@@ -136,6 +136,8 @@ export function getStatusMeta(status, order = null, catalog = []) {
       return { label: 'Enviado', nextLabel: 'Marcar como Entregue', nextStatus: 'concluido' };
     case 'concluido':
       return { label: 'Concluído', nextLabel: '', nextStatus: '' };
+    case 'cancelado':
+      return { label: 'Cancelado', nextLabel: '', nextStatus: '' };
     default:
       return { label: status, nextLabel: '', nextStatus: '' };
   }
@@ -170,11 +172,12 @@ export function validateOrderStatusTransition(currentStatus, targetStatus) {
   }
 
   const allowedTransitions = {
-    'aguardando-pagamento': ['em-producao', 'preparar-envio'],
-    'em-producao': ['preparar-envio'],
-    'preparar-envio': ['enviado'],
+    'aguardando-pagamento': ['em-producao', 'preparar-envio', 'cancelado'],
+    'em-producao': ['preparar-envio', 'cancelado'],
+    'preparar-envio': ['enviado', 'cancelado'],
     'enviado': ['concluido'],
-    'concluido': []
+    'concluido': [],
+    'cancelado': []
   };
 
   const allowed = allowedTransitions[currentStatus] || [];
