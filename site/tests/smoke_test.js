@@ -3583,6 +3583,8 @@ const catalogBlocks48 = [
   'const isVideoUrl = (media)',
   'const withFactoryVideoPoster = (media,',
   'const isRealUploadMedia = (media)',
+  'const isProductSoldOut = (product)',
+  'const isLocalStockTrackedPiece = (piece)',
   'const cureProductMedia = (product,',
   'const cureProductListMedia = (list,',
   'const hasVideoMedia = (mediaList)',
@@ -3682,16 +3684,297 @@ assert(!appJsContent48.includes('console.log('), 'app.js continua sem console.lo
 assert(!emojiTestRegex.test(prodCardJsContent48), 'js/components/product-card.js mantem zero emojis apos JEZ-040');
 assert(!emojiTestRegex.test(indexHtml48), 'index.html mantem zero emojis apos JEZ-040');
 
-console.log('\n======================================================');
-console.log(`📊 Relatório do QA (Robin):`);
-console.log(`   Total de Testes: ${totalTests}`);
-console.log(`   Aprovados: ${passedTests}`);
-console.log(`   Falhas: ${failedTests}`);
-console.log('======================================================\n');
+// ============================================================================
+// 49. Checkout JEZ-043: bifurcacao de concorrencia pronta entrega x sob encomenda
+// ============================================================================
+console.log('\n[49] Validando Bifurcacao de Concorrencia do Checkout (JEZ-043 / RN-JEZ-001):');
 
-if (failedTests > 0) {
-  process.exit(1);
-} else {
-  console.log('🎉 Todos os testes de regressão passaram com 100% de sucesso!\n');
-  process.exit(0);
+const fbServiceRaw49 = fs.readFileSync(path.join(ROOT_DIR, 'firebase-service.js'), 'utf8');
+const fbModularRaw49 = fs.readFileSync(path.join(ROOT_DIR, 'js', 'services', 'firebase.js'), 'utf8');
+
+// Transporte transacional deterministico em memoria que honra o CONTRATO REAL do
+// runTransaction do Firestore: leitura versionada, get/update/set, deteccao de
+// conflito por versao, retry automatico e aborto sem efeito colateral. O codigo
+// de negocio executado e o metodo de producao extraido verbatim do bundle —
+// nenhum metodo interno de negocio e substituido ou reimplementado.
+function createTransactionalFirestore49(seed) {
+  const store = new Map();
+  const calls = [];
+  const clone = (value) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
+
+  Object.keys(seed || {}).forEach((pathKey) => {
+    store.set(pathKey, { data: clone(seed[pathKey]), version: 1 });
+  });
+
+  const doc = (db, col, id) => ({ __doc: true, db, col, id, path: `${col}/${id}` });
+  const serverTimestamp = () => ({ __serverTimestamp: true });
+
+  const runTransaction = async (db, callback) => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const readVersions = new Map();
+      const writes = [];
+      const transaction = {
+        async get(ref) {
+          const entry = store.get(ref.path);
+          readVersions.set(ref.path, entry ? entry.version : 0);
+          calls.push({ op: 'get', path: ref.path });
+          return {
+            exists: () => Boolean(entry),
+            data: () => (entry ? clone(entry.data) : undefined)
+          };
+        },
+        update(ref, patch) {
+          writes.push({ ref, kind: 'update', patch: clone(patch) });
+        },
+        set(ref, data) {
+          writes.push({ ref, kind: 'set', data: clone(data) });
+        }
+      };
+
+      const result = await callback(transaction);
+      const conflicted = [...readVersions.entries()].some(([pathKey, version]) => {
+        const current = store.get(pathKey);
+        return (current ? current.version : 0) !== version;
+      });
+      if (conflicted) {
+        calls.push({ op: 'retry' });
+        continue;
+      }
+      writes.forEach((write) => {
+        const entry = store.get(write.ref.path);
+        if (write.kind === 'set') {
+          calls.push({ op: 'set', path: write.ref.path });
+          store.set(write.ref.path, { data: clone(write.data), version: (entry ? entry.version : 0) + 1 });
+        } else {
+          if (!entry) throw new Error(`NOT_FOUND:${write.ref.path}`);
+          calls.push({ op: 'update', path: write.ref.path });
+          store.set(write.ref.path, { data: { ...entry.data, ...clone(write.patch) }, version: entry.version + 1 });
+        }
+      });
+      return result;
+    }
+    throw new Error('ABORTED:transaction-retries-exhausted');
+  };
+
+  return {
+    doc,
+    serverTimestamp,
+    runTransaction,
+    calls,
+    read: (pathKey) => {
+      const entry = store.get(pathKey);
+      return entry ? clone(entry.data) : null;
+    }
+  };
 }
+
+// Executa os metodos de checkout REALMENTE presentes no bundle, apenas com o
+// transporte Firestore injetado como dependencia de fronteira.
+const buildCheckoutHarness49 = (source, seed) => {
+  const markers = [
+    'isReadyStockItem(item)',
+    'isReadyStockPiece(piece)',
+    'async checkoutWithStockCheck(orderData, cartItems)'
+  ];
+  const methods = markers.map((marker) => extractBracedBlock47(source, marker));
+  if (methods.some((method) => !method)) {
+    throw new Error('Metodos canonicos de checkout ausentes no bundle');
+  }
+  const transport = createTransactionalFirestore49(seed);
+  const CheckoutProduction49 = new Function(
+    'doc',
+    'runTransaction',
+    'serverTimestamp',
+    `class CheckoutProduction49 {\n${methods.join('\n')}\n}\nreturn CheckoutProduction49;`
+  )(transport.doc, transport.runTransaction, transport.serverTimestamp);
+  const service = new CheckoutProduction49();
+  service.db = { __firestore: true };
+  return { service, transport };
+};
+
+const opsOn49 = (transport, pathKey, op) =>
+  transport.calls.filter((call) => call.path === pathKey && (!op || call.op === op));
+
+const ORDER_CART_ITEM_49 = {
+  id: 'bolsa-punk', name: 'Bolsa Punk', quantity: 1, price: 320, status: 'order', isReady: false, leadTimeDays: 7
+};
+const READY_CART_ITEM_49 = {
+  id: 'tote-cherry', name: 'Tote Bag Cherry', quantity: 2, price: 189.9, status: 'ready', isReady: true, leadTimeDays: 0
+};
+
+const runCheckoutScenarios49 = async (source) => {
+  const results = {};
+
+  // (A) Compra apenas sob encomenda, stockQty 0: nao pode dar esgotado nem deduzir.
+  {
+    const harness = buildCheckoutHarness49(source, {
+      'products/bolsa-punk': { id: 'bolsa-punk', name: 'Bolsa Punk', status: 'order', isReady: false, stockQty: 0, leadTimeDays: 7 }
+    });
+    results.orderOnly = await harness.service.checkoutWithStockCheck(
+      { id: 'JEZ-9001', items: [{ id: 'bolsa-punk', quantity: 1, leadTimeDays: 7 }], total: 320, hasCustomProduction: true },
+      [ORDER_CART_ITEM_49]
+    );
+    results.orderOnlyTransport = harness.transport;
+    results.orderOnlyService = harness.service;
+  }
+
+  // (B) Compra mista: so a pronta entrega deduz estoque.
+  {
+    const harness = buildCheckoutHarness49(source, {
+      'products/tote-cherry': { id: 'tote-cherry', name: 'Tote Bag Cherry', status: 'ready', isReady: true, stockQty: 2 },
+      'products/bolsa-punk': { id: 'bolsa-punk', name: 'Bolsa Punk', status: 'order', isReady: false, stockQty: 0, leadTimeDays: 7 }
+    });
+    results.mixed = await harness.service.checkoutWithStockCheck(
+      { id: 'JEZ-9002', items: [{ id: 'bolsa-punk', quantity: 1, leadTimeDays: 10 }], total: 699.8, hasCustomProduction: true },
+      [READY_CART_ITEM_49, ORDER_CART_ITEM_49]
+    );
+    results.mixedTransport = harness.transport;
+  }
+
+  // (C) Concorrencia real na pronta entrega: uma unica compra vence.
+  {
+    const harness = buildCheckoutHarness49(source, {
+      'products/tote-cherry': { id: 'tote-cherry', name: 'Tote Bag Cherry', status: 'ready', isReady: true, stockQty: 1 }
+    });
+    const buyOnce = (orderId) => harness.service.checkoutWithStockCheck(
+      { id: orderId, items: [{ id: 'tote-cherry', quantity: 1, leadTimeDays: 0 }], total: 189.9 },
+      [{ id: 'tote-cherry', name: 'Tote Bag Cherry', quantity: 1, price: 189.9, status: 'ready', isReady: true }]
+    );
+    results.race = await Promise.allSettled([buyOnce('JEZ-9003'), buyOnce('JEZ-9004')]);
+    results.raceTransport = harness.transport;
+  }
+
+  // (D) Item legado sem metadados de modalidade, mas 'order' na nuvem: nao bloqueia.
+  {
+    const harness = buildCheckoutHarness49(source, {
+      'products/legacy-order': { id: 'legacy-order', name: 'Peca Legada', status: 'order', isReady: false, stockQty: 0 }
+    });
+    results.legacy = await harness.service.checkoutWithStockCheck(
+      { id: 'JEZ-9005', items: [{ id: 'legacy-order', quantity: 1, leadTimeDays: 0 }], total: 50 },
+      [{ id: 'legacy-order', name: 'Peca Legada', quantity: 1, price: 50 }]
+    );
+    results.legacyTransport = harness.transport;
+  }
+
+  return results;
+};
+
+const checkoutSources49 = [
+  ['site/firebase-service.js', fbServiceRaw49],
+  ['site/js/services/firebase.js', fbModularRaw49]
+];
+
+(async () => {
+  for (const [label, source] of checkoutSources49) {
+    const result = await runCheckoutScenarios49(source);
+
+    // (A) Encomenda isolada com stockQty 0
+    assert(result.orderOnly && result.orderOnly.success === true, `${label}: encomenda com stockQty 0 finaliza o checkout sem erro de esgotado`);
+    assert(Array.isArray(result.orderOnly.deductedItems) && result.orderOnly.deductedItems.length === 0, `${label}: encomenda nao sofre deducao de estoque no Firestore`);
+    assert(JSON.stringify(result.orderOnly.orderItems) === JSON.stringify(['bolsa-punk']), `${label}: encomenda e classificada no grupo orderItems`);
+    assert(JSON.stringify(result.orderOnly.readyItems) === JSON.stringify([]), `${label}: encomenda nao e classificada como pronta entrega`);
+    assert(result.orderOnlyTransport.read('products/bolsa-punk').stockQty === 0, `${label}: estoque da encomenda permanece intacto em zero`);
+    assert(opsOn49(result.orderOnlyTransport, 'products/bolsa-punk').length === 0, `${label}: encomenda nao sofre get/update de trava transacional no produto`);
+    const orderOnlyDoc = result.orderOnlyTransport.read('orders/JEZ-9001');
+    assert(orderOnlyDoc && orderOnlyDoc.hasCustomProduction === true, `${label}: pedido de encomenda grava hasCustomProduction true`);
+    assert(orderOnlyDoc && orderOnlyDoc.leadTimeDays === 7, `${label}: pedido de encomenda grava leadTimeDays 7 no documento`);
+
+    // (B) Compra mista
+    assert(result.mixed && result.mixed.success === true, `${label}: carrinho misto (pronta entrega + sob encomenda) finaliza com sucesso`);
+    assert(result.mixed.deductedItems.length === 1 && result.mixed.deductedItems[0].id === 'tote-cherry' && result.mixed.deductedItems[0].newStock === 0, `${label}: carrinho misto deduz apenas a pronta entrega (2 -> 0)`);
+    assert(result.mixedTransport.read('products/tote-cherry').stockQty === 0, `${label}: estoque da pronta entrega e atualizado no Firestore`);
+    assert(result.mixedTransport.read('products/bolsa-punk').stockQty === 0, `${label}: estoque da encomenda no carrinho misto permanece em zero`);
+    assert(opsOn49(result.mixedTransport, 'products/bolsa-punk').length === 0, `${label}: encomenda do carrinho misto nao recebe trava nem update de estoque`);
+    assert(opsOn49(result.mixedTransport, 'products/tote-cherry', 'get').length === 1 && opsOn49(result.mixedTransport, 'products/tote-cherry', 'update').length === 1, `${label}: pronta entrega passa por exatamente 1 get + 1 update transacional`);
+    assert(JSON.stringify(result.mixed.orderItems) === JSON.stringify(['bolsa-punk']), `${label}: carrinho misto segrega a encomenda em orderItems`);
+    assert(JSON.stringify(result.mixed.readyItems) === JSON.stringify(['tote-cherry']), `${label}: carrinho misto segrega a pronta entrega em readyItems`);
+    const mixedDoc = result.mixedTransport.read('orders/JEZ-9002');
+    assert(mixedDoc && mixedDoc.hasCustomProduction === true, `${label}: pedido misto grava hasCustomProduction true`);
+    assert(mixedDoc && mixedDoc.leadTimeDays === 10, `${label}: pedido misto grava o maior leadTimeDays das encomendas (10)`);
+
+    // (C) Race condition transacional preservada
+    const fulfilled = result.race.filter((entry) => entry.status === 'fulfilled');
+    const rejected = result.race.filter((entry) => entry.status === 'rejected');
+    assert(fulfilled.length === 1 && rejected.length === 1, `${label}: concorrencia de pronta entrega tem exatamente 1 vencedor e 1 perdedor`);
+    assert(rejected.length === 1 && rejected[0].reason && rejected[0].reason.code === 'ESTOQUE_ESGOTADO', `${label}: comprador perdedor recebe ESTOQUE_ESGOTADO`);
+    assert(result.raceTransport.read('products/tote-cherry').stockQty === 0, `${label}: estoque final da pronta entrega fica em zero (nunca negativo)`);
+    assert(opsOn49(result.raceTransport, 'products/tote-cherry', 'get').length >= 2, `${label}: ambas as compras concorrentes leem o estoque atomicamente`);
+    assert(result.raceTransport.calls.filter((call) => call.op === 'set' && call.path.indexOf('orders/') === 0).length === 1, `${label}: apenas a compra vencedora grava o pedido`);
+    assert(result.raceTransport.calls.some((call) => call.op === 'retry') === true, `${label}: conflito de versao dispara retry transacional (trava preservada)`);
+
+    // (D) Reclassificacao defensiva de item legado
+    assert(result.legacy && result.legacy.success === true, `${label}: item legado sem metadados mas 'order' na nuvem nao e bloqueado como esgotado`);
+    assert(result.legacy.deductedItems.length === 0, `${label}: item legado reclassificado como order nao sofre deducao`);
+    assert(opsOn49(result.legacyTransport, 'products/legacy-order', 'get').length === 1, `${label}: item legado consulta o documento real da nuvem para reclassificar`);
+    assert(opsOn49(result.legacyTransport, 'products/legacy-order', 'update').length === 0, `${label}: item legado reclassificado nao sofre update de estoque`);
+
+    // Helpers canonicos de classificacao
+    const service = result.orderOnlyService;
+    assert(service.isReadyStockItem(null) === false, `${label}: isReadyStockItem trata nulo defensivamente`);
+    assert(service.isReadyStockItem({ id: 'x', status: 'order', stockQty: 0 }) === false, `${label}: isReadyStockItem nunca classifica encomenda como pronta entrega`);
+    assert(service.isReadyStockItem({ id: 'y', status: 'ready', isReady: true }) === true, `${label}: isReadyStockItem classifica pronta entrega corretamente`);
+    assert(service.isReadyStockItem({ id: 'z', isReady: true, hasCustomProduction: true }) === false, `${label}: isReadyStockItem respeita hasCustomProduction`);
+    assert(service.isReadyStockPiece({ status: 'order', isReady: false, stockQty: 0 }) === false, `${label}: isReadyStockPiece nunca classifica encomenda da nuvem como pronta entrega`);
+    assert(service.isReadyStockPiece({ status: 'ready', isReady: true }) === true, `${label}: isReadyStockPiece classifica pronta entrega da nuvem corretamente`);
+    assert(service.isReadyStockPiece({ status: 'suspended', isReady: false }) === false, `${label}: isReadyStockPiece trata peca suspensa como nao pronta entrega`);
+  }
+
+  // app.js: helpers canonicos e decremento local executados a partir do fonte real.
+  const soldOutBlock49 = extractBracedBlock47(appJsContent48, 'const isProductSoldOut = (product)');
+  const localTrackedBlock49 = extractBracedBlock47(appJsContent48, 'const isLocalStockTrackedPiece = (piece)');
+  assert(Boolean(soldOutBlock49) && Boolean(localTrackedBlock49), 'app.js expoe os helpers reais isProductSoldOut e isLocalStockTrackedPiece');
+  const appHelpers49 = new Function(
+    `${soldOutBlock49}\n${localTrackedBlock49}\nreturn { isProductSoldOut, isLocalStockTrackedPiece };`
+  )();
+  assert(appHelpers49.isProductSoldOut({ id: 'bolsa-punk', status: 'order', isReady: false, stockQty: 0 }) === false, 'app.js: encomenda com stockQty 0 nunca e esgotada na vitrine/checkout');
+  assert(appHelpers49.isProductSoldOut({ id: 'tote-cherry', status: 'ready', isReady: true, stockQty: 0 }) === true, 'app.js: pronta entrega com stockQty 0 e esgotada');
+  assert(appHelpers49.isLocalStockTrackedPiece({ status: 'order', isReady: false }) === false, 'app.js: encomenda nao entra no rastreio de estoque local');
+  assert(appHelpers49.isLocalStockTrackedPiece({ status: 'ready', isReady: true }) === true, 'app.js: pronta entrega entra no rastreio de estoque local');
+
+  const localDeductBlock49 = extractBracedBlock47(appJsContent48, 'cart.forEach(cartItem => {');
+  assert(Boolean(localDeductBlock49), 'app.js expoe o bloco real de deducao de estoque local pos-checkout');
+  const runLocalDeduction49 = (cartItems, catalog) => {
+    const storage = {
+      data: { jez_catalog: JSON.stringify(catalog) },
+      getItem(key) { return Object.prototype.hasOwnProperty.call(this.data, key) ? this.data[key] : null; },
+      setItem(key, value) { this.data[key] = String(value); }
+    };
+    const fn = new Function(
+      'cart',
+      'localStorage',
+      'isLocalStockTrackedPiece',
+      `const catList = JSON.parse(localStorage.getItem('jez_catalog'));\n${localDeductBlock49})\nreturn catList;`
+    );
+    return fn(cartItems, storage, appHelpers49.isLocalStockTrackedPiece);
+  };
+  const localCatalog49 = [
+    { id: 'tote-cherry', status: 'ready', isReady: true, stockQty: 2 },
+    { id: 'bolsa-punk', status: 'order', isReady: false, stockQty: 5 }
+  ];
+  const catalogAfter49 = runLocalDeduction49([
+    { id: 'tote-cherry', quantity: 2 },
+    { id: 'bolsa-punk', quantity: 3 }
+  ], localCatalog49);
+  const readyAfter49 = catalogAfter49.find((piece) => piece.id === 'tote-cherry');
+  const orderAfter49 = catalogAfter49.find((piece) => piece.id === 'bolsa-punk');
+  assert(readyAfter49 && readyAfter49.stockQty === 0, 'app.js: deducao local consome a pronta entrega (2 -> 0)');
+  assert(orderAfter49 && orderAfter49.stockQty === 5, 'app.js: deducao local ignora a encomenda mesmo com stockQty legado preenchido');
+})()
+  .catch((err) => {
+    assert(false, `[49] execucao da suite de checkout falhou: ${err && err.message}`);
+  })
+  .finally(() => {
+    console.log('\n======================================================');
+    console.log(`Relatorio do QA (Robin):`);
+    console.log(`   Total de Testes: ${totalTests}`);
+    console.log(`   Aprovados: ${passedTests}`);
+    console.log(`   Falhas: ${failedTests}`);
+    console.log('======================================================\n');
+
+    if (failedTests > 0) {
+      process.exit(1);
+    } else {
+      console.log('Todos os testes de regressao passaram com 100% de sucesso!\n');
+      process.exit(0);
+    }
+  });

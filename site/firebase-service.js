@@ -277,46 +277,74 @@ class JezFirebaseService {
     return safeId;
   }
 
-  // Finalização transacional com validação atômica de estoque contra concorrência (JEZ-028)
+  // Classificacao de modalidade de um item da sacola (JEZ-043 / RN-JEZ-001).
+  // Pecas sob encomenda nunca disputam estoque fisico de prateleira.
+  isReadyStockItem(item) {
+    if (!item) return false;
+    if (item.status === 'order') return false;
+    if (item.hasCustomProduction === true) return false;
+    if (item.isReady === false) return false;
+    if (item.isReady === true) return true;
+    if (item.status === 'ready') return true;
+    return true;
+  }
+
+  // Classificacao canonica a partir do documento de produto no Firestore.
+  isReadyStockPiece(piece) {
+    if (!piece) return false;
+    if (piece.status === 'order') return false;
+    if (piece.hasCustomProduction === true) return false;
+    if (piece.status) return piece.status === 'ready';
+    if (piece.isReady !== undefined) return piece.isReady === true;
+    return true;
+  }
+
+  // Finalizacao transacional com validacao atomica de estoque contra concorrencia (JEZ-028 & JEZ-043)
   async checkoutWithStockCheck(orderData, cartItems) {
     if (!this.db) {
       const safeId = await this.createOrder(orderData);
-      return { success: true, orderId: safeId, deductedItems: [] };
+      return { success: true, orderId: safeId, deductedItems: [], readyItems: [], orderItems: [] };
     }
+
+    const items = Array.isArray(cartItems) ? cartItems : [];
+    // Bifurcacao de fluxo: pronta entrega disputa estoque; encomenda segue direto.
+    const readyItems = items.filter(item => this.isReadyStockItem(item));
+    const orderItems = items.filter(item => !this.isReadyStockItem(item));
 
     return await runTransaction(this.db, async (transaction) => {
       const itemsToDeduct = [];
 
-      for (const item of cartItems) {
+      // Grupo 1 - pronta entrega: trava atomica, validacao de saldo e deducao fisica.
+      for (const item of readyItems) {
         if (!item.id) continue;
         const prodRef = doc(this.db, 'products', item.id);
         const prodSnap = await transaction.get(prodRef);
+        if (!prodSnap.exists()) continue;
 
-        if (prodSnap.exists()) {
-          const prodData = prodSnap.data();
-          // Verifica se a peça tem controle de estoque (pronta entrega ou stockQty definido)
-          if (prodData.isReady || prodData.stockQty !== undefined) {
-            const currentStock = Number(prodData.stockQty !== undefined ? prodData.stockQty : 1);
-            const requestedQty = Number(item.quantity) || 1;
+        const prodData = prodSnap.data();
+        // Reclassificacao defensiva: o documento da nuvem e a fonte da verdade.
+        if (!this.isReadyStockPiece(prodData)) continue;
 
-            if (currentStock < requestedQty) {
-              const err = new Error(`ESTOQUE_ESGOTADO:${prodData.name || item.name}:${currentStock}`);
-              err.code = 'ESTOQUE_ESGOTADO';
-              err.productName = prodData.name || item.name;
-              err.availableStock = currentStock;
-              throw err;
-            }
+        const currentStock = Number(prodData.stockQty !== undefined && prodData.stockQty !== null ? prodData.stockQty : 1);
+        const requestedQty = Number(item.quantity) || 1;
 
-            itemsToDeduct.push({
-              ref: prodRef,
-              newStock: Math.max(0, currentStock - requestedQty),
-              id: item.id
-            });
-          }
+        if (currentStock < requestedQty) {
+          const err = new Error(`ESTOQUE_ESGOTADO:${prodData.name || item.name}:${currentStock}`);
+          err.code = 'ESTOQUE_ESGOTADO';
+          err.productName = prodData.name || item.name;
+          err.availableStock = currentStock;
+          throw err;
         }
+
+        itemsToDeduct.push({
+          ref: prodRef,
+          newStock: Math.max(0, currentStock - requestedQty),
+          id: item.id
+        });
       }
 
-      // Decrementa o estoque atômicamente com bloqueio de concorrência
+      // Grupo 2 - sob encomenda: nenhuma trava de estoque, nenhuma validacao de
+      // saldo zero e nenhuma deducao fisica no Firestore (RN-JEZ-001).
       for (const update of itemsToDeduct) {
         transaction.update(update.ref, {
           stockQty: update.newStock,
@@ -324,13 +352,22 @@ class JezFirebaseService {
         });
       }
 
-      // Grava o pedido
+      const hasCustomProduction = Boolean(orderData.hasCustomProduction) || orderItems.length > 0;
+      const computedLeadTimeDays = [...orderItems, ...(Array.isArray(orderData.items) ? orderData.items : [])]
+        .reduce((maxDays, item) => Math.max(maxDays, Number(item.leadTimeDays) || 0), 0);
+      const leadTimeDays = hasCustomProduction
+        ? (Number(orderData.leadTimeDays !== undefined && orderData.leadTimeDays !== null ? orderData.leadTimeDays : computedLeadTimeDays) || 0)
+        : 0;
+
+      // Gravacao unificada do pedido com sinalizacao de producao sob demanda.
       const safeId = orderData.id || ('JEZ-' + Math.floor(1000 + Math.random() * 9000));
       const orderRef = doc(this.db, 'orders', safeId);
       const payload = {
         ...orderData,
         id: safeId,
         date: orderData.date || new Date().toISOString(),
+        hasCustomProduction,
+        leadTimeDays,
         serverCreatedAt: serverTimestamp()
       };
       transaction.set(orderRef, payload);
@@ -338,7 +375,9 @@ class JezFirebaseService {
       return {
         success: true,
         orderId: safeId,
-        deductedItems: itemsToDeduct.map(i => ({ id: i.id, newStock: i.newStock }))
+        deductedItems: itemsToDeduct.map(i => ({ id: i.id, newStock: i.newStock })),
+        readyItems: readyItems.map(i => i.id),
+        orderItems: orderItems.map(i => i.id)
       };
     });
   }

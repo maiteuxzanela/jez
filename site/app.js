@@ -198,6 +198,32 @@ const initApp = () => {
     return false;
   };
 
+  // --------------------------------------------------------------------------
+  // 1.2 Regras Canonicas de Modalidade e Esgotamento (Sam - JEZ-043 / RN-JEZ-001)
+  // --------------------------------------------------------------------------
+  // Pecas sob encomenda (status 'order' ou isReady false) NUNCA sao esgotadas,
+  // mesmo com stockQty zerado, pois nao possuem estoque fisico de prateleira.
+  // Espelha isProductSoldOut de js/services/products.js para o bundle classico.
+  const isProductSoldOut = (product) => {
+    if (!product) return false;
+    const isOrder = product.status === 'order' || (product.isReady === false && product.status !== 'ready');
+    if (isOrder) return false;
+
+    const isReady = product.status ? product.status === 'ready' : (product.isReady !== undefined ? product.isReady : true);
+    if (!isReady) return false;
+
+    const stock = Number(product.stockQty !== undefined && product.stockQty !== null ? product.stockQty : 1);
+    return stock <= 0;
+  };
+
+  // Decremento local de estoque apenas para pronta entrega (isReady === true).
+  const isLocalStockTrackedPiece = (piece) => {
+    if (!piece) return false;
+    if (piece.status === 'order') return false;
+    const isReady = piece.status ? piece.status === 'ready' : piece.isReady === true;
+    return isReady === true;
+  };
+
   // Etiqueta textile costurada (woven label) usada como poster têxtil quando um
   // video nao possui banner do primeiro frame derivavel. Formato 1:1 (42x42),
   // paleta oficial (aubergine + pesponto pêssego), ZERO emojis e ZERO pills.
@@ -701,7 +727,7 @@ const initApp = () => {
     }
 
     filtered.forEach(p => {
-      const isSoldOut = Boolean(p.isReady) && Number(p.stockQty !== undefined ? p.stockQty : 1) <= 0;
+      const isSoldOut = isProductSoldOut(p);
       const card = document.createElement('article');
       card.className = `product-card ${isSoldOut ? 'is-sold-out' : ''}`;
       card.id = `card-${escapeHtml(p.id)}`;
@@ -1026,7 +1052,7 @@ const initApp = () => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
-    const isSoldOut = Boolean(product.isReady) && Number(product.stockQty !== undefined ? product.stockQty : 1) <= 0;
+    const isSoldOut = isProductSoldOut(product);
     if (isSoldOut) {
       showToast(`A peça "${product.name}" está esgotada no momento.`);
       return;
@@ -1371,7 +1397,7 @@ const initApp = () => {
       }
     }
 
-    const isSoldOut = Boolean(product.isReady) && Number(product.stockQty !== undefined ? product.stockQty : 1) <= 0;
+    const isSoldOut = isProductSoldOut(product);
 
     const modalImgWrap = document.getElementById('modal-img-wrap');
     if (modalImgWrap) {
@@ -1454,15 +1480,17 @@ const initApp = () => {
       return;
     }
 
-    // Pré-verificação local de estoque antes de chamar a nuvem
+    // Pre-verificacao local de estoque antes de chamar a nuvem.
+    // RN-JEZ-001: pecas sob encomenda nunca sao bloqueadas por ausencia de estoque.
     for (const item of cart) {
       const prod = products.find(p => p.id === item.id);
-      if (prod && (prod.isReady || prod.stockQty !== undefined)) {
-        const stock = prod.stockQty !== undefined ? Number(prod.stockQty) : 1;
-        if (stock <= 0) {
-          showToast(`A peça "${prod.name}" esgotou no momento. Remova-a da sacola para prosseguir.`);
-          return;
-        }
+      if (!prod) continue;
+      if (isProductSoldOut(prod)) {
+        showToast(`A peça "${prod.name}" esgotou no momento. Remova-a da sacola para prosseguir.`);
+        return;
+      }
+      if (prod.isReady === true) {
+        const stock = (prod.stockQty !== undefined && prod.stockQty !== null) ? Number(prod.stockQty) : 1;
         if (item.quantity > stock) {
           showToast(`Quantidade solicitada de "${prod.name}" (${item.quantity}) excede o estoque disponível (${stock}).`);
           return;
@@ -1499,6 +1527,10 @@ const initApp = () => {
     // Registra pedido
     const newOrderId = 'JEZ-' + Math.floor(1000 + Math.random() * 9000);
     const hasCustomItems = cart.some(i => i.isReady === false || (i.leadTimeDays && Number(i.leadTimeDays) > 0));
+    const customLeadTimeDays = cart.reduce((maxDays, i) => {
+      const isCustom = i.isReady === false || (i.leadTimeDays && Number(i.leadTimeDays) > 0);
+      return isCustom ? Math.max(maxDays, Number(i.leadTimeDays) || 0) : maxDays;
+    }, 0);
     const newOrder = {
       id: newOrderId,
       date: new Date().toISOString(),
@@ -1515,6 +1547,7 @@ const initApp = () => {
         leadTimeDays: i.leadTimeDays ? Number(i.leadTimeDays) : 0
       })),
       hasCustomProduction: hasCustomItems,
+      leadTimeDays: customLeadTimeDays,
       subtotal: subtotal,
       shipping: shippingCost,
       total: total,
@@ -1535,16 +1568,18 @@ const initApp = () => {
         await window.jezFirebase.createOrder(newOrder);
       }
 
-      // 2. Subtrai estoque no armazenamento local (localStorage)
+      // 2. Subtrai estoque no armazenamento local (localStorage).
+      // Apenas pronta entrega sofre deducao fisica; encomendas permanecem intactas.
       try {
         const catalogRaw = localStorage.getItem('jez_catalog');
         if (catalogRaw) {
           const catList = JSON.parse(catalogRaw);
           cart.forEach(cartItem => {
             const prod = catList.find(p => p.id === cartItem.id);
-            if (prod && (prod.isReady || prod.status === 'ready' || prod.stockQty !== undefined)) {
-              const current = prod.stockQty !== undefined ? Number(prod.stockQty) : 1;
-              prod.stockQty = Math.max(0, current - cartItem.quantity);
+            if (prod && isLocalStockTrackedPiece(prod)) {
+              const current = (prod.stockQty !== undefined && prod.stockQty !== null) ? Number(prod.stockQty) : 1;
+              const deducted = Number(cartItem.quantity) || 1;
+              prod.stockQty = Math.max(0, current - deducted);
             }
           });
           localStorage.setItem('jez_catalog', JSON.stringify(catList));
@@ -1666,7 +1701,7 @@ const initApp = () => {
   modalBtnAddCart.addEventListener('click', () => {
     if (currentModalProductId) {
       const prod = products.find(p => p.id === currentModalProductId);
-      const isSoldOut = prod && Boolean(prod.isReady) && Number(prod.stockQty !== undefined ? prod.stockQty : 1) <= 0;
+      const isSoldOut = isProductSoldOut(prod);
       if (isSoldOut) {
         showToast('Esta peça está esgotada no momento.');
         return;
