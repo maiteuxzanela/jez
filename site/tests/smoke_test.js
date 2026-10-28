@@ -547,10 +547,40 @@ console.log('\n📸 24. Validando Resiliência de Fotos, Otimização de Payload
 const currentAdminJs = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf-8');
 assert(currentAdminJs.includes('handleStorageQuotaExceeded'), 'admin.js implementa rotina de recuperação para estouro de cota do localStorage');
 assert(currentAdminJs.includes('try {') && currentAdminJs.includes('localStorage.setItem(STORAGE_CATALOG_KEY'), 'admin.js protege persistência de catálogo com try/catch contra QuotaExceededError');
-assert(currentAdminJs.includes('maxWidth = 540') && currentAdminJs.includes('quality = 0.68'), 'admin.js otimiza compressão de fotos complementares para 540px a 68% de qualidade');
-assert(currentAdminJs.includes('targetSize = 540') && currentAdminJs.includes("toDataURL('image/jpeg', 0.72)"), 'admin.js calibra recorte de capa 1:1 para 540px a 72% de qualidade');
+const currentImageCompressionSrc = fs.readFileSync(path.join(ROOT_DIR, 'js', 'admin', 'image-compression.js'), 'utf-8');
+const currentCropperSrc = fs.readFileSync(path.join(ROOT_DIR, 'js', 'admin', 'cropper.js'), 'utf-8');
+assert(currentImageCompressionSrc.includes('export function compressImageFile(file, maxWidth = 800, maxHeight = 800, quality = 0.82)'), 'image-compression.js declara compressão padrão de 800px a 0.82 de qualidade');
+assert(currentImageCompressionSrc.includes("toDataURL('image/webp', targetQuality)") && currentImageCompressionSrc.includes("toDataURL('image/jpeg', targetQuality)"), 'image-compression.js codifica WebP com fallback defensivo para JPEG');
+assert(!/540|0\.68/.test(currentImageCompressionSrc), 'image-compression.js não preserva os defaults obsoletos de 540px / 0.68');
+assert(currentImageCompressionSrc.includes('arguments.length === 3') && !/quality === 0\.82/.test(currentImageCompressionSrc), 'image-compression.js detecta a assinatura legada por aridade/undefined, sem acoplar à qualidade 0.82');
+assert(currentImageCompressionSrc.includes("console.warn('[JEZ Atelie] WebP indisponivel") && currentCropperSrc.includes("console.warn('[JEZ Atelie] WebP indisponivel"), 'compressão e recorte registram aviso observável ao acionar o fallback WebP');
+assert(currentAdminJs.includes('compressImageFile(file, maxWidth = 800, maxHeight = 800, quality = 0.82)'), 'admin.js documenta o contrato de 4 parâmetros da compressão');
+assert(currentCropperSrc.includes('const getCroppedDataUrl = (targetSize = 800)') && currentCropperSrc.includes("toDataURL('image/webp', 0.82)") && currentCropperSrc.includes("toDataURL('image/jpeg', 0.82)"), 'cropper.js recorta em 800px e exporta WebP 0.82 com fallback JPEG 0.82');
+assert(currentCropperSrc.includes("ctx.fillStyle = '#23192d'"), 'cropper.js preserva o fundo #23192d no recorte 1:1');
+assert(!/targetSize = 540|toDataURL\('image\/jpeg', 0\.72\)/.test(currentCropperSrc), 'cropper.js não preserva os defaults obsoletos de 540px / JPEG 0.72');
+assert(currentAdminJs.includes('compressImageFile(file, 800, 0.82)'), 'admin.js delega a compressão de fotos complementares com 800px a 0.82');
+assert((currentAdminJs.match(/getCroppedDataUrl\(800\)/g) || []).length === 2, 'admin.js solicita recorte 1:1 em 800px nas duas instâncias do cropper (nova peça e edição)');
+assert(!/compressImageFile\(file, 540|getCroppedDataUrl\(540\)/.test(currentAdminJs), 'admin.js não mantém chamadas legadas de 540px');
 assert(currentAdminJs.includes('Salvando e Publicando...') && currentAdminJs.includes('Salvando Alterações...'), 'admin.js fornece feedback visual de carregamento nos botões de submissão');
 assert(!emojiRegex.test(currentAdminJs), 'admin.js mantém conformidade estrita com ZERO emojis');
+
+console.log('\n24.1. Executando Pipeline WebP Retina 800px / 0.82 no Atelie (JEZ-041 - testes reais):');
+try {
+  const webpRetinaRaw = execSync(`node "${path.join(__dirname, 'webp_retina.test.js')}"`, { encoding: 'utf-8', cwd: ROOT_DIR });
+  const webpRetinaMarker = '__JEZ_WEBP_RETINA_RESULTS__';
+  const webpRetinaPayload = webpRetinaRaw.split('\n').find(line => line.startsWith(webpRetinaMarker));
+  if (!webpRetinaPayload) {
+    assert(false, 'suíte WebP Retina retorna payload JSON auditável');
+  } else {
+    const webpRetinaResults = JSON.parse(webpRetinaPayload.slice(webpRetinaMarker.length)).results;
+    assert(Array.isArray(webpRetinaResults) && webpRetinaResults.length >= 22, `suíte WebP Retina executa todos os cenários reais (${Array.isArray(webpRetinaResults) ? webpRetinaResults.length : 0})`);
+    webpRetinaResults.forEach(result => {
+      assert(result.ok, `JEZ-041: ${result.name}${result.ok ? '' : ` -> ${result.detail}`}`);
+    });
+  }
+} catch (e) {
+  assert(false, `suíte WebP Retina falhou ao executar: ${String(e.message).split('\n')[0]}`);
+}
 
 // Teste funcional de simulação: peça com 5 fotos e preservação da peça ativa na recuperação de quota
 const mockCatalog = [

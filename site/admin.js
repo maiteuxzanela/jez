@@ -51,10 +51,10 @@ import {
   STORAGE_CUSTOM_PRODUCTS_KEY
 } from './js/admin/catalog.js';
 
-// Contratos de delegacao modular homologados (JEZ-029 / JEZ-030):
+// Contratos de delegacao modular homologados (JEZ-029 / JEZ-030 / JEZ-041):
 // - catalog.js: try { localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalog)); } catch (err) { handleStorageQuotaExceeded(...) }
-// - image-compression.js: compressImageFile(file, maxWidth = 540, quality = 0.68)
-// - cropper.js: getCroppedDataUrl(targetSize = 540) -> canvas.toDataURL('image/jpeg', 0.72)
+// - image-compression.js: compressImageFile(file, maxWidth = 800, maxHeight = 800, quality = 0.82)
+// - cropper.js: getCroppedDataUrl(targetSize = 800) -> canvas.toDataURL('image/webp', 0.82)
 
 
 import {
@@ -1149,7 +1149,7 @@ const initAdmin = () => {
       const filesToProcess = files.slice(0, availableSlots);
 
       for (const file of filesToProcess) {
-        const compressed = await compressImageFile(file, 540, 0.68);
+        const compressed = await compressImageFile(file, 800, 0.82);
         if (compressed) newPieceExtraPhotos.push(compressed);
       }
       renderNewExtraPhotos();
@@ -1336,7 +1336,7 @@ const initAdmin = () => {
         const materials = sanitizeText(document.getElementById('product-materials-input').value, 200) || 'Fio 100% algodão premium artesanal';
         const description = sanitizeText(document.getElementById('product-desc-input').value, 800) || 'Peça autoral tecida com amor e acabamento único pela Jéssica Regina.';
 
-        const photoToUse = newPieceCropper.getCroppedDataUrl(540);
+        const photoToUse = newPieceCropper.getCroppedDataUrl(800);
         const categoryLabels = {
           bolsas: 'Bolsas & Bags',
           vestuario: 'Vestuário Autoral',
@@ -1507,7 +1507,7 @@ const initAdmin = () => {
       current.offsetX = st.offsetX;
       current.offsetY = st.offsetY;
       current.isModified = true;
-      const cropped = editPieceCropper.getCroppedDataUrl(540);
+      const cropped = editPieceCropper.getCroppedDataUrl(800);
       if (cropped) {
         current.url = cropped;
       }
@@ -1770,7 +1770,7 @@ const initAdmin = () => {
       try {
         let firstNewIdx = -1;
         for (const file of filesToProcess) {
-          const compressed = await compressImageFile(file, 540, 0.68);
+          const compressed = await compressImageFile(file, 800, 0.82);
           if (compressed) {
             const newIdx = editCarouselItems.length;
             if (firstNewIdx === -1) firstNewIdx = newIdx;

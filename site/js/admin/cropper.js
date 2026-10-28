@@ -161,7 +161,7 @@ export function setupPhotoCropper(elements) {
     });
   };
 
-  const getCroppedDataUrl = (targetSize = 540) => {
+  const getCroppedDataUrl = (targetSize = 800) => {
     if (!naturalWidth || !naturalHeight || !imgEl || !imgEl.src) return imgEl ? imgEl.src : '';
     try {
       const canvas = document.createElement('canvas');
@@ -185,9 +185,21 @@ export function setupPhotoCropper(elements) {
       ctx.fillStyle = '#23192d';
       ctx.fillRect(0, 0, targetSize, targetSize);
       ctx.drawImage(imgEl, srcX, srcY, srcW, srcH, 0, 0, targetSize, targetSize);
-      return canvas.toDataURL('image/jpeg', 0.72);
-    } catch {
-      return imgEl.src;
+
+      let dataUrl = '';
+      try {
+        dataUrl = canvas.toDataURL('image/webp', 0.82);
+      } catch (err) {
+        console.warn('[JEZ Atelie] WebP indisponivel, aplicando fallback JPEG:', err);
+        dataUrl = '';
+      }
+      if (!dataUrl || dataUrl.startsWith('data:image/png')) {
+        dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      }
+      return dataUrl;
+    } catch (err) {
+      console.warn('[JEZ Atelie] Erro ao recortar imagem no canvas:', err);
+      return imgEl ? imgEl.src : '';
     }
   };
 
