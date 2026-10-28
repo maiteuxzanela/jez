@@ -476,6 +476,7 @@ const initApp = () => {
   const hasLocalCatalog = Boolean(localStorage.getItem('jez_catalog'));
   let isCatalogLoaded = hasLocalCatalog;
   let fallbackCatalogTimeout = null;
+  let cloudStatus = null;
   let products = hasLocalCatalog ? getProducts() : [];
 
   // --------------------------------------------------------------------------
@@ -763,12 +764,12 @@ const initApp = () => {
       const imageMarkup = isLocalAsset
         ? `<picture>
             <source srcset="${escapeHtml(webpCandidate)}" type="image/webp">
-            <img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">
+            <img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" decoding="async" width="400" height="400">
           </picture>`
-        : `<img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">`;
+        : `<img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" decoding="async" width="400" height="400">`;
 
       const secondaryMarkup = hasSecondary
-        ? `<img src="${escapeHtml(secondaryImage)}" class="product-img-secondary" alt="${safeName} - Detalhe" loading="lazy" width="400" height="400">`
+        ? `<img src="${escapeHtml(secondaryImage)}" class="product-img-secondary" alt="${safeName} - Detalhe" loading="lazy" decoding="async" width="400" height="400">`
         : '';
 
       const btnBuyHtml = isSoldOut
@@ -1861,6 +1862,10 @@ const initApp = () => {
     if (imgEl) {
       imgEl.src = sanitizeImageUrl(featuredProduct.image);
       imgEl.alt = `Destaque: ${featuredProduct.name}`;
+      // JEZ-040: o destaque do Hero e o candidato a LCP, mantem prioridade maxima
+      // e decodificacao sincrona mesmo quando o src e trocado em runtime.
+      imgEl.setAttribute('fetchpriority', 'high');
+      imgEl.setAttribute('decoding', 'sync');
     }
     if (webpEl) {
       if (featuredProduct.image && typeof featuredProduct.image === 'string' && featuredProduct.image.startsWith('assets/')) {
@@ -1933,35 +1938,79 @@ const initApp = () => {
     }
   });
 
-  // Inicialização (JEZ-036 & JEZ-038: Stale-While-Revalidate com Shimmer de Atelie)
+  // Inicializacao (JEZ-036, JEZ-038 & JEZ-040: Stale-While-Revalidate com Shimmer de Atelie)
+  const FALLBACK_CATALOG_TIMEOUT_MS = 4000;
+  const FALLBACK_CATALOG_LAST_RESORT_MS = 12000;
+  let fallbackLastResortTimeout = null;
+
+  const clearCatalogFallbacks = () => {
+    if (fallbackCatalogTimeout) {
+      clearTimeout(fallbackCatalogTimeout);
+      fallbackCatalogTimeout = null;
+    }
+    if (fallbackLastResortTimeout) {
+      clearTimeout(fallbackLastResortTimeout);
+      fallbackLastResortTimeout = null;
+    }
+  };
+
+  const cloudIsExplicitlyOffline = () => cloudStatus === false ||
+    (typeof navigator !== 'undefined' && navigator.onLine === false);
+
+  const activateFactoryFallback = (reason) => {
+    if (isCatalogLoaded) return;
+    clearCatalogFallbacks();
+    isCatalogLoaded = true;
+    products = getProducts();
+    renderCatalog();
+    renderHeroFeaturedCard(products);
+    console.warn('[JËZ Catalogo] Contingencia de fabrica acionada:', reason);
+  };
+
   if (hasLocalCatalog) {
     renderCatalog();
     renderHeroFeaturedCard();
   } else {
     renderSkeletons(6);
     renderHeroSkeleton();
+    // Enquanto a nuvem estiver ativa ou em handshake, os skeletons shimmer permanecem
+    // visiveis e o catalogo salta direto para as pecas reais do snapshot.
+    // O catalogo mockado de fabrica NAO aparece no meio da carga fria.
     fallbackCatalogTimeout = setTimeout(() => {
-      if (!isCatalogLoaded) {
-        isCatalogLoaded = true;
-        products = getProducts();
-        renderCatalog();
-        renderHeroFeaturedCard(products);
+      if (isCatalogLoaded) return;
+      if (cloudIsExplicitlyOffline()) {
+        activateFactoryFallback('nuvem indisponivel no boot');
+        return;
       }
-    }, 1500);
+      // Handshake ainda em curso: preserva os skeletons e arma um unico ultimo recurso
+      // para o usuario nunca ficar preso em shimmer caso o snapshot nunca chegue.
+      fallbackCatalogTimeout = null;
+      if (!fallbackLastResortTimeout) {
+        fallbackLastResortTimeout = setTimeout(() => {
+          fallbackLastResortTimeout = null;
+          if (!isCatalogLoaded) {
+            activateFactoryFallback('snapshot da nuvem nao chegou no prazo limite');
+          }
+        }, FALLBACK_CATALOG_LAST_RESORT_MS - FALLBACK_CATALOG_TIMEOUT_MS);
+      }
+    }, FALLBACK_CATALOG_TIMEOUT_MS);
   }
   updateCartUI();
 
-  // Escuta status offline para ativar fallback imediato caso a conexao com a nuvem falhe
+  // Status explicito da nuvem: true mantem skeleton; false aciona contingencia imediata.
   window.addEventListener('jez-cloud-status', (e) => {
-    if (e.detail && e.detail.online === false && !isCatalogLoaded) {
-      if (fallbackCatalogTimeout) {
-        clearTimeout(fallbackCatalogTimeout);
-        fallbackCatalogTimeout = null;
-      }
-      isCatalogLoaded = true;
-      products = getProducts();
-      renderCatalog();
-      renderHeroFeaturedCard(products);
+    const online = e.detail && typeof e.detail.online === 'boolean' ? e.detail.online : null;
+    if (online !== null) cloudStatus = online;
+    if (online === false && !isCatalogLoaded) {
+      activateFactoryFallback('evento jez-cloud-status offline');
+    }
+  });
+
+  // Perda de conectividade detectada pelo proprio navegador
+  window.addEventListener('offline', () => {
+    cloudStatus = false;
+    if (!isCatalogLoaded) {
+      activateFactoryFallback('navigator offline');
     }
   });
 
@@ -1975,10 +2024,8 @@ const initApp = () => {
       window.jezFirebase.onProductsChange((cloudProducts) => {
         if (Array.isArray(cloudProducts) && cloudProducts.length > 0) {
           isCatalogLoaded = true;
-          if (fallbackCatalogTimeout) {
-            clearTimeout(fallbackCatalogTimeout);
-            fallbackCatalogTimeout = null;
-          }
+          cloudStatus = true;
+          clearCatalogFallbacks();
           const curedList = cureProductListMedia(cloudProducts, defaultProducts);
           // Merge defensivo: nuvem manda, pecas editoriais ausentes sao preservadas
           const sorted = sortProductsByCuratedOrder(mergeCloudCatalogWithFactory(curedList, defaultProducts));

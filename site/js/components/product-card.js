@@ -108,12 +108,12 @@ export function createProductCardElement(p) {
   const imageMarkup = isLocalAsset
     ? `<picture>
         <source srcset="${escapeHtml(webpCandidate)}" type="image/webp">
-        <img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">
+        <img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" decoding="async" width="400" height="400">
       </picture>`
-    : `<img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" width="400" height="400">`;
+    : `<img src="${escapeHtml(safeImage)}" class="product-img-primary" alt="${safeName}" loading="lazy" decoding="async" width="400" height="400">`;
 
   const secondaryMarkup = hasSecondary
-    ? `<img src="${escapeHtml(secondaryImage)}" class="product-img-secondary" alt="${safeName} - Detalhe" loading="lazy" width="400" height="400">`
+    ? `<img src="${escapeHtml(secondaryImage)}" class="product-img-secondary" alt="${safeName} - Detalhe" loading="lazy" decoding="async" width="400" height="400">`
     : '';
 
   const btnBuyHtml = isSoldOut

@@ -3229,6 +3229,459 @@ Object.keys(deliverySources47).forEach(label => {
   assert(!emojiTestRegex.test(deliverySources47[label]), `${label} cumpre rigorosamente a regra zero emojis`);
 });
 
+// ============================================================================
+// [48] Resiliencia de Boot, Eliminacao de FOUC na Carga Fria e Priorizacao de
+//      LCP (JEZ-040) - SDET Hugo
+//
+// Metodologia: NENHUM mock de regra de negocio. O bloco real de boot de app.js
+// (constantes + orquestracao de fallback + listeners de status) e os blocos
+// reais de renderCatalog / renderHeroFeaturedCard sao EXTRAIDOS do fonte de
+// producao e executados em isolamento. A unica substituicao e o relogio de
+// plataforma (setTimeout/clearTimeout), trocado por um relogio virtual
+// deterministico que registra os delays exigidos pelo codigo real; o DOM e
+// minimo, no mesmo padrao de harness ja adotado nas secoes [37]/[39]/[47].
+// ============================================================================
+console.log('\n[48] Validando Resiliencia de Boot, Eliminacao de FOUC e Priorizacao de LCP (JEZ-040):');
+
+const appJsContent48 = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf8');
+const indexHtml48 = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf8');
+const prodCardJsContent48 = fs.readFileSync(path.join(ROOT_DIR, 'js', 'components', 'product-card.js'), 'utf8');
+const prodCardModule48 = require(path.join(ROOT_DIR, 'js', 'components', 'product-card.js'));
+
+// ---------------------------------------------------------------------------
+// 48.1 Calibracao do fallback de catalogo (4000ms defensivo / 12000ms absoluto)
+// ---------------------------------------------------------------------------
+assert(appJsContent48.includes('const FALLBACK_CATALOG_TIMEOUT_MS = 4000;'), 'app.js calibra o timeout defensivo do catalogo em exatamente 4000ms (JEZ-040)');
+assert(appJsContent48.includes('const FALLBACK_CATALOG_LAST_RESORT_MS = 12000;'), 'app.js define ultimo recurso absoluto de 12000ms contra shimmer infinito');
+
+const bootStart48 = appJsContent48.indexOf('const FALLBACK_CATALOG_TIMEOUT_MS');
+const initCloudStart48 = appJsContent48.indexOf('const initCloudSync = () => {');
+assert(bootStart48 !== -1 && initCloudStart48 > bootStart48, 'app.js expoe o bloco de boot (constantes + orquestracao de fallback) antes do initCloudSync');
+const bootBlock48 = bootStart48 !== -1 && initCloudStart48 > bootStart48
+  ? appJsContent48.slice(bootStart48, initCloudStart48)
+  : '';
+
+assert(bootBlock48 !== '' && !bootBlock48.includes('}, 1500);'), 'o bloco de boot abandonou o timeout antigo de 1500ms');
+assert(bootBlock48.includes('}, FALLBACK_CATALOG_TIMEOUT_MS);'), 'o timer de handshake usa a constante calibrada (4000ms), nao um literal solto');
+assert(bootBlock48.includes('}, FALLBACK_CATALOG_LAST_RESORT_MS - FALLBACK_CATALOG_TIMEOUT_MS);'), 'o timer de ultimo recurso deriva o delta 8000ms das constantes (sem divergencia silenciosa)');
+assert(bootBlock48.includes('if (isCatalogLoaded) return;'), 'activateFactoryFallback guarda contra re-render quando o catalogo real ja chegou (idempotente)');
+assert(bootBlock48.includes('cloudStatus === false'), 'deteccao de offline considera o status explicito da nuvem');
+assert(bootBlock48.includes('navigator.onLine === false'), 'deteccao de offline considera a conectividade real do navegador');
+assert(bootBlock48.includes("typeof e.detail.online === 'boolean'"), 'evento de status so e aceito com boolean estrito (nenhum falso offline por string)');
+assert(bootBlock48.includes("window.addEventListener('offline'"), 'app.js escuta o evento nativo offline do navegador');
+
+// Relogio virtual deterministico: registra o delay EXATO pedido pelo codigo real.
+const createVirtualClock48 = () => {
+  let now = 0;
+  let seq = 0;
+  let scheduled = [];
+  const setTimeout48 = (fn, delay = 0) => {
+    const id = ++seq;
+    const wait = Number(delay) || 0;
+    scheduled.push({ id, at: now + wait, delay: wait, fn });
+    return id;
+  };
+  const clearTimeout48 = (id) => { scheduled = scheduled.filter(t => t.id !== id); };
+  const advance48 = (ms) => {
+    const target = now + (Number(ms) || 0);
+    let guard = 0;
+    for (;;) {
+      if (guard++ > 500) throw new Error('relogio virtual nao convergiu');
+      const due = scheduled.filter(t => t.at <= target).sort((a, b) => (a.at - b.at) || (a.id - b.id))[0];
+      if (!due) break;
+      scheduled = scheduled.filter(t => t.id !== due.id);
+      now = due.at;
+      due.fn();
+    }
+    now = target;
+    return now;
+  };
+  return {
+    advance: advance48,
+    setTimeout: setTimeout48,
+    clearTimeout: clearTimeout48,
+    pending: () => scheduled.map(t => ({ delay: t.delay, at: t.at })),
+    now: () => now
+  };
+};
+
+// Harness de DOM minimo (mesmo padrao das secoes anteriores da suite)
+const createElement48 = (tagName = 'div') => {
+  const attributes = {};
+  return {
+    tagName: String(tagName).toUpperCase(),
+    className: '',
+    id: '',
+    innerHTML: '',
+    textContent: '',
+    src: '',
+    alt: '',
+    srcset: '',
+    style: {},
+    children: [],
+    classList: {
+      _set: new Set(),
+      add(...names) { names.forEach(n => this._set.add(n)); },
+      remove(...names) { names.forEach(n => this._set.delete(n)); },
+      contains(name) { return this._set.has(name); }
+    },
+    setAttribute(name, value) { attributes[name] = String(value); },
+    getAttribute(name) { return Object.prototype.hasOwnProperty.call(attributes, name) ? attributes[name] : null; },
+    hasAttribute(name) { return Object.prototype.hasOwnProperty.call(attributes, name); },
+    removeAttribute(name) { delete attributes[name]; },
+    addEventListener() {},
+    appendChild(child) { this.children.push(child); return child; },
+    querySelector() { return null; },
+    remove() {}
+  };
+};
+
+const bootBody48 = `
+  let isCatalogLoaded = hasLocalCatalog;
+  let products = hasLocalCatalog ? getProducts() : [];
+  let fallbackCatalogTimeout = null;
+  let cloudStatus = null;
+` + bootBlock48 + `
+  return {
+    isCatalogLoaded: () => isCatalogLoaded,
+    currentProducts: () => products,
+    cloudStatus: () => cloudStatus,
+    fallbackCatalogTimeout: () => fallbackCatalogTimeout,
+    fallbackLastResortTimeout: () => fallbackLastResortTimeout,
+    cloudIsExplicitlyOffline,
+    clearCatalogFallbacks,
+    activateFactoryFallback,
+    constants: { FALLBACK_CATALOG_TIMEOUT_MS, FALLBACK_CATALOG_LAST_RESORT_MS }
+  };
+`;
+
+const runBootScenario48 = (options = {}) => {
+  const clock = createVirtualClock48();
+  const listeners = {};
+  const win = {
+    addEventListener(type, handler) { (listeners[type] = listeners[type] || []).push(handler); },
+    dispatch(type, detail) { (listeners[type] || []).slice().forEach(h => h({ type, detail })); },
+    hasListener: (type) => Boolean(listeners[type] && listeners[type].length)
+  };
+  const nav = { onLine: options.onLine === undefined ? true : options.onLine };
+  const warnings = [];
+  const calls = { renderCatalog: [], renderHeroFeaturedCard: [], renderSkeletons: [], renderHeroSkeleton: 0, updateCartUI: 0 };
+  const factoryCatalog = options.factoryCatalog || [
+    { id: 'tote-cherry', name: 'Tote Bag Cherry', price: 189.9, image: 'assets/products/tote_cherry.webp', isReady: true },
+    { id: 'blusa-teia', name: 'Blusa Teia', price: 249.9, image: 'assets/products/blusa_teia.webp', isReady: false }
+  ];
+  const factory = new Function(
+    'window', 'navigator', 'console', 'setTimeout', 'clearTimeout', 'hasLocalCatalog',
+    'getProducts', 'renderCatalog', 'renderHeroFeaturedCard', 'renderSkeletons', 'renderHeroSkeleton', 'updateCartUI',
+    bootBody48
+  );
+  const api = factory(
+    win,
+    nav,
+    { warn: (...args) => warnings.push(args.map(String).join(' ')), log() {}, error() {} },
+    clock.setTimeout,
+    clock.clearTimeout,
+    Boolean(options.hasLocalCatalog),
+    () => factoryCatalog,
+    (...args) => calls.renderCatalog.push(args),
+    (...args) => calls.renderHeroFeaturedCard.push(args),
+    (n) => calls.renderSkeletons.push(n),
+    () => { calls.renderHeroSkeleton += 1; },
+    () => { calls.updateCartUI += 1; }
+  );
+  return { api, clock, win, nav, calls, warnings, factoryCatalog };
+};
+
+// 48.2 Carga fria com nuvem em handshake: skeleton preservado, zero mock intermediario
+const boot1_48 = runBootScenario48();
+assert(boot1_48.api.constants.FALLBACK_CATALOG_TIMEOUT_MS === 4000, 'o codigo real de boot reporta 4000ms de timeout defensivo');
+assert(boot1_48.api.constants.FALLBACK_CATALOG_LAST_RESORT_MS === 12000, 'o codigo real de boot reporta 12000ms de ultimo recurso');
+assert(boot1_48.calls.renderSkeletons.length === 1 && boot1_48.calls.renderSkeletons[0] === 6, 'carga fria sem cache renderiza 6 skeletons shimmer');
+assert(boot1_48.calls.renderHeroSkeleton === 1, 'carga fria tambem coloca o Hero em skeleton (sem FOUC de peca errada)');
+assert(boot1_48.calls.renderCatalog.length === 0, 'catalogo de fabrica NAO e renderizado no primeiro frame (zero FOUC de mock)');
+assert(boot1_48.calls.updateCartUI === 1, 'a UI do carrinho continua inicializada no boot');
+const pending1_48 = boot1_48.clock.pending();
+assert(pending1_48.length === 1 && pending1_48[0].delay === 4000 && pending1_48[0].at === 4000, 'o codigo real arma um unico timer para 4000ms');
+
+boot1_48.clock.advance(3999);
+assert(boot1_48.api.isCatalogLoaded() === false && boot1_48.calls.renderCatalog.length === 0, 'aos 3999ms o skeleton permanece e nada de fabrica aparece');
+assert(boot1_48.win.hasListener('jez-cloud-status') && boot1_48.win.hasListener('offline'), 'listeners de status da nuvem e de offline ficam registrados desde o boot');
+
+boot1_48.clock.advance(1); // 4000
+assert(boot1_48.api.isCatalogLoaded() === false, 'aos 4000ms com handshake em curso o catalogo NAO cai para fabrica');
+assert(boot1_48.calls.renderCatalog.length === 0, 'aos 4000ms nenhuma troca intermediaria de conteudo acontece (zero flash)');
+assert(boot1_48.api.fallbackCatalogTimeout() === null, 'o timer de handshake e desarmado apos disparar (sem reentrada)');
+const pending2_48 = boot1_48.clock.pending();
+assert(pending2_48.length === 1 && pending2_48[0].delay === 8000 && pending2_48[0].at === 12000, 'o ultimo recurso fica armado para o marco absoluto de 12000ms (delta 8000)');
+
+boot1_48.clock.advance(7999);
+assert(boot1_48.api.isCatalogLoaded() === false && boot1_48.calls.renderCatalog.length === 0, 'aos 11999ms o usuario segue em skeleton shimmer, sem conteudo falso');
+boot1_48.clock.advance(1); // 12000
+assert(boot1_48.api.isCatalogLoaded() === true, 'aos 12000ms o ultimo recurso libera o catalogo (usuario nunca preso em shimmer)');
+assert(boot1_48.calls.renderCatalog.length === 1, 'o ultimo recurso renderiza o catalogo exatamente uma vez');
+assert(boot1_48.api.currentProducts() === boot1_48.factoryCatalog, 'a contingencia usa o catalogo real de getProducts (nenhum mock inventado)');
+assert(boot1_48.calls.renderHeroFeaturedCard.length === 1 && boot1_48.calls.renderHeroFeaturedCard[0][0] === boot1_48.factoryCatalog, 'a contingencia tambem atualiza o Hero com o mesmo catalogo');
+assert(boot1_48.warnings.some(w => w.includes('snapshot da nuvem nao chegou no prazo limite')), 'o motivo do ultimo recurso fica rastreavel em console.warn');
+assert(boot1_48.clock.pending().length === 0, 'nenhum timer residual permanece apos a contingencia');
+
+// 48.3 Offline explicito da nuvem e offline do navegador acionam contingencia imediata
+const boot2_48 = runBootScenario48();
+boot2_48.win.dispatch('jez-cloud-status', { online: false });
+assert(boot2_48.api.cloudStatus() === false, 'jez-cloud-status propaga online=false para cloudStatus');
+assert(boot2_48.api.isCatalogLoaded() === true && boot2_48.calls.renderCatalog.length === 1, 'offline explicito da nuvem aciona contingencia imediata (sem esperar 12s)');
+assert(boot2_48.clock.pending().length === 0, 'a contingencia imediata limpa todos os timers pendentes');
+assert(boot2_48.warnings.some(w => w.includes('evento jez-cloud-status offline')), 'o motivo do evento de status fica rastreavel');
+
+const boot3_48 = runBootScenario48();
+boot3_48.win.dispatch('jez-cloud-status', { online: true });
+assert(boot3_48.api.cloudStatus() === true && boot3_48.calls.renderCatalog.length === 0, 'online=true mantem o skeleton e nao aciona contingencia');
+boot3_48.clock.advance(4000);
+assert(boot3_48.api.isCatalogLoaded() === false && boot3_48.calls.renderCatalog.length === 0, 'com nuvem explicitamente online o marco de 4000ms nao derruba para fabrica');
+assert(boot3_48.clock.pending().some(t => t.delay === 8000), 'com nuvem online o ultimo recurso continua armado como rede de seguranca');
+
+const boot4_48 = runBootScenario48();
+boot4_48.win.dispatch('offline');
+assert(boot4_48.api.cloudStatus() === false && boot4_48.api.isCatalogLoaded() === true, 'evento offline do navegador aciona contingencia imediata');
+assert(boot4_48.calls.renderCatalog.length === 1 && boot4_48.clock.pending().length === 0, 'evento offline renderiza uma unica vez e zera os timers');
+assert(boot4_48.warnings.some(w => w.includes('navigator offline')), 'o motivo do offline nativo fica rastreavel');
+
+// 48.4 navigator.onLine=false detectado no proprio marco de 4000ms
+const boot5_48 = runBootScenario48({ onLine: false });
+boot5_48.clock.advance(4000);
+assert(boot5_48.api.isCatalogLoaded() === true && boot5_48.calls.renderCatalog.length === 1, 'navigator.onLine=false aciona contingencia no primeiro marco (4000ms)');
+assert(!boot5_48.clock.pending().some(t => t.delay === 8000), 'quando ja esta offline nao se arma um segundo timer desnecessario');
+
+// 48.5 Perda de rede do navegador sobrepoe cloudStatus=true (condicao OR)
+const boot6_48 = runBootScenario48();
+boot6_48.win.dispatch('jez-cloud-status', { online: true });
+boot6_48.nav.onLine = false;
+boot6_48.clock.advance(4000);
+assert(boot6_48.api.isCatalogLoaded() === true && boot6_48.calls.renderCatalog.length === 1, 'navigator offline sobrepoe cloudStatus=true no marco de 4000ms');
+
+// 48.6 Snapshot da nuvem cancela qualquer contingencia pendente
+const boot7_48 = runBootScenario48();
+boot7_48.clock.advance(4000);
+assert(boot7_48.clock.pending().length === 1, 'apos o marco de 4000ms o ultimo recurso esta armado');
+boot7_48.api.clearCatalogFallbacks();
+assert(boot7_48.clock.pending().length === 0 && boot7_48.api.fallbackCatalogTimeout() === null && boot7_48.api.fallbackLastResortTimeout() === null, 'clearCatalogFallbacks zera os dois timers (handshake e ultimo recurso)');
+boot7_48.clock.advance(60000);
+assert(boot7_48.api.isCatalogLoaded() === false && boot7_48.calls.renderCatalog.length === 0, 'com os timers cancelados nenhuma contingencia atrasada aparece');
+
+const boot8_48 = runBootScenario48();
+boot8_48.clock.advance(1500);
+boot8_48.api.clearCatalogFallbacks();
+boot8_48.clock.advance(30000);
+assert(boot8_48.api.isCatalogLoaded() === false && boot8_48.calls.renderCatalog.length === 0 && boot8_48.clock.pending().length === 0, 'snapshot real antes de 4000ms cancela o fallback e nenhum flash de fabrica ocorre depois');
+
+// 48.7 Idempotencia e robustez do payload de status
+const boot9_48 = runBootScenario48();
+boot9_48.win.dispatch('offline');
+boot9_48.win.dispatch('offline');
+boot9_48.win.dispatch('jez-cloud-status', { online: false });
+assert(boot9_48.calls.renderCatalog.length === 1, 'contingencia e idempotente: sinais offline repetidos nao re-renderizam nem sobrescrevem o catalogo');
+
+// Sentinela direta do guard interno: mesmo uma chamada defensiva a
+// activateFactoryFallback NAO pode sobrescrever um catalogo real ja carregado.
+const boot9b_48 = runBootScenario48({ hasLocalCatalog: true });
+boot9b_48.api.activateFactoryFallback('chamada defensiva com catalogo ja carregado');
+assert(boot9b_48.calls.renderCatalog.length === 1 && boot9b_48.calls.renderHeroFeaturedCard.length === 1, 'o guard interno de activateFactoryFallback impede sobrescrever o catalogo real com pecas de fabrica');
+assert(!boot9b_48.warnings.some(w => w.includes('Contingencia de fabrica acionada')), 'a chamada defensiva aborta antes de registrar contingencia (nenhum efeito colateral)');
+
+const boot10_48 = runBootScenario48();
+boot10_48.win.dispatch('jez-cloud-status', { online: 'false' });
+boot10_48.win.dispatch('jez-cloud-status', {});
+boot10_48.win.dispatch('jez-cloud-status', undefined);
+assert(boot10_48.api.isCatalogLoaded() === false && boot10_48.api.cloudStatus() === null, 'detail nao-booleano/ausente e ignorado (nenhum falso offline, cloudStatus intacto)');
+boot10_48.clock.advance(4000);
+assert(boot10_48.api.isCatalogLoaded() === false && boot10_48.calls.renderCatalog.length === 0, 'payload invalido nao antecipa a contingencia no marco de 4000ms');
+
+// 48.8 Com cache local (stale-while-revalidate) nao existe skeleton nem timer
+const boot11_48 = runBootScenario48({ hasLocalCatalog: true });
+assert(boot11_48.calls.renderCatalog.length === 1 && boot11_48.calls.renderSkeletons.length === 0 && boot11_48.calls.renderHeroSkeleton === 0, 'com cache local o catalogo real aparece de imediato, sem skeleton');
+assert(boot11_48.clock.pending().length === 0, 'com cache local nenhum timer de fallback e armado');
+boot11_48.clock.advance(20000);
+assert(boot11_48.calls.renderCatalog.length === 1, 'com cache local nenhum mock de fabrica e injetado depois');
+
+// ---------------------------------------------------------------------------
+// 48.9 Hero LCP: fetchpriority=high + decoding=sync no HTML estatico
+// ---------------------------------------------------------------------------
+const heroImgTagMatch48 = indexHtml48.match(/<img[^>]*id="hero-featured-img"[^>]*>/);
+assert(heroImgTagMatch48 !== null, 'index.html declara a tag <img id="hero-featured-img"> do Hero');
+const heroImgTag48 = heroImgTagMatch48 ? heroImgTagMatch48[0] : '';
+assert(heroImgTag48.includes('fetchpriority="high"'), 'Hero LCP no HTML estatico carrega fetchpriority="high"');
+assert(heroImgTag48.includes('decoding="sync"'), 'Hero LCP no HTML estatico carrega decoding="sync"');
+assert(!heroImgTag48.includes('loading="lazy"'), 'Hero LCP nunca declara loading="lazy" (nao pode ser postergado)');
+assert(!heroImgTag48.includes('decoding="async"'), 'Hero LCP nao declara decoding="async" no HTML');
+const heroImgIdCount48 = (indexHtml48.match(/id="hero-featured-img"/g) || []).length;
+assert(heroImgIdCount48 === 1, 'index.html possui exatamente um #hero-featured-img (sem duplicata concorrente de LCP)');
+
+// ---------------------------------------------------------------------------
+// 48.10 Hero LCP: reinjecao dos atributos em runtime pelo codigo REAL
+// ---------------------------------------------------------------------------
+const heroSrc48 = extractBracedBlock47(appJsContent48, 'const renderHeroFeaturedCard = (currentProductsList = null)');
+const escapeSrc48 = extractBracedBlock47(appJsContent48, 'const escapeHtml = (str)');
+const fmtSrc48 = extractBracedBlock47(appJsContent48, 'const formatCurrency = (val)');
+const sanitizeSrc48 = extractBracedBlock47(appJsContent48, 'const sanitizeImageUrl = (url)');
+assert(heroSrc48 !== null && escapeSrc48 !== null && fmtSrc48 !== null && sanitizeSrc48 !== null, 'app.js expoe os blocos reais de renderHeroFeaturedCard, escapeHtml, formatCurrency e sanitizeImageUrl');
+
+const buildHeroHarness48 = () => {
+  const img = createElement48('img');
+  const webp = createElement48('source');
+  const nameEl = createElement48('span');
+  const priceEl = createElement48('div');
+  const heroCard = createElement48('div');
+  const byId = {
+    'hero-featured-name': nameEl,
+    'hero-featured-price': priceEl,
+    'hero-featured-img': img,
+    'hero-featured-webp': webp
+  };
+  const doc = { getElementById: (id) => byId[id] || null };
+  const storage = {
+    data: {},
+    getItem(k) { return Object.prototype.hasOwnProperty.call(this.data, k) ? this.data[k] : null; },
+    setItem(k, v) { this.data[k] = String(v); }
+  };
+  const localList = [{ id: 'tote-cherry', name: 'Tote Bag Cherry', price: 189.9, image: 'assets/products/tote_cherry.jpg' }];
+  const body = [escapeSrc48, fmtSrc48, sanitizeSrc48, heroSrc48, 'return renderHeroFeaturedCard;'].join('\n');
+  const fn = new Function('heroFeaturedCard', 'document', 'localStorage', 'products', 'getProducts', body)(
+    heroCard, doc, storage, localList, () => localList
+  );
+  return { fn, img, webp, nameEl, priceEl, heroCard, storage };
+};
+
+const hero1_48 = buildHeroHarness48();
+assert(typeof hero1_48.fn === 'function', 'renderHeroFeaturedCard real e executavel em isolamento a partir do fonte de producao');
+hero1_48.img.setAttribute('fetchpriority', 'low');
+hero1_48.img.setAttribute('decoding', 'async');
+hero1_48.fn();
+assert(hero1_48.img.getAttribute('fetchpriority') === 'high', 'runtime reinjeta fetchpriority="high" no Hero mesmo apos valor divergente');
+assert(hero1_48.img.getAttribute('decoding') === 'sync', 'runtime reinjeta decoding="sync" no Hero (LCP sem decodificacao tardia)');
+assert(String(hero1_48.img.src).includes('assets/products/tote_cherry.jpg'), 'o Hero continua apontando para a foto real do destaque');
+assert(hero1_48.img.getAttribute('loading') === null, 'o Hero LCP nao recebe loading=lazy da renderizacao runtime');
+assert(hero1_48.img.alt === 'Destaque: Tote Bag Cherry', 'o alt do Hero e atualizado com o nome da peca');
+
+const hero2_48 = buildHeroHarness48();
+hero2_48.fn([{ id: 'blusa-teia', name: 'Blusa Teia', price: 249.9, image: 'https://cdn.exemplo.com/foto.jpg' }]);
+assert(hero2_48.img.getAttribute('fetchpriority') === 'high' && hero2_48.img.getAttribute('decoding') === 'sync', 'atributos de LCP tambem valem para o Hero vindo do snapshot da nuvem');
+assert(hero2_48.img.src === 'https://cdn.exemplo.com/foto.jpg', 'o Hero aceita a URL https da nuvem apos sanitizacao');
+
+// ---------------------------------------------------------------------------
+// 48.11 Grid de produtos: decoding=async + loading=lazy em app.js e product-card.js
+// ---------------------------------------------------------------------------
+assert(appJsContent48.includes('document.getElementById(\'products-grid\')'), 'app.js resolve o container real #products-grid');
+assert(appJsContent48.includes('class="product-img-primary" alt="${safeName}" loading="lazy" decoding="async" width="400" height="400"'), 'app.js declara loading="lazy" + decoding="async" na imagem primaria do grid');
+assert(appJsContent48.includes('class="product-img-secondary" alt="${safeName} - Detalhe" loading="lazy" decoding="async" width="400" height="400"'), 'app.js declara loading="lazy" + decoding="async" na imagem secundaria do grid');
+assert((appJsContent48.match(/decoding="async"/g) || []).length === 3, 'app.js aplica decoding="async" nas 3 saidas de imagem do card (primaria local, primaria externa e secundaria)');
+assert((prodCardJsContent48.match(/decoding="async"/g) || []).length === 3, 'js/components/product-card.js aplica decoding="async" nas 3 saidas de imagem do card');
+assert((prodCardJsContent48.match(/loading="lazy"/g) || []).length === 3 && (appJsContent48.match(/class="product-img-[a-z]+" alt="[^"]*" loading="lazy"/g) || []).length === 3, 'toda imagem de card mantem loading="lazy" junto do decoding="async"');
+
+// Execucao REAL de renderCatalog de app.js (cura + sanitizacao + markup reais)
+const catalogBlocks48 = [
+  'const escapeHtml = (str)',
+  'const sanitizeImageUrl = (url)',
+  'const isVideoUrl = (media)',
+  'const withFactoryVideoPoster = (media,',
+  'const isRealUploadMedia = (media)',
+  'const cureProductMedia = (product,',
+  'const cureProductListMedia = (list,',
+  'const hasVideoMedia = (mediaList)',
+  'const formatCurrency = (val)',
+  'const renderCatalog = (catalogToUse = null)'
+].map(marker => extractBracedBlock47(appJsContent48, marker));
+assert(catalogBlocks48.every(Boolean), 'app.js expoe todos os blocos reais necessarios ao grid (sanitizacao, cura, formatacao e renderCatalog)');
+
+const gridLocalProduct48 = {
+  id: 'tote-cherry',
+  name: 'Tote Bag Cherry',
+  price: 189.9,
+  isReady: true,
+  stockQty: 3,
+  categoryLabel: 'Bolsas',
+  materials: 'Algodao',
+  image: 'assets/products/tote_cherry.jpg',
+  images: ['assets/products/tote_cherry.jpg', 'assets/products/tote_cherry_detail.jpg']
+};
+const gridExternalProduct48 = {
+  id: 'custom-cloud-1',
+  name: 'Peca da Nuvem',
+  price: 99.5,
+  isReady: false,
+  leadTimeDays: 10,
+  categoryLabel: 'Bolsas',
+  materials: 'Linho',
+  image: 'https://cdn.exemplo.com/peca-nuvem.jpg',
+  images: ['https://cdn.exemplo.com/peca-nuvem.jpg']
+};
+const gridFactoryCatalog48 = [gridLocalProduct48, gridExternalProduct48];
+
+const buildGridHarness48 = () => {
+  const grid = createElement48('div');
+  const doc = {
+    createElement: (tag) => createElement48(tag),
+    createDocumentFragment: () => createElement48('fragment')
+  };
+  const body = [
+    'let products = [];',
+    "let currentFilter = 'todas';",
+    catalogBlocks48.join('\n'),
+    'return { renderCatalog, productsAfter: () => products };'
+  ].join('\n');
+  const factory = new Function('productsGrid', 'document', 'getProducts', 'defaultProducts', 'window', body);
+  return { api: factory(grid, doc, () => gridFactoryCatalog48, gridFactoryCatalog48, {}), grid };
+};
+
+const grid1_48 = buildGridHarness48();
+grid1_48.api.renderCatalog();
+assert(grid1_48.grid.children.length === 2, 'renderCatalog real renderiza os 2 cards do catalogo no #products-grid');
+const cardLocalHtml48 = grid1_48.grid.children[0] ? grid1_48.grid.children[0].innerHTML : '';
+const cardExternalHtml48 = grid1_48.grid.children[1] ? grid1_48.grid.children[1].innerHTML : '';
+
+const primaryLocalMatch48 = cardLocalHtml48.match(/<img src="assets\/products\/tote_cherry\.jpg" class="product-img-primary"[^>]*>/);
+assert(primaryLocalMatch48 !== null, 'o card real do grid renderiza a imagem primaria do ativo local');
+assert(primaryLocalMatch48 !== null && primaryLocalMatch48[0].includes('loading="lazy"') && primaryLocalMatch48[0].includes('decoding="async"'), 'imagem primaria real sai com loading="lazy" + decoding="async"');
+
+const secondaryMatch48 = cardLocalHtml48.match(/<img src="assets\/products\/tote_cherry_detail\.jpg" class="product-img-secondary"[^>]*>/);
+assert(secondaryMatch48 !== null, 'o card real do grid renderiza a imagem secundaria (detalhe)');
+assert(secondaryMatch48 !== null && secondaryMatch48[0].includes('loading="lazy"') && secondaryMatch48[0].includes('decoding="async"'), 'imagem secundaria real sai com loading="lazy" + decoding="async"');
+
+const externalMatch48 = cardExternalHtml48.match(/<img src="https:\/\/cdn\.exemplo\.com\/peca-nuvem\.jpg" class="product-img-primary"[^>]*>/);
+assert(externalMatch48 !== null, 'o ramo de imagem externa (nuvem) tambem e renderizado pelo codigo real');
+assert(externalMatch48 !== null && externalMatch48[0].includes('loading="lazy"') && externalMatch48[0].includes('decoding="async"'), 'imagem externa do grid sai com loading="lazy" + decoding="async"');
+
+[['local', cardLocalHtml48], ['externo', cardExternalHtml48]].forEach(([label, html]) => {
+  const imgCount = (html.match(/<img /g) || []).length;
+  assert(imgCount > 0 && imgCount === (html.match(/decoding="async"/g) || []).length, `card ${label}: TODA tag img tem decoding="async" (nenhuma imagem escapa)`);
+  assert(imgCount === (html.match(/loading="lazy"/g) || []).length, `card ${label}: TODA tag img tem loading="lazy"`);
+});
+
+// Componente modular product-card.js executado de verdade
+const originalGlobalDoc48 = global.document;
+let cardComponent48 = null;
+global.document = { createElement: (tag) => createElement48(tag) };
+try {
+  cardComponent48 = prodCardModule48.createProductCardElement(gridLocalProduct48);
+} finally {
+  global.document = originalGlobalDoc48;
+}
+assert(cardComponent48 !== null && typeof cardComponent48.innerHTML === 'string', 'createProductCardElement real produz markup de card executavel');
+
+const compPrimary48 = cardComponent48 ? (cardComponent48.innerHTML.match(/<img src="assets\/products\/tote_cherry\.jpg" class="product-img-primary"[^>]*>/) || [null])[0] : null;
+assert(compPrimary48 !== null && compPrimary48.includes('loading="lazy"') && compPrimary48.includes('decoding="async"'), 'product-card.js entrega a imagem primaria com loading="lazy" + decoding="async"');
+const compSecondary48 = cardComponent48 ? (cardComponent48.innerHTML.match(/<img src="assets\/products\/tote_cherry_detail\.jpg" class="product-img-secondary"[^>]*>/) || [null])[0] : null;
+assert(compSecondary48 !== null && compSecondary48.includes('loading="lazy"') && compSecondary48.includes('decoding="async"'), 'product-card.js entrega a imagem secundaria com loading="lazy" + decoding="async"');
+if (cardComponent48) {
+  const compImgCount = (cardComponent48.innerHTML.match(/<img /g) || []).length;
+  assert(compImgCount === 2 && compImgCount === (cardComponent48.innerHTML.match(/decoding="async"/g) || []).length, 'product-card.js: nenhuma img do card fica sem decoding="async"');
+}
+
+// ---------------------------------------------------------------------------
+// 48.12 Higiene da entrega
+// ---------------------------------------------------------------------------
+assert(!appJsContent48.includes('console.log('), 'app.js continua sem console.log em producao (contingencia usa console.warn)');
+assert(!emojiTestRegex.test(prodCardJsContent48), 'js/components/product-card.js mantem zero emojis apos JEZ-040');
+assert(!emojiTestRegex.test(indexHtml48), 'index.html mantem zero emojis apos JEZ-040');
+
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
 console.log(`   Total de Testes: ${totalTests}`);
