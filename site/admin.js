@@ -369,11 +369,23 @@ export function setupPwaLifecycle(options = {}) {
 const initAdmin = () => {
   let orders = loadOrders();
   let catalog = loadCatalog();
+  let cloudCatalogSynced = false;
   let currentOrderFilter = 'all';
   let currentCatalogFilter = 'all';
   let newPieceExtraPhotos = [];
   let editPieceExtraPhotos = [];
   let lockoutTimerInterval = null;
+
+  // Apos o primeiro snapshot da nuvem, a copia em memoria passa a ser a fonte da verdade
+  // do acervo: fotos reais em Data URL Base64 frequentemente nao cabem na cota do
+  // localStorage, e um cache parcial jamais pode ressuscitar pecas removidas
+  // nem apagar as fotos reais ao editar uma peca.
+  const loadCatalogSynced = () => {
+    if (cloudCatalogSynced) {
+      return Array.isArray(catalog) ? catalog : [];
+    }
+    return loadCatalog();
+  };
 
   // --------------------------------------------------------------------------
   // 1. Utilitários de Segurança e Sanitização (Morgan)
@@ -488,7 +500,7 @@ const initAdmin = () => {
 
   const updateDashboard = () => {
     orders = loadOrders();
-    catalog = loadCatalog();
+    catalog = loadCatalogSynced();
     renderDashboard(
       {
         salesValueEl: document.getElementById('kpi-sales-value'),
@@ -516,7 +528,7 @@ const initAdmin = () => {
   const setFeaturedPiece = (productId) => {
     if (!productId || typeof productId !== 'string') return;
     try {
-      catalog = loadCatalog();
+      catalog = loadCatalogSynced();
       const piece = catalog.find(p => p.id === productId);
       localStorage.setItem('jez_featured_product_id', productId);
 
@@ -562,7 +574,7 @@ const initAdmin = () => {
   // --------------------------------------------------------------------------
   const renderOrders = () => {
     orders = loadOrders();
-    catalog = loadCatalog();
+    catalog = loadCatalogSynced();
     const container = document.getElementById('orders-list-container');
     if (!container) return;
     container.innerHTML = '';
@@ -835,7 +847,7 @@ const initAdmin = () => {
   // 8. Gestão e Renderização do Acervo no DOM
   // --------------------------------------------------------------------------
   const renderCatalog = (query = '') => {
-    catalog = loadCatalog();
+    catalog = loadCatalogSynced();
     const grid = document.getElementById('admin-catalog-grid');
     if (!grid) return;
     grid.innerHTML = '';
@@ -997,7 +1009,7 @@ const initAdmin = () => {
     }
 
     try {
-      const currentList = loadCatalog();
+      const currentList = loadCatalogSynced();
       const res = mutatePieceStatus(currentList, id, newStatus);
       if (!res.success) {
         if (res.reason === 'not_found') {
@@ -1036,7 +1048,7 @@ const initAdmin = () => {
     }
 
     try {
-      const currentList = loadCatalog();
+      const currentList = loadCatalogSynced();
       const piece = currentList.find(p => p.id === id);
       if (!piece) {
         showToast('Peça não encontrada para exclusão.');
@@ -1365,7 +1377,7 @@ const initAdmin = () => {
           description
         };
 
-        catalog = [newPiece, ...loadCatalog()];
+        catalog = [newPiece, ...loadCatalogSynced()];
         saveCatalog(catalog, newPiece.id, () => {
           formNewProduct.reset();
           if (photoInput) photoInput.value = '';
@@ -1585,7 +1597,7 @@ const initAdmin = () => {
   };
 
   const openEditModal = async (pieceId) => {
-    catalog = loadCatalog();
+    catalog = loadCatalogSynced();
     const piece = catalog.find(p => p.id === pieceId);
     if (!piece) return;
 
@@ -1959,7 +1971,7 @@ const initAdmin = () => {
           return;
         }
 
-        const currentCatalog = loadCatalog();
+        const currentCatalog = loadCatalogSynced();
         const existingPiece = currentCatalog.find(p => p.id === id);
         if (!existingPiece) {
           showToast('Peça não encontrada para edição.');
@@ -2242,7 +2254,7 @@ const initAdmin = () => {
     btnRefreshData.addEventListener('click', () => {
       try {
         orders = loadOrders();
-        catalog = loadCatalog();
+        catalog = loadCatalogSynced();
         updateDashboard();
         renderOrders();
         renderCatalog();
@@ -2315,7 +2327,14 @@ const initAdmin = () => {
           if (Array.isArray(cloudCatalog) && cloudCatalog.length > 0) {
             const curedCatalog = cureProductListMedia(cloudCatalog, defaultInitialCatalog);
             catalog = sortCatalogByCuratedOrder(curedCatalog);
-            localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalog));
+            cloudCatalogSynced = true;
+            try {
+              localStorage.setItem(STORAGE_CATALOG_KEY, JSON.stringify(catalog));
+            } catch (quotaErr) {
+              // Fotos reais em Data URL Base64 podem estourar a cota: o cache local e
+              // compactado, mas a copia em memoria (com as fotos reais) segue autoritativa.
+              handleStorageQuotaExceeded(catalog);
+            }
             const searchInput = document.getElementById('catalog-search-input');
             renderCatalog(searchInput ? searchInput.value.trim() : '');
             updateDashboard();
@@ -2343,11 +2362,21 @@ const initAdmin = () => {
       return true;
     };
 
+    // Escuta o status ANTES de tentar o bind para nunca perder o primeiro evento
+    window.addEventListener('jez-cloud-status', () => {
+      bindSync();
+    });
+
     if (!bindSync()) {
       updateBadge(false);
-      window.addEventListener('jez-cloud-status', () => {
-        bindSync();
-      });
+      const readyPromise = window.jezFirebaseReady;
+      if (readyPromise && typeof readyPromise.then === 'function') {
+        readyPromise.then(() => {
+          bindSync();
+        }).catch(() => {
+          bindSync();
+        });
+      }
     }
   };
 

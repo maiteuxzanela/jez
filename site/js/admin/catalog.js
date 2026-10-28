@@ -177,6 +177,25 @@ export function sortCatalogByCuratedOrder(list) {
 }
 
 /**
+ * Detecta mídia enviada de verdade pela artesã (Data URL Base64 / blob local de upload).
+ * Mesmo contrato de isRealUploadMedia em js/services/products.js: fotos reais NUNCA
+ * podem ser substituídas por ativos de fábrica, pois o Ateliê regrava a peça no Firestore.
+ * @param {string | object} media
+ * @returns {boolean}
+ */
+export function isRealUploadMedia(media) {
+  if (!media) return false;
+  if (typeof media === 'string') {
+    const clean = media.trim().toLowerCase();
+    return clean.startsWith('data:image/') || clean.startsWith('blob:');
+  }
+  if (typeof media === 'object' && typeof media.url === 'string') {
+    return isRealUploadMedia(media.url);
+  }
+  return false;
+}
+
+/**
  * Detecta se uma mídia ou URL corresponde a um formato de vídeo
  * @param {string | object} media
  * @returns {boolean}
@@ -361,9 +380,14 @@ export function preserveFactoryMedia(product, defaultList = defaultInitialCatalo
     const factoryPhoto = (factoryItem && factoryItem.image) ? factoryItem.image : 'assets/products/blusa_teia.jpg';
     const factoryVideo = 'assets/products/blusa_teia_loop.mp4';
     let images = Array.isArray(cured.images) ? [...cured.images] : [];
-    if (images.length === 0) {
+    // Fotos reais enviadas pela artesa tem prioridade absoluta sobre os ativos de fabrica:
+    // o Atelie grava image/images de volta no Firestore em saveCatalog() -> saveProduct().
+    const hasRealPhoto = images.some(img => isRealUploadMedia(img)) || isRealUploadMedia(cured.image);
+    if (images.length === 0 && hasRealPhoto) {
+      images = [cured.image];
+    } else if (images.length === 0) {
       images = [factoryPhoto, factoryVideo];
-    } else {
+    } else if (!hasRealPhoto) {
       const hasLoop = images.some(img => (typeof img === 'string' && img.includes('blusa_teia_loop.mp4')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia_loop.mp4')));
       if (!hasLoop) {
         images.push(factoryVideo);
@@ -379,23 +403,37 @@ export function preserveFactoryMedia(product, defaultList = defaultInitialCatalo
       if (nonVideoIdx > 0) {
         const [photo] = images.splice(nonVideoIdx, 1);
         images.unshift(photo);
-      } else {
+      } else if (!hasRealPhoto) {
         images.unshift(factoryPhoto);
       }
     }
     // Objetos de vídeo de fábrica preservam o poster estruturado (JEZ-038)
     images = images.map(media => withFactoryVideoPoster(media));
     cured.images = images;
-    cured.image = factoryPhoto;
+    if (!hasRealPhoto) {
+      cured.image = factoryPhoto;
+    } else if (!isRealUploadMedia(cured.image)) {
+      const firstStatic = images.find(img => !isVideoMedia(img));
+      cured.image = firstStatic
+        ? (typeof firstStatic === 'object' ? (firstStatic.url || firstStatic.poster || factoryPhoto) : firstStatic)
+        : factoryPhoto;
+    }
     return cured;
   }
 
   if (factoryItem) {
     if (!cured.image || isVideoMedia(cured.image)) {
-      cured.image = factoryItem.image;
+      // Foto real presente na galeria promove-se a capa; ativo de fabrica so como ultimo recurso
+      const realGalleryMedia = Array.isArray(cured.images) ? cured.images.find(media => isRealUploadMedia(media)) : null;
+      cured.image = realGalleryMedia
+        ? (typeof realGalleryMedia === 'object' ? (realGalleryMedia.url || realGalleryMedia.poster || factoryItem.image) : realGalleryMedia)
+        : factoryItem.image;
     }
     if (!Array.isArray(cured.images) || cured.images.length === 0) {
-      cured.images = Array.isArray(factoryItem.images) ? [...factoryItem.images] : [factoryItem.image];
+      // Foto real enviada pela artesa alimenta a galeria sem ser trocada por ativo de fabrica
+      cured.images = isRealUploadMedia(cured.image)
+        ? [cured.image]
+        : (Array.isArray(factoryItem.images) ? [...factoryItem.images] : [factoryItem.image]);
     }
   }
 

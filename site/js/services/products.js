@@ -192,6 +192,20 @@ export function filterActiveProducts(list) {
   return list.filter(p => p && p.status !== 'suspended');
 }
 
+// Detecta midia enviada de verdade pela artesa (Data URL Base64 / blob local de upload).
+// Fotos reais NUNCA podem ser substituidas por ativos de fabrica do catalogo editorial.
+export function isRealUploadMedia(media) {
+  if (!media) return false;
+  if (typeof media === 'string') {
+    const clean = media.trim().toLowerCase();
+    return clean.startsWith('data:image/') || clean.startsWith('blob:');
+  }
+  if (typeof media === 'object' && typeof media.url === 'string') {
+    return isRealUploadMedia(media.url);
+  }
+  return false;
+}
+
 export function isVideoMedia(media) {
   if (!media) return false;
   if (typeof media === 'object') {
@@ -222,16 +236,22 @@ export function preserveFactoryMedia(product, defaultList = defaultProducts) {
     const factoryPhoto = (factoryItem && factoryItem.image) ? factoryItem.image : 'assets/products/blusa_teia.jpg';
     const factoryVideo = 'assets/products/blusa_teia_loop.mp4';
     let images = Array.isArray(cured.images) ? [...cured.images] : [];
-    if (images.length === 0) {
+    // Fotos reais enviadas pela artesa tem prioridade absoluta sobre os ativos de fabrica
+    const hasRealPhoto = images.some(img => isRealUploadMedia(img)) || isRealUploadMedia(cured.image);
+    if (images.length === 0 && hasRealPhoto) {
+      images = [cured.image];
+    } else if (images.length === 0) {
       images = [factoryPhoto, factoryVideo];
     } else {
-      const hasLoop = images.some(img => (typeof img === 'string' && img.includes('blusa_teia_loop.mp4')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia_loop.mp4')));
-      if (!hasLoop) {
-        images.push(factoryVideo);
-      }
-      const hasPhoto = images.some(img => (typeof img === 'string' && img.includes('blusa_teia.jpg')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia.jpg')));
-      if (!hasPhoto) {
-        images.unshift(factoryPhoto);
+      if (!hasRealPhoto) {
+        const hasLoop = images.some(img => (typeof img === 'string' && img.includes('blusa_teia_loop.mp4')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia_loop.mp4')));
+        if (!hasLoop) {
+          images.push(factoryVideo);
+        }
+        const hasPhoto = images.some(img => (typeof img === 'string' && img.includes('blusa_teia.jpg')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia.jpg')));
+        if (!hasPhoto) {
+          images.unshift(factoryPhoto);
+        }
       }
     }
     // Regra inviolavel: o video NUNCA deve ser a primeira midia (indice 0)
@@ -240,23 +260,37 @@ export function preserveFactoryMedia(product, defaultList = defaultProducts) {
       if (nonVideoIdx > 0) {
         const [photo] = images.splice(nonVideoIdx, 1);
         images.unshift(photo);
-      } else {
+      } else if (!hasRealPhoto) {
         images.unshift(factoryPhoto);
       }
     }
     // Objetos de video de fabrica preservam o poster estruturado (JEZ-038)
     images = images.map(media => withFactoryVideoPoster(media));
     cured.images = images;
-    cured.image = factoryPhoto;
+    if (!hasRealPhoto) {
+      cured.image = factoryPhoto;
+    } else if (!isRealUploadMedia(cured.image)) {
+      const firstStatic = images.find(img => !isVideoMedia(img));
+      cured.image = firstStatic
+        ? (typeof firstStatic === 'object' ? (firstStatic.url || firstStatic.poster || factoryPhoto) : firstStatic)
+        : factoryPhoto;
+    }
     return cured;
   }
 
   if (factoryItem) {
     if (!cured.image || isVideoMedia(cured.image)) {
-      cured.image = factoryItem.image;
+      // Foto real presente na galeria promove-se a capa; ativo de fabrica so como ultimo recurso
+      const realGalleryMedia = Array.isArray(cured.images) ? cured.images.find(media => isRealUploadMedia(media)) : null;
+      cured.image = realGalleryMedia
+        ? (typeof realGalleryMedia === 'object' ? (realGalleryMedia.url || realGalleryMedia.poster || factoryItem.image) : realGalleryMedia)
+        : factoryItem.image;
     }
     if (!Array.isArray(cured.images) || cured.images.length === 0) {
-      cured.images = Array.isArray(factoryItem.images) ? [...factoryItem.images] : [factoryItem.image];
+      // Foto real enviada pela artesa alimenta a galeria sem ser trocada por ativo de fabrica
+      cured.images = isRealUploadMedia(cured.image)
+        ? [cured.image]
+        : (Array.isArray(factoryItem.images) ? [...factoryItem.images] : [factoryItem.image]);
     }
   }
 

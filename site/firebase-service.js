@@ -31,7 +31,16 @@ class JezFirebaseService {
     this.isInitialized = false;
     this.isOnline = false;
     this.connectionListeners = [];
-    this.init();
+    // Publicacao sincrona do singleton ANTES de qualquer notificacao:
+    // 'jez-cloud-status' e disparado dentro de init(), entao window.jezFirebase
+    // precisa estar acessivel para que bindSync() nunca receba undefined.
+    if (typeof window !== 'undefined') {
+      window.jezFirebase = this;
+    }
+    this.readyPromise = this.init();
+    if (typeof window !== 'undefined') {
+      window.jezFirebaseReady = this.readyPromise;
+    }
   }
 
   init() {
@@ -48,6 +57,7 @@ class JezFirebaseService {
       this.isOnline = false;
       this.notifyConnectionListeners(false);
     }
+    return Promise.resolve(this.isInitialized);
   }
 
   onConnectionChange(callback) {
@@ -71,6 +81,14 @@ class JezFirebaseService {
   patchProductMediaIfNeeded(rawProduct) {
     if (!this.db || !rawProduct || rawProduct.id !== 'blusa-teia') return;
     const images = Array.isArray(rawProduct.images) ? rawProduct.images : [];
+    // Blindagem: se a peca ja possui foto real enviada pela artesa (Data URL Base64),
+    // o patch de fabrica NUNCA reescreve o documento no Firestore.
+    const hasRealUpload = (typeof rawProduct.image === 'string' && rawProduct.image.trim().toLowerCase().startsWith('data:image/')) ||
+      images.some(img => {
+        const url = typeof img === 'string' ? img : (img && img.url ? img.url : '');
+        return typeof url === 'string' && url.trim().toLowerCase().startsWith('data:image/');
+      });
+    if (hasRealUpload) return;
     const hasVideo = images.some(img => {
       const url = typeof img === 'string' ? img : (img && img.url ? img.url : '');
       return url.includes('blusa_teia_loop.mp4');
@@ -191,21 +209,30 @@ class JezFirebaseService {
   }
 
   async seedInitialProductsIfEmpty(defaultProducts) {
-    if (!this.db || !Array.isArray(defaultProducts) || defaultProducts.length === 0) return;
+    return this.seedMissingProducts(defaultProducts);
+  }
+
+  // Semeia apenas as pecas editoriais ausentes, sem sobrescrever nenhum documento
+  // existente no Firestore (fotos reais e pecas 'custom-*' ficam intocadas).
+  async seedMissingProducts(defaultProducts) {
+    if (!this.db || !Array.isArray(defaultProducts) || defaultProducts.length === 0) return [];
     try {
       const colRef = collection(this.db, 'products');
       const snap = await getDocs(colRef);
-      if (snap.empty) {
-        console.debug('[JËZ Cloud] Banco de dados vazio. Populando acervo inicial de peças da Jéssica...');
-        const promises = defaultProducts.map(p => {
-          const docRef = doc(this.db, 'products', p.id);
-          return setDoc(docRef, { ...p, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-        });
-        await Promise.all(promises);
-        console.debug('[JËZ Cloud] Acervo inicial de 9 peças gravado no Firestore com sucesso!');
-      }
+      const existingIds = new Set(snap.docs.map(docSnap => docSnap.id));
+      const missing = defaultProducts.filter(p => p && p.id && !existingIds.has(p.id));
+      if (missing.length === 0) return [];
+      console.debug('[JËZ Cloud] Semeando pecas editoriais ausentes no Firestore:', missing.map(p => p.id).join(', '));
+      const promises = missing.map(p => {
+        const docRef = doc(this.db, 'products', p.id);
+        return setDoc(docRef, { ...p, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      });
+      await Promise.all(promises);
+      console.debug('[JËZ Cloud] Pecas editoriais ausentes gravadas com sucesso:', missing.length);
+      return missing.map(p => p.id);
     } catch (err) {
-      console.warn('[JËZ Cloud] Não foi possível verificar/popular acervo inicial (regras pendentes):', err.message);
+      console.warn('[JËZ Cloud] Nao foi possivel semear pecas editoriais ausentes (regras pendentes):', err.message);
+      return [];
     }
   }
 

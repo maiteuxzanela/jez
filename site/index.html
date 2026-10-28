@@ -668,9 +668,11 @@
   </div>
 
   <!-- Scripts de Sincronização em Nuvem (Firebase) e Lógica da Loja -->
+  <!-- Ordem garantida: modulos do Firebase (deferred) executam antes do app.js (defer),
+       eliminando a race condition onde window.jezFirebase ainda era undefined. -->
   <script type="module" src="firebase-service.js"></script>
   <script type="module" src="js/services/media-performance.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js" defer></script>
 </body>
 
 </html>

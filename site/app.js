@@ -184,6 +184,20 @@ const initApp = () => {
     return { ...media, poster, type: media.type || 'video', isVideo: media.isVideo !== false };
   };
 
+  // Detecta midia enviada de verdade pela artesa (Data URL Base64 / blob de upload).
+  // Fotos reais NUNCA podem ser substituidas por ativos de fabrica do catalogo editorial.
+  const isRealUploadMedia = (media) => {
+    if (!media) return false;
+    if (typeof media === 'string') {
+      const clean = media.trim().toLowerCase();
+      return clean.startsWith('data:image/') || clean.startsWith('blob:');
+    }
+    if (typeof media === 'object' && typeof media.url === 'string') {
+      return isRealUploadMedia(media.url);
+    }
+    return false;
+  };
+
   // Etiqueta textile costurada (woven label) usada como poster têxtil quando um
   // video nao possui banner do primeiro frame derivavel. Formato 1:1 (42x42),
   // paleta oficial (aubergine + pesponto pêssego), ZERO emojis e ZERO pills.
@@ -216,9 +230,13 @@ const initApp = () => {
       const factoryPhoto = (factoryItem && factoryItem.image) ? factoryItem.image : 'assets/products/blusa_teia.jpg';
       const factoryVideo = 'assets/products/blusa_teia_loop.mp4';
       let images = Array.isArray(cured.images) ? [...cured.images] : [];
-      if (images.length === 0) {
+      // Fotos reais enviadas pela artesa tem prioridade absoluta sobre os ativos de fabrica
+      const hasRealPhoto = images.some(img => isRealUploadMedia(img)) || isRealUploadMedia(cured.image);
+      if (images.length === 0 && hasRealPhoto) {
+        images = [cured.image];
+      } else if (images.length === 0) {
         images = [factoryPhoto, factoryVideo];
-      } else {
+      } else if (!hasRealPhoto) {
         if (!images.some(img => (typeof img === 'string' && img.includes('blusa_teia_loop.mp4')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia_loop.mp4')))) {
           images.push(factoryVideo);
         }
@@ -232,23 +250,37 @@ const initApp = () => {
         if (nonVideoIdx > 0) {
           const [photo] = images.splice(nonVideoIdx, 1);
           images.unshift(photo);
-        } else {
+        } else if (!hasRealPhoto) {
           images.unshift(factoryPhoto);
         }
       }
       // Objetos de video de fabrica preservam o poster estruturado (JEZ-038)
       images = images.map(media => withFactoryVideoPoster(media));
       cured.images = images;
-      cured.image = factoryPhoto;
+      if (!hasRealPhoto) {
+        cured.image = factoryPhoto;
+      } else if (!isRealUploadMedia(cured.image)) {
+        const firstStatic = images.find(img => !isVideoUrl(img));
+        cured.image = firstStatic
+          ? (typeof firstStatic === 'object' ? (firstStatic.url || firstStatic.poster || factoryPhoto) : firstStatic)
+          : factoryPhoto;
+      }
       return cured;
     }
 
     if (factoryItem) {
       if (!cured.image || isVideoUrl(cured.image)) {
-        cured.image = factoryItem.image;
+        // Foto real presente na galeria promove-se a capa; ativo de fabrica so como ultimo recurso
+        const realGalleryMedia = Array.isArray(cured.images) ? cured.images.find(media => isRealUploadMedia(media)) : null;
+        cured.image = realGalleryMedia
+          ? (typeof realGalleryMedia === 'object' ? (realGalleryMedia.url || realGalleryMedia.poster || factoryItem.image) : realGalleryMedia)
+          : factoryItem.image;
       }
       if (!Array.isArray(cured.images) || cured.images.length === 0) {
-        cured.images = Array.isArray(factoryItem.images) ? [...factoryItem.images] : [factoryItem.image];
+        // Foto real enviada pela artesa alimenta a galeria sem ser trocada por ativo de fabrica
+        cured.images = isRealUploadMedia(cured.image)
+          ? [cured.image]
+          : (Array.isArray(factoryItem.images) ? [...factoryItem.images] : [factoryItem.image]);
       }
     }
 
@@ -276,6 +308,82 @@ const initApp = () => {
   const cureProductListMedia = (list, defaultList = defaultProducts) => {
     if (!Array.isArray(list)) return [];
     return list.map(p => cureProductMedia(p, defaultList));
+  };
+
+  // Unificacao segura do catalogo da nuvem com o catalogo editorial de fabrica.
+  // Regras inviolaveis:
+  // 1. Documentos da nuvem (com fotos reais Base64 e pecas 'custom-*') sao a fonte da verdade.
+  // 2. Pecas editoriais ausentes no Firestore sao preservadas (o seed cobre o banco em paralelo).
+  // 3. Nenhuma midia de peca vinda da nuvem e substituida por ativo de fabrica.
+  const mergeCloudCatalogWithFactory = (cloudList, factoryList = defaultProducts) => {
+    const cloud = Array.isArray(cloudList) ? cloudList.filter(p => p && p.id) : [];
+    const factory = Array.isArray(factoryList) ? factoryList : [];
+    const cloudIds = new Set(cloud.map(p => p.id));
+    const preservedFactory = factory
+      .filter(p => p && p.id && !cloudIds.has(p.id))
+      .map(p => ({
+        ...p,
+        images: Array.isArray(p.images)
+          ? p.images.map(media => (media && typeof media === 'object' ? { ...media } : media))
+          : p.images
+      }));
+    return [...cloud, ...preservedFactory];
+  };
+
+  // Persistencia defensiva do cache local: fotos reais em Data URL Base64 estouram a
+  // cota de 5MB do localStorage. Estrategia em cascata:
+  // 1. catalogo integral; 2. catalogo enxuto (capa real preservada, galeria Base64 removida);
+  // 3. somente pecas sem Base64. A nuvem repoe as midias completas no snapshot seguinte.
+  const isHeavyMedia = (media) => {
+    if (isRealUploadMedia(media)) return true;
+    return typeof media === 'string' && media.trim().toLowerCase().startsWith('data:');
+  };
+
+  const isCacheableCatalogPiece = (piece) => {
+    if (!piece) return false;
+    if (isHeavyMedia(piece.image)) return false;
+    if (Array.isArray(piece.images) && piece.images.some(media => isHeavyMedia(media))) return false;
+    return true;
+  };
+
+  const buildSlimCatalogCache = (list) => list.map(piece => {
+    if (!piece) return piece;
+    const slim = { ...piece };
+    if (Array.isArray(piece.images)) {
+      const lightImages = piece.images.filter(media => !isHeavyMedia(media));
+      if (isHeavyMedia(piece.image)) {
+        // Preserva a capa real (primeiro paint) e descarta apenas a galeria pesada
+        slim.images = [piece.image, ...lightImages.filter(media => media !== piece.image)];
+      } else if (lightImages.length > 0) {
+        slim.images = lightImages;
+      } else {
+        delete slim.images;
+      }
+    }
+    return slim;
+  });
+
+  const persistCatalogCache = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return false;
+    const attempts = [
+      { label: 'integral', data: list },
+      { label: 'enxuto', data: buildSlimCatalogCache(list) },
+      { label: 'leve', data: list.filter(isCacheableCatalogPiece) }
+    ];
+    for (const attempt of attempts) {
+      if (!Array.isArray(attempt.data) || attempt.data.length === 0) continue;
+      try {
+        localStorage.setItem('jez_catalog', JSON.stringify(attempt.data));
+        if (attempt.label !== 'integral') {
+          console.debug('[JËZ Cache] Catalogo persistido no modo ' + attempt.label + ' (' + attempt.data.length + ' pecas) para respeitar a cota do localStorage');
+        }
+        return true;
+      } catch (err) {
+        // Tenta o proximo nivel de compactacao
+      }
+    }
+    console.warn('[JËZ Cache] Nao foi possivel persistir o catalogo local: cota do localStorage excedida');
+    return false;
   };
 
   // Carrega peças padrão + peças cadastradas e geridas pela Jéssica no painel
@@ -338,7 +446,7 @@ const initApp = () => {
           return p;
         });
         if (updated) {
-          localStorage.setItem('jez_catalog', JSON.stringify(pieces));
+          persistCatalogCache(pieces);
         }
       } else {
         const custom = JSON.parse(localStorage.getItem('jez_custom_products') || '[]');
@@ -1785,6 +1893,7 @@ const initApp = () => {
     closeDrawer,
     cureProductMedia,
     cureProductListMedia,
+    mergeCloudCatalogWithFactory,
     isVideoUrl,
     renderHeroSkeleton,
     renderHeroFeaturedCard
@@ -1857,7 +1966,7 @@ const initApp = () => {
   const initCloudSync = () => {
     let bound = false;
     const bindSync = () => {
-      if (!window.jezFirebase || bound) return false;
+      if (typeof window === 'undefined' || !window.jezFirebase || bound) return false;
       bound = true;
 
       window.jezFirebase.onProductsChange((cloudProducts) => {
@@ -1868,7 +1977,8 @@ const initApp = () => {
             fallbackCatalogTimeout = null;
           }
           const curedList = cureProductListMedia(cloudProducts, defaultProducts);
-          const sorted = sortProductsByCuratedOrder(curedList);
+          // Merge defensivo: nuvem manda, pecas editoriais ausentes sao preservadas
+          const sorted = sortProductsByCuratedOrder(mergeCloudCatalogWithFactory(curedList, defaultProducts));
           const mapped = sorted
             .filter(p => p.status !== 'suspended' && !p.isSuspended && !p.isDeleted)
             .map(p => {
@@ -1879,7 +1989,7 @@ const initApp = () => {
                 stockQty: cured.stockQty !== undefined && cured.stockQty !== null ? Number(cured.stockQty) : (cured.status === 'ready' || (cured.status !== 'order' && cured.isReady) ? 1 : 0)
               };
             });
-          localStorage.setItem('jez_catalog', JSON.stringify(mapped));
+          persistCatalogCache(mapped);
           products = mapped;
           renderCatalog(products);
           renderHeroFeaturedCard(products);
@@ -1897,11 +2007,28 @@ const initApp = () => {
       return true;
     };
 
-    if (!bindSync()) {
-      window.addEventListener('jez-cloud-status', () => {
+    // Escuta o status ANTES de tentar o bind para nunca perder o primeiro evento
+    window.addEventListener('jez-cloud-status', () => {
+      bindSync();
+    });
+
+    if (bindSync()) return;
+
+    // Defensivo: aguarda a prontidao do servico (window.jezFirebaseReady) e re-tenta o bind
+    const readyPromise = window.jezFirebaseReady;
+    if (readyPromise && typeof readyPromise.then === 'function') {
+      readyPromise.then(() => {
+        bindSync();
+      }).catch(() => {
         bindSync();
       });
+      return;
     }
+
+    // Ultimo recurso: uma unica re-tentativa apos o ciclo de carregamento dos modulos
+    setTimeout(() => {
+      bindSync();
+    }, 300);
   };
   initCloudSync();
 

@@ -537,7 +537,7 @@ modularComponents.forEach(compPath => {
 });
 
 const updatedSwRaw = fs.readFileSync(path.join(ROOT_DIR, 'sw.js'), 'utf-8');
-assert(updatedSwRaw.includes('jez-boutique-cache-v2.2.0') || updatedSwRaw.includes('jez-boutique-cache-v2.3.0'), 'sw.js atualizou CACHE_NAME para v2.2.0/v2.3.0');
+assert(updatedSwRaw.includes('jez-boutique-cache-v2.4.0'), 'sw.js atualizou CACHE_NAME para invalidar o cache de fallback antigo (v2.4.0)');
 assert(updatedSwRaw.includes('./css/tokens.css'), 'sw.js inclui tokens.css no pré-cache');
 assert(updatedSwRaw.includes('./js/services/firebase.js') && updatedSwRaw.includes('./js/components/cart.js'), 'sw.js inclui a nova malha de módulos em STATIC_ASSETS');
 assert(indexHtmlRaw.includes('src="app.js"'), 'index.html carrega app.js nativamente para compatibilidade local e web');
@@ -2296,8 +2296,8 @@ assert(!appJsRaw36.includes('console.log('), 'site/app.js nao utiliza console.lo
 assert(!fbServiceRaw36.includes('console.log('), 'site/firebase-service.js nao utiliza console.log em producao');
 assert(appJsRaw36.includes("console.debug('[PWA] Service Worker registrado"), 'site/app.js utiliza console.debug no registro do Service Worker');
 assert(fbServiceRaw36.includes("console.debug('[JËZ Cloud] Firebase Firestore inicializado"), 'site/firebase-service.js utiliza console.debug na inicializacao');
-assert(fbServiceRaw36.includes("console.debug('[JËZ Cloud] Banco de dados vazio"), 'site/firebase-service.js utiliza console.debug no seed de acervo');
-assert(fbServiceRaw36.includes("console.debug('[JËZ Cloud] Acervo inicial de 9 peças"), 'site/firebase-service.js utiliza console.debug na conclusao do seed');
+assert(fbServiceRaw36.includes("console.debug('[JËZ Cloud] Semeando pecas editoriais ausentes"), 'site/firebase-service.js utiliza console.debug no seed de acervo');
+assert(fbServiceRaw36.includes("console.debug('[JËZ Cloud] Pecas editoriais ausentes gravadas com sucesso"), 'site/firebase-service.js utiliza console.debug na conclusao do seed');
 
 // ==========================================================================
 // [34] Validando Arquitetura de Performance, Quotas e Lazy Loading de Vídeo (JEZ-032 / Noa)
@@ -2899,6 +2899,238 @@ assert(!emojiTestRegex.test(heroAppJsContent46), 'app.js cumpre rigorosamente a 
 assert(!emojiTestRegex.test(adminJsHygContent), 'admin.js cumpre rigorosamente a regra zero emojis');
 assert(!emojiTestRegex.test(catalogJsHygContent), 'js/admin/catalog.js cumpre rigorosamente a regra zero emojis');
 assert(!emojiTestRegex.test(adminCssContent46), 'admin.css cumpre rigorosamente a regra zero emojis');
+
+// ============================================================================
+// [47] Merge Seguro Nuvem/Fabrica, Prontidao do Firebase e Preservacao de Fotos
+//      Reais (JEZ-CATALOG-RESTORE — SDET Hugo)
+// ============================================================================
+console.log('\n[47] Validando Merge Seguro Nuvem/Fabrica, Prontidao do Firebase e Preservacao de Fotos Reais (JEZ-CATALOG-RESTORE):');
+
+const appJsContent47 = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf8');
+const adminJsContent47 = fs.readFileSync(path.join(ROOT_DIR, 'admin.js'), 'utf8');
+const fbClassic47 = fs.readFileSync(path.join(ROOT_DIR, 'firebase-service.js'), 'utf8');
+const fbModular47 = fs.readFileSync(path.join(ROOT_DIR, 'js', 'services', 'firebase.js'), 'utf8');
+const indexHtml47 = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf8');
+const swJs47 = fs.readFileSync(path.join(ROOT_DIR, 'sw.js'), 'utf8');
+const productsService47 = require(path.join(ROOT_DIR, 'js', 'services', 'products.js'));
+
+// Foto real enviada pela artesa: Data URL Base64 (nunca pode virar ativo de fabrica)
+const REAL_PHOTO_47 = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQREALPHOTO';
+const REAL_BLOB_47 = 'blob:http://127.0.0.1:8080/9f1c-real-upload';
+
+// Extrai um bloco balanceado de chaves a partir de um marcador do codigo-fonte real.
+// Executa o codigo de PRODUCAO (sem reimplementacao e sem mock), o que mantem o teste
+// sensivel a qualquer regressao na funcao real publicada em app.js.
+function extractBracedBlock47(source, marker, label) {
+  const start = source.indexOf(marker);
+  if (start === -1) return null;
+  const braceStart = source.indexOf('{', start);
+  if (braceStart === -1) return null;
+  let depth = 0;
+  for (let i = braceStart; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+// 1. Detector de midia real enviada pela artesa (js/services/products.js — modulo real)
+assert(typeof productsService47.isRealUploadMedia === 'function', 'products.js exporta isRealUploadMedia para distinguir foto real de ativo de fabrica');
+assert(productsService47.isRealUploadMedia(REAL_PHOTO_47) === true, 'isRealUploadMedia reconhece Data URL Base64 como foto real');
+assert(productsService47.isRealUploadMedia('DATA:IMAGE/PNG;base64,AAA') === true, 'isRealUploadMedia reconhece Data URL Base64 com caixa alta');
+assert(productsService47.isRealUploadMedia(REAL_BLOB_47) === true, 'isRealUploadMedia reconhece blob local de upload como foto real');
+assert(productsService47.isRealUploadMedia({ url: REAL_PHOTO_47 }) === true, 'isRealUploadMedia reconhece objeto de midia com url Base64');
+assert(productsService47.isRealUploadMedia('assets/products/blusa_teia.jpg') === false, 'isRealUploadMedia NAO classifica ativo de fabrica como foto real');
+assert(productsService47.isRealUploadMedia('assets/products/blusa_teia_loop.mp4') === false, 'isRealUploadMedia NAO classifica video de fabrica como foto real');
+assert(productsService47.isRealUploadMedia(null) === false && productsService47.isRealUploadMedia({}) === false, 'isRealUploadMedia trata entradas nulas/malformadas defensivamente');
+
+// 2. Cura de midia (products.js): foto real tem prioridade absoluta sobre ativo de fabrica
+const curedBlusaRealCover47 = productsService47.preserveFactoryMedia({ id: 'blusa-teia', image: REAL_PHOTO_47, images: [] });
+assert(curedBlusaRealCover47.image === REAL_PHOTO_47, 'preserveFactoryMedia nao substitui a capa real Base64 da blusa-teia por ativo de fabrica');
+assert(Array.isArray(curedBlusaRealCover47.images) && curedBlusaRealCover47.images.length === 1 && curedBlusaRealCover47.images[0] === REAL_PHOTO_47, 'blusa-teia com capa real e sem galeria recebe a propria capa real na galeria');
+assert(!curedBlusaRealCover47.images.includes('assets/products/blusa_teia_loop.mp4'), 'blusa-teia com foto real nao recebe loop de fabrica na galeria');
+assert(!curedBlusaRealCover47.images.includes('assets/products/blusa_teia.jpg'), 'blusa-teia com foto real nao recebe foto de fabrica na galeria');
+
+const curedBlusaRealGallery47 = productsService47.preserveFactoryMedia({ id: 'blusa-teia', image: 'assets/products/blusa_teia.jpg', images: [REAL_PHOTO_47] });
+assert(curedBlusaRealGallery47.image === REAL_PHOTO_47, 'preserveFactoryMedia promove a foto real da galeria a capa da blusa-teia');
+assert(!curedBlusaRealGallery47.images.includes('assets/products/blusa_teia_loop.mp4') && !curedBlusaRealGallery47.images.includes('assets/products/blusa_teia.jpg'), 'blusa-teia com foto real na galeria nao recebe midias de fabrica');
+
+const curedBlusaFactory47 = productsService47.preserveFactoryMedia({ id: 'blusa-teia' });
+assert(curedBlusaFactory47.image === 'assets/products/blusa_teia.jpg' && curedBlusaFactory47.images.length === 2, 'blusa-teia sem foto real mantem a auto-cura de fabrica (foto + video)');
+
+const curedGenericReal47 = productsService47.preserveFactoryMedia({ id: 'bolsa-punk', image: REAL_PHOTO_47, images: [] });
+assert(curedGenericReal47.image === REAL_PHOTO_47 && curedGenericReal47.images.length === 1 && curedGenericReal47.images[0] === REAL_PHOTO_47, 'peca editorial com capa real e galeria vazia recebe a capa real na galeria (sem inventar midia de fabrica)');
+
+const curedCustomReal47 = productsService47.preserveFactoryMedia({ id: 'custom-2026', image: REAL_PHOTO_47, images: [] });
+assert(curedCustomReal47.image === REAL_PHOTO_47, 'peca custom-* com foto real preserva a capa enviada pela artesa');
+
+// 2.1 Peca editorial generica com foto real APENAS na galeria (sem atributo image)
+const curedGenericGalleryOnly47 = productsService47.preserveFactoryMedia({ id: 'bolsa-punk', images: [REAL_PHOTO_47] });
+assert(curedGenericGalleryOnly47.image === REAL_PHOTO_47, 'preserveFactoryMedia promove a foto real da galeria a capa quando a peca editorial nao tem image');
+assert(!String(curedGenericGalleryOnly47.image).includes('assets/products/bolsa_punk.jpg'), 'preserveFactoryMedia usa ativo de fabrica apenas como ultimo recurso (nunca sobre foto real na galeria)');
+
+const curedBlusaGalleryOnly47 = productsService47.preserveFactoryMedia({ id: 'blusa-teia', images: [REAL_PHOTO_47] });
+assert(curedBlusaGalleryOnly47.image === REAL_PHOTO_47 && !curedBlusaGalleryOnly47.images.includes('assets/products/blusa_teia_loop.mp4'), 'blusa-teia com foto real apenas na galeria nao recebe capa nem loop de fabrica');
+
+// 2.2 cureProductMedia real de app.js (executado a partir do codigo de producao, sem reimplementacao)
+const appCureSource47 = [
+  extractBracedBlock47(appJsContent47, 'const isVideoUrl = (media)'),
+  extractBracedBlock47(appJsContent47, 'const withFactoryVideoPoster = (media,'),
+  extractBracedBlock47(appJsContent47, 'const isRealUploadMedia = (media)'),
+  extractBracedBlock47(appJsContent47, 'const cureProductMedia = (product,')
+].filter(Boolean).join('\n');
+assert(appCureSource47.includes('const cureProductMedia =') && appCureSource47.includes('const isRealUploadMedia ='), 'app.js expoe os blocos reais de isVideoUrl, withFactoryVideoPoster, isRealUploadMedia e cureProductMedia');
+
+const factoryFixtureCure47 = [
+  { id: 'bolsa-punk', name: 'Bolsa Punk', image: 'assets/products/bolsa_punk.jpg', images: ['assets/products/bolsa_punk.jpg', 'assets/products/bolsa_punk_detail.jpg'] },
+  { id: 'blusa-teia', name: 'Blusa Teia', image: 'assets/products/blusa_teia.jpg', images: ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'] }
+];
+// O 2o argumento e o global `window` do navegador (sem jezMediaPerformance carregado,
+// que e exatamente o caminho de producao quando o modulo de performance nao esta presente).
+const appCureFn47 = new Function('defaultProducts', 'window', appCureSource47 + '\nreturn cureProductMedia;')(factoryFixtureCure47, {});
+assert(typeof appCureFn47 === 'function', 'cureProductMedia de app.js e executavel em isolamento a partir do codigo real');
+assert(appCureFn47(null) === null, 'cureProductMedia de app.js trata entrada nula defensivamente');
+const appCuredGeneric47 = appCureFn47({ id: 'bolsa-punk', images: [REAL_PHOTO_47] });
+assert(appCuredGeneric47.image === REAL_PHOTO_47, 'cureProductMedia de app.js promove a foto real da galeria a capa da peca editorial');
+const appCuredBlusa47 = appCureFn47({ id: 'blusa-teia', image: REAL_PHOTO_47, images: [] });
+assert(appCuredBlusa47.image === REAL_PHOTO_47 && appCuredBlusa47.images.length === 1 && appCuredBlusa47.images[0] === REAL_PHOTO_47, 'cureProductMedia de app.js preserva a capa real da blusa-teia sem injetar midia de fabrica');
+const appCuredFactory47 = appCureFn47({ id: 'blusa-teia' });
+assert(appCuredFactory47.image === 'assets/products/blusa_teia.jpg' && appCuredFactory47.images.length === 2 && appCuredFactory47.images[1] === 'assets/products/blusa_teia_loop.mp4', 'cureProductMedia de app.js mantem a auto-cura de fabrica quando nao existe foto real');
+
+// 3. Merge seguro nuvem x fabrica (funcao real de app.js executada em isolamento)
+const mergeSource47 = extractBracedBlock47(appJsContent47, 'const mergeCloudCatalogWithFactory =');
+assert(mergeSource47 !== null, 'app.js define mergeCloudCatalogWithFactory como bloco executavel');
+assert(typeof mergeSource47 === 'string' && mergeSource47.includes('!cloudIds.has(p.id)'), 'mergeCloudCatalogWithFactory so preserva pecas de fabrica ausentes na nuvem (filtro por id)');
+
+const factoryFixture47 = [
+  { id: 'bolsa-punk', name: 'Bolsa Punk', image: 'assets/products/bolsa_punk.jpg', images: ['assets/products/bolsa_punk.jpg', 'assets/products/bolsa_punk_detail.jpg'] },
+  { id: 'blusa-teia', name: 'Blusa Teia', image: 'assets/products/blusa_teia.jpg', images: ['assets/products/blusa_teia.jpg', { url: 'assets/products/blusa_teia_loop.mp4', poster: 'assets/products/blusa_teia_loop_poster.jpg' }] }
+];
+const mergeFn47 = new Function('defaultProducts', mergeSource47 + '\nreturn mergeCloudCatalogWithFactory;')(factoryFixture47);
+assert(typeof mergeFn47 === 'function', 'mergeCloudCatalogWithFactory e instanciavel e executavel a partir do codigo real');
+
+const cloudFixture47 = [
+  { id: 'bolsa-punk', name: 'Bolsa Punk (nuvem)', image: REAL_PHOTO_47, images: [REAL_PHOTO_47] },
+  { id: 'custom-abc', name: 'Peca Custom', image: 'data:image/jpeg;base64,CUSTOMCOVER', images: ['data:image/jpeg;base64,CUSTOMCOVER'] }
+];
+const mergedCatalog47 = mergeFn47(cloudFixture47);
+assert(mergedCatalog47.length === 3, 'merge preserva as 2 pecas da nuvem e a peca editorial ausente no Firestore (3 no total)');
+assert(mergedCatalog47.filter(p => p.id === 'bolsa-punk').length === 1, 'merge nao duplica peca presente simultaneamente na nuvem e no catalogo de fabrica');
+assert(mergedCatalog47[0].id === 'bolsa-punk' && mergedCatalog47[1].id === 'custom-abc', 'merge mantem as pecas da nuvem na ordem de origem');
+assert(mergedCatalog47[2] && mergedCatalog47[2].id === 'blusa-teia', 'merge anexa a peca editorial ausente preservando sua midia de fabrica');
+
+const mergedPunk47 = mergedCatalog47.find(p => p.id === 'bolsa-punk');
+assert(mergedPunk47.image === REAL_PHOTO_47 && mergedPunk47.images.length === 1 && mergedPunk47.images[0] === REAL_PHOTO_47, 'nuvem e a fonte da verdade: foto real Base64 nunca e substituida pela midia de fabrica');
+assert(mergedPunk47.images.every(media => !String(typeof media === 'object' ? media.url : media).includes('bolsa_punk_detail.jpg')), 'merge nao reinjeta galeria de fabrica em peca cuja nuvem ja tem foto real');
+assert(mergedCatalog47.some(p => p.id === 'custom-abc'), 'merge preserva pecas custom-* cadastradas no Firestore');
+
+const mergedWithoutCloud47 = mergeFn47([]);
+assert(mergedWithoutCloud47.length === 2 && mergedWithoutCloud47[0].id === 'bolsa-punk', 'merge com nuvem vazia preserva integralmente o catalogo editorial de fabrica');
+assert(mergeFn47(null).length === 2, 'merge trata nuvem nula defensivamente preservando o catalogo de fabrica');
+assert(mergeFn47([null, { id: '' }, { id: 'custom-x', image: REAL_PHOTO_47 }]).length === 3, 'merge descarta documentos de nuvem invalidos e ainda preserva o catalogo de fabrica');
+assert(mergedWithoutCloud47[0] && mergedWithoutCloud47[0].images !== factoryFixture47[0].images, 'merge clona os arrays de midia das pecas de fabrica sem mutar o catalogo original');
+assert(mergedWithoutCloud47[1] && mergedWithoutCloud47[1].images[1] !== factoryFixture47[1].images[1], 'merge clona objetos de midia das pecas de fabrica (isolamento por referencia)');
+assert(factoryFixture47[0].images.length === 2 && factoryFixture47[1].images.length === 2, 'catalogo de fabrica permanece intacto apos o merge (zero mutacao)');
+
+// 4. Race condition: singleton publicado ANTES da primeira notificacao de status
+[['firebase-service.js', fbClassic47], ['js/services/firebase.js', fbModular47]].forEach(([label, source]) => {
+  const publishIdx = source.indexOf('window.jezFirebase = this;');
+  const initCallIdx = source.indexOf('this.readyPromise = this.init();');
+  const readyIdx = source.indexOf('window.jezFirebaseReady = this.readyPromise;');
+  const constructorIdx = source.indexOf('  constructor() {');
+  const initMethodIdx = source.indexOf('  init() {');
+
+  assert(constructorIdx !== -1 && publishIdx > constructorIdx, `${label}: publica window.jezFirebase dentro do construtor (antes da primeira notificacao)`);
+  assert(publishIdx !== -1 && initCallIdx !== -1 && publishIdx < initCallIdx, `${label}: window.jezFirebase e publicado ANTES de init() disparar jez-cloud-status`);
+  assert(initMethodIdx !== -1 && source.indexOf('return Promise.resolve(this.isInitialized);', initMethodIdx) > initMethodIdx, `${label}: init() retorna Promise (contrato de prontidao)`);
+  assert(readyIdx !== -1 && readyIdx > initCallIdx, `${label}: window.jezFirebaseReady expoe a Promise real de prontidao`);
+  assert(source.includes("window.dispatchEvent(new CustomEvent('jez-cloud-status'"), `${label}: notifica jez-cloud-status via CustomEvent real no window`);
+});
+
+// 5. Ordem de execucao em index.html (modulos Firebase antes do app.js defer)
+const fbScriptIdx47 = indexHtml47.indexOf('src="firebase-service.js"');
+const appScriptIdx47 = indexHtml47.indexOf('src="app.js" defer');
+assert(fbScriptIdx47 !== -1 && appScriptIdx47 !== -1 && fbScriptIdx47 < appScriptIdx47, 'index.html carrega os modulos do Firebase antes do app.js com defer');
+assert(indexHtml47.includes('type="module" src="firebase-service.js"'), 'firebase-service.js e carregado como modulo (execucao apos o parse)');
+
+// 6. bindSync: listener registrado ANTES do primeiro bind + re-tentativa por prontidao
+const appInitCloudSyncIdx47 = appJsContent47.indexOf('const initCloudSync = () => {');
+const appCloudSlice47 = appInitCloudSyncIdx47 === -1 ? '' : appJsContent47.slice(appInitCloudSyncIdx47);
+assert(appCloudSlice47 !== '', 'app.js define initCloudSync para a sincronizacao em nuvem');
+const appListenerIdx47 = appCloudSlice47.indexOf("window.addEventListener('jez-cloud-status'");
+const appFirstBindIdx47 = appCloudSlice47.indexOf('if (bindSync()) return;');
+assert(appListenerIdx47 !== -1 && appFirstBindIdx47 !== -1 && appListenerIdx47 < appFirstBindIdx47, 'app.js registra o listener jez-cloud-status ANTES do primeiro bindSync (nenhum evento perdido)');
+assert(appCloudSlice47.includes('const readyPromise = window.jezFirebaseReady;') && appCloudSlice47.includes('seedInitialProductsIfEmpty(defaultProducts)'), 'app.js aguarda window.jezFirebaseReady e aciona o seed parcial');
+assert(appJsContent47.includes('mergeCloudCatalogWithFactory(curedList, defaultProducts)'), 'app.js aplica o merge seguro no snapshot da nuvem');
+assert(appJsContent47.includes('persistCatalogCache(mapped)'), 'app.js persiste o catalogo via cascata anti-quota apos o snapshot');
+
+const adminInitCloudSyncIdx47 = adminJsContent47.indexOf('const initCloudSync = () => {');
+const adminCloudSlice47 = adminInitCloudSyncIdx47 === -1 ? '' : adminJsContent47.slice(adminInitCloudSyncIdx47);
+assert(adminCloudSlice47 !== '', 'admin.js define initCloudSync para a sincronizacao em nuvem');
+assert(adminCloudSlice47.includes('const readyPromise = window.jezFirebaseReady;'), 'admin.js aguarda window.jezFirebaseReady como reforco de prontidao');
+assert(adminJsContent47.includes('const loadCatalogSynced = () => {') && adminJsContent47.includes('cloudCatalogSynced = true;'), 'admin.js promove a copia em memoria a fonte da verdade apos o primeiro snapshot');
+assert(adminJsContent47.includes('handleStorageQuotaExceeded(catalog)'), 'admin.js compacta o cache sem gravar catalogo mutilado quando a cota estoura');
+
+// 7. Seed parcial e patch de midia protegido nos dois servicos Firebase
+[['firebase-service.js', fbClassic47], ['js/services/firebase.js', fbModular47]].forEach(([label, source]) => {
+  const seedBody = extractBracedBlock47(source, 'async seedMissingProducts(');
+  assert(seedBody !== null, `${label}: implementa seedMissingProducts`);
+  assert(seedBody !== null && seedBody.includes('getDocs(') && seedBody.includes('existingIds.has('), `${label}: seed le os documentos existentes e filtra por id`);
+  assert(seedBody !== null && seedBody.includes('setDoc(') && !seedBody.includes('updateDoc('), `${label}: seed cria apenas documentos ausentes (nunca sobrescreve existentes)`);
+  assert(seedBody !== null && !seedBody.includes('deleteDoc('), `${label}: seed jamais deleta midias ou pecas existentes`);
+
+  const legacySeedBody = extractBracedBlock47(source, 'async seedInitialProductsIfEmpty(');
+  assert(legacySeedBody !== null && legacySeedBody.includes('return this.seedMissingProducts(defaultProducts);'), `${label}: seedInitialProductsIfEmpty delega ao seed parcial (compatibilidade preservada)`);
+
+  const patchBody = extractBracedBlock47(source, 'patchProductMediaIfNeeded(rawProduct)');
+  const guardIdx = patchBody === null ? -1 : patchBody.indexOf('if (hasRealUpload) return;');
+  const writeIdx = patchBody === null ? -1 : patchBody.indexOf('setDoc(blusaDocRef');
+  assert(guardIdx !== -1 && writeIdx !== -1 && guardIdx < writeIdx, `${label}: patchProductMediaIfNeeded aborta ANTES de escrever quando a peca ja tem foto real`);
+  assert(patchBody !== null && patchBody.includes("startsWith('data:image/')"), `${label}: blindagem do patch detecta foto real em Data URL Base64`);
+});
+
+// 8. Painel do Atelie (js/admin/catalog.js): a cura aplicada ao vivo NAO pode substituir foto real.
+//    Este e o mesmo contrato exigido de products.js e de app.js: a peca blusa-teia com foto real
+//    enviada pela artesa jamais pode ter a capa trocada por ativo de fabrica, pois o Atelie grava
+//    image/images de volta no Firestore em saveCatalog() -> saveProduct().
+const curedAdminBlusa47 = adminCatalogModule.preserveFactoryMedia({ id: 'blusa-teia', image: REAL_PHOTO_47, images: [REAL_PHOTO_47] });
+assert(curedAdminBlusa47.image === REAL_PHOTO_47, 'catalog.js do Atelie preserva a capa real Base64 da blusa-teia (nunca a troca por ativo de fabrica)');
+assert(Array.isArray(curedAdminBlusa47.images) && curedAdminBlusa47.images[0] === REAL_PHOTO_47, 'catalog.js do Atelie mantem a foto real no indice 0 da galeria');
+assert(!curedAdminBlusa47.images.includes('assets/products/blusa_teia_loop.mp4'), 'catalog.js do Atelie nao injeta loop de fabrica em peca com foto real');
+assert(!curedAdminBlusa47.images.includes('assets/products/blusa_teia.jpg'), 'catalog.js do Atelie nao injeta foto de fabrica em peca com foto real');
+
+const curedAdminBlusaCoverOnly47 = adminCatalogModule.preserveFactoryMedia({ id: 'blusa-teia', image: REAL_PHOTO_47, images: [] });
+assert(curedAdminBlusaCoverOnly47.image === REAL_PHOTO_47, 'catalog.js do Atelie preserva a capa real da blusa-teia mesmo com galeria vazia');
+assert(curedAdminBlusaCoverOnly47.images.length === 1 && curedAdminBlusaCoverOnly47.images[0] === REAL_PHOTO_47, 'catalog.js do Atelie alimenta a galeria da blusa-teia com a propria capa real');
+
+// 8.1 O modulo do Atelie reexporta o MESMO contrato de deteccao de foto real
+assert(typeof adminCatalogModule.isRealUploadMedia === 'function', 'catalog.js do Atelie exporta isRealUploadMedia (contrato identico ao de products.js)');
+assert(adminCatalogModule.isRealUploadMedia(REAL_PHOTO_47) === true && adminCatalogModule.isRealUploadMedia(REAL_BLOB_47) === true, 'isRealUploadMedia do Atelie reconhece Data URL Base64 e blob de upload');
+assert(adminCatalogModule.isRealUploadMedia('assets/products/blusa_teia.jpg') === false && adminCatalogModule.isRealUploadMedia(null) === false, 'isRealUploadMedia do Atelie nao confunde ativo de fabrica nem entrada nula');
+
+// 8.2 Regressao: a auto-cura de fabrica continua intacta quando NAO existe foto real
+const curedAdminFactory47 = adminCatalogModule.preserveFactoryMedia({ id: 'blusa-teia' });
+assert(curedAdminFactory47.image === 'assets/products/blusa_teia.jpg' && curedAdminFactory47.images.length === 2, 'catalog.js do Atelie mantem a auto-cura de fabrica (foto + video) para blusa-teia sem foto real');
+const curedAdminVideoFirst47 = adminCatalogModule.preserveFactoryMedia({ id: 'blusa-teia', image: 'assets/products/blusa_teia_loop.mp4', images: ['assets/products/blusa_teia_loop.mp4', 'assets/products/blusa_teia.jpg'] });
+assert(curedAdminVideoFirst47.images[0] === 'assets/products/blusa_teia.jpg' && curedAdminVideoFirst47.image === 'assets/products/blusa_teia.jpg', 'catalog.js do Atelie preserva a invariante de foto estatica no indice 0 (video nunca e capa)');
+
+// 9. Higiene: nenhum arquivo da entrega pode reintroduzir console.log nem emojis
+const deliverySources47 = {
+  'app.js': appJsContent47,
+  'admin.js': adminJsContent47,
+  'firebase-service.js': fbClassic47,
+  'js/services/firebase.js': fbModular47,
+  'js/services/products.js': fs.readFileSync(path.join(ROOT_DIR, 'js', 'services', 'products.js'), 'utf8'),
+  'sw.js': swJs47
+};
+Object.keys(deliverySources47).forEach(label => {
+  assert(!deliverySources47[label].includes('console.log('), `${label} nao possui console.log em producao`);
+  assert(!emojiTestRegex.test(deliverySources47[label]), `${label} cumpre rigorosamente a regra zero emojis`);
+});
 
 console.log('\n======================================================');
 console.log(`📊 Relatório do QA (Robin):`);
