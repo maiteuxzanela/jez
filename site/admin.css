@@ -472,6 +472,13 @@
   box-shadow: 3px 3px 0px var(--color-dark);
 }
 
+.btn-quick-action:disabled {
+  opacity: 0.6;
+  cursor: progress;
+  transform: none;
+  box-shadow: 2px 2px 0px var(--color-dark);
+}
+
 /* Bloco de Pedidos Recentes */
 .dashboard-block {
   background: var(--admin-card-bg);

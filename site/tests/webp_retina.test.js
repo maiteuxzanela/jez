@@ -175,7 +175,8 @@ function createBrowserEnvironment() {
 (async () => {
   const env = createBrowserEnvironment().install();
 
-  const { compressImageFile } = require(path.join(ROOT_DIR, 'js', 'admin', 'image-compression.js'));
+  const { compressImageFile, compressImageDataUrl } = require(path.join(ROOT_DIR, 'js', 'admin', 'image-compression.js'));
+  const { optimizeStoredProductsMedia, isLegacyJpegMedia, buildFactoryWebpLegacyMap } = require(path.join(ROOT_DIR, 'js', 'admin', 'media-migration.js'));
   const { setupPhotoCropper } = require(path.join(ROOT_DIR, 'js', 'admin', 'cropper.js'));
 
   const makeFile = (name, type = 'image/jpeg') =>
@@ -461,6 +462,99 @@ function createBrowserEnvironment() {
     const output = cropper.getCroppedDataUrl(800);
     assertEqual(output, '', 'saida sem imagem');
     assertEqual(env.state.canvases.length, 0, 'nenhum canvas criado');
+  });
+
+  // ------------------------------------------------------------- migracao em lote
+  await run('media-migration: reconhece somente Base64 de imagem fora do formato WebP', async () => {
+    assertTrue(isLegacyJpegMedia('data:image/jpeg;base64,LEGACY') === true, 'JPEG Base64 deveria ser legado');
+    assertTrue(isLegacyJpegMedia('data:image/png;base64,LEGACY') === true, 'PNG Base64 deveria ser legado');
+    assertTrue(isLegacyJpegMedia('data:image/webp;base64,OK') === false, 'WebP Base64 nao e legado');
+    assertTrue(isLegacyJpegMedia('assets/products/bolsa_punk.jpg') === false, 'ativo de fabrica nao e Base64 legado');
+    assertTrue(isLegacyJpegMedia({ url: 'data:image/jpeg;base64,LEGACY' }) === true, 'objeto com url Base64 JPEG deveria ser legado');
+    assertTrue(isLegacyJpegMedia(null) === false, 'entrada nula nao e legado');
+  });
+
+  await run('media-migration: mapa de ativos de fabrica deriva .jpg -> .webp real', async () => {
+    const map = buildFactoryWebpLegacyMap();
+    assertEqual(map.get('assets/products/bolsa_punk.jpg'), 'assets/products/bolsa_punk.webp', 'par bolsa-punk');
+    assertEqual(map.get('assets/products/blusa_teia_detail.jpg'), undefined, 'nao inventa ativo inexistente');
+    assertEqual(map.get('assets/products/tote_cherry_detail.jpg'), 'assets/products/tote_cherry_detail.webp', 'par de detalhe');
+  });
+
+  await run('optimizeStoredProductsMedia: converte Base64 legado e remapeia ativos de fabrica', async () => {
+    const legacySource = [
+      {
+        id: 'peca-legada',
+        image: 'data:image/jpeg;base64,COVER-LEGADO',
+        images: ['data:image/jpeg;base64,GALERIA-LEGADA', 'assets/products/bolsa_punk_detail.jpg']
+      },
+      {
+        id: 'blusa-teia',
+        image: 'assets/products/blusa_teia.jpg',
+        images: [{ url: 'assets/products/blusa_teia_loop.mp4', poster: 'assets/products/blusa_teia_loop_poster.jpg' }]
+      },
+      {
+        id: 'peca-ja-otimizada',
+        image: 'data:image/webp;base64,JA-EM-WEBP',
+        images: ['data:image/webp;base64,JA-EM-WEBP', 'assets/products/bolsa_punk.webp']
+      }
+    ];
+
+    env.reset({ width: 1600, height: 1200 }, 'supported');
+    const result = await optimizeStoredProductsMedia(legacySource);
+    assertEqual(result.total, 3, 'total de pecas');
+    assertEqual(result.scanned, 3, 'pecas escaneadas');
+    assertEqual(result.converted, 2, 'fotos Base64 convertidas');
+    assertEqual(result.remapped, 3, 'ativos de fabrica remapeados');
+    assertEqual(result.failed, 0, 'nenhuma falha');
+    assertTrue(result.updated === true, 'resultado marcado como atualizado');
+
+    const [legacy, blusa, alreadyWebp] = result.catalog;
+    assertTrue(legacy.image.startsWith('data:image/webp'), `capa legada deveria virar WebP: ${legacy.image}`);
+    assertTrue(legacy.images[0].startsWith('data:image/webp'), 'galeria legada deveria virar WebP');
+    assertEqual(legacy.images[1], 'assets/products/bolsa_punk_detail.webp', 'detalhe de fabrica remapeado para WebP');
+    assertEqual(blusa.image, 'assets/products/blusa_teia.webp', 'capa de fabrica remapeada para WebP');
+    assertEqual(blusa.images[0].poster, 'assets/products/blusa_teia_loop_poster.webp', 'poster do video remapeado para WebP');
+    assertEqual(blusa.images[0].url, 'assets/products/blusa_teia_loop.mp4', 'video preservado');
+    assertEqual(alreadyWebp.image, 'data:image/webp;base64,JA-EM-WEBP', 'WebP existente nao e convertido');
+    assertEqual(legacySource[0].image, 'data:image/jpeg;base64,COVER-LEGADO', 'entrada original nao e mutada');
+    assertEqual(env.state.canvases[0].width, 800, 'largura Retina do canvas');
+    assertEqual(env.state.canvases[0].height, 600, 'altura proporcional do canvas');
+  });
+
+  await run('optimizeStoredProductsMedia: segunda execucao e idempotente', async () => {
+    const input = [{
+      id: 'idempotente',
+      image: 'data:image/jpeg;base64,LEGADO',
+      images: ['assets/products/tote_cherry.jpg']
+    }];
+    env.reset({ width: 1600, height: 1200 }, 'supported');
+    const first = await optimizeStoredProductsMedia(input);
+    const second = await optimizeStoredProductsMedia(first.catalog);
+    assertTrue(second.updated === false, 'segunda execucao nao deveria alterar nada');
+    assertEqual(second.converted, 0, 'nenhuma conversao na segunda execucao');
+    assertEqual(second.remapped, 0, 'nenhum remapeamento na segunda execucao');
+    assertEqual(JSON.stringify(second.catalog), JSON.stringify(first.catalog), 'estado final identico');
+  });
+
+  await run('optimizeStoredProductsMedia: falha de codificacao preserva a foto original', async () => {
+    env.reset({ width: 1600, height: 1200 }, 'throws-all');
+    const input = [{ id: 'corrompida', image: 'data:image/jpeg;base64,LEGADO' }];
+    let result = null;
+    await captureStderr(async () => {
+      result = await optimizeStoredProductsMedia(input);
+    });
+    assertEqual(result.failed, 1, 'falha contabilizada');
+    assertEqual(result.converted, 0, 'nenhuma conversao em falha');
+    assertTrue(result.updated === false, 'sem atualizacao quando a conversao falha');
+    assertEqual(result.catalog[0].image, 'data:image/jpeg;base64,LEGADO', 'foto original preservada em falha');
+  });
+
+  await run('optimizeStoredProductsMedia: entradas nulas sao ignoradas defensivamente', async () => {
+    const result = await optimizeStoredProductsMedia([null, undefined, 'texto', 42]);
+    assertEqual(result.total, 4, 'total preservado');
+    assertEqual(result.scanned, 0, 'nenhuma peca escaneada');
+    assertTrue(result.updated === false, 'sem atualizacao');
   });
 
   env.uninstall();

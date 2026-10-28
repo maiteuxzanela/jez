@@ -27,6 +27,7 @@ const STATIC_ASSETS = [
   './js/admin/auth.js',
   './js/admin/cropper.js',
   './js/admin/image-compression.js',
+  './js/admin/media-migration.js',
   './js/admin/catalog.js',
   './js/admin/orders.js',
   './js/admin/dashboard.js',

@@ -32,7 +32,8 @@ import {
 
 
 import { setupPhotoCropper } from './js/admin/cropper.js';
-import { compressImageFile } from './js/admin/image-compression.js';
+import { compressImageFile, compressImageDataUrl } from './js/admin/image-compression.js';
+import { optimizeStoredProductsMedia } from './js/admin/media-migration.js';
 import {
   defaultInitialCatalog,
   defaultCatalogOrder,
@@ -2233,6 +2234,58 @@ const initAdmin = () => {
     });
   });
 
+  // --------------------------------------------------------------------------
+  // 12.5. Migracao em Lote do Acervo para WebP Retina (JEZ-042 - Cris)
+  // --------------------------------------------------------------------------
+  const runCatalogWebpOptimization = async () => {
+    const btnOptimize = document.getElementById('btn-optimize-webp');
+    if (btnOptimize && btnOptimize.disabled) return;
+
+    const sourceList = loadCatalogSynced();
+    if (!Array.isArray(sourceList) || sourceList.length === 0) {
+      showToast('Nenhuma peça no acervo para otimizar.');
+      return;
+    }
+
+    if (btnOptimize) {
+      btnOptimize.disabled = true;
+      btnOptimize.setAttribute('aria-busy', 'true');
+    }
+
+    try {
+      const result = await optimizeStoredProductsMedia(sourceList, {
+        convertDataUrl: compressImageDataUrl,
+        onProgress: (progress) => {
+          if (progress && progress.total > 0) {
+            showToast(`Otimizando fotos do acervo: ${progress.processed} de ${progress.total}`);
+          }
+        }
+      });
+
+      if (!result.updated) {
+        showToast('O acervo já está todo em WebP Retina.');
+        return;
+      }
+
+      catalog = sortCatalogByCuratedOrder(cureProductListMedia(result.catalog, defaultInitialCatalog));
+      saveCatalog(catalog, null, () => {
+        const searchInput = document.getElementById('catalog-search-input');
+        renderCatalog(searchInput ? searchInput.value.trim() : '');
+        updateDashboard();
+      });
+
+      showToast(`Otimização WebP concluída: ${result.converted} foto(s) convertida(s), ${result.remapped} ativo(s) migrado(s).`);
+    } catch (err) {
+      console.error('[JËZ Ateliê] Falha ao otimizar as fotos do acervo:', err);
+      showToast('Não foi possível concluir a otimização das fotos.');
+    } finally {
+      if (btnOptimize) {
+        btnOptimize.disabled = false;
+        btnOptimize.removeAttribute('aria-busy');
+      }
+    }
+  };
+
   // Botões de Ação Rápida do Dashboard e Atualização
   const btnQuickNewPiece = document.getElementById('btn-quick-new-piece');
   if (btnQuickNewPiece) {
@@ -2247,6 +2300,11 @@ const initAdmin = () => {
   const btnSeeAllOrders = document.getElementById('btn-see-all-orders');
   if (btnSeeAllOrders) {
     btnSeeAllOrders.addEventListener('click', () => switchTab('orders'));
+  }
+
+  const btnOptimizeWebp = document.getElementById('btn-optimize-webp');
+  if (btnOptimizeWebp) {
+    btnOptimizeWebp.addEventListener('click', runCatalogWebpOptimization);
   }
 
   const btnRefreshData = document.getElementById('btn-refresh-data');

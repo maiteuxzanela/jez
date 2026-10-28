@@ -2648,7 +2648,7 @@ const curedBlusa1 = productsServiceModule.preserveFactoryMedia({
 assert(Array.isArray(curedBlusa1.images) && curedBlusa1.images.length === 2, 'preserveFactoryMedia restaura array de 2 midias para blusa-teia incompleta');
 assert(curedBlusa1.images[0] === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia garante foto no indice 0 da blusa-teia');
 assert(curedBlusa1.images[1] === 'assets/products/blusa_teia_loop.mp4', 'preserveFactoryMedia restaura video no indice 1 da blusa-teia');
-assert(curedBlusa1.image === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia garante capa estatica da blusa-teia');
+assert(curedBlusa1.image === 'assets/products/blusa_teia.webp', 'preserveFactoryMedia garante capa estatica em WebP da blusa-teia');
 
 // 2. Invariante inviolavel: video NUNCA deve ser a primeira midia (indice 0)
 const curedBlusa2 = productsServiceModule.preserveFactoryMedia({
@@ -2658,11 +2658,11 @@ const curedBlusa2 = productsServiceModule.preserveFactoryMedia({
 });
 assert(curedBlusa2.images[0] === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia realoca foto para o indice 0 quando video vem no topo');
 assert(curedBlusa2.images[1] === 'assets/products/blusa_teia_loop.mp4', 'preserveFactoryMedia preserva video apos a foto principal');
-assert(curedBlusa2.image === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia nunca permite video no atributo image principal');
+assert(curedBlusa2.image === 'assets/products/blusa_teia.webp', 'preserveFactoryMedia nunca permite video no atributo image principal');
 
 // 3. Auto-cura da blusa-teia sem nenhuma imagem definida
 const curedBlusa3 = productsServiceModule.preserveFactoryMedia({ id: 'blusa-teia' });
-assert(curedBlusa3.images[0] === 'assets/products/blusa_teia.jpg', 'preserveFactoryMedia preenche foto de fabrica para blusa-teia vazia');
+assert(curedBlusa3.images[0] === 'assets/products/blusa_teia.webp', 'preserveFactoryMedia preenche foto de fabrica em WebP para blusa-teia vazia');
 assert(curedBlusa3.images[1] === 'assets/products/blusa_teia_loop.mp4', 'preserveFactoryMedia preenche video de fabrica para blusa-teia vazia');
 
 // 4. Invariante de peca com video mockado sem foto estatica
@@ -2670,7 +2670,7 @@ const curedGenericWithVideo = productsServiceModule.preserveFactoryMedia({
   id: 'bolsa-punk',
   images: ['assets/products/clip.mp4']
 });
-assert(curedGenericWithVideo.images[0] === 'assets/products/bolsa_punk.jpg', 'preserveFactoryMedia injeta foto de fabrica no indice 0 quando lista so contem video');
+assert(curedGenericWithVideo.images[0] === 'assets/products/bolsa_punk.webp', 'preserveFactoryMedia injeta foto de fabrica em WebP no indice 0 quando lista so contem video');
 
 // 5. Validacao de integracao em lote com cureProductListMedia
 const sampleCatalogForCure40 = [
@@ -2714,8 +2714,8 @@ const curedAdminTeia = adminCatalogModule.preserveFactoryMedia({
   image: 'assets/products/blusa_teia_loop.mp4',
   images: ['assets/products/blusa_teia_loop.mp4', 'assets/products/blusa_teia.jpg']
 });
-assert(curedAdminTeia.image === 'assets/products/blusa_teia.jpg', 'catalog.js preserveFactoryMedia assegura capa estatica da blusa-teia');
-assert(curedAdminTeia.images[0] === 'assets/products/blusa_teia.jpg', 'catalog.js preserveFactoryMedia coloca foto no indice 0');
+assert(curedAdminTeia.image === 'assets/products/blusa_teia.webp', 'catalog.js preserveFactoryMedia assegura capa estatica em WebP da blusa-teia');
+assert(curedAdminTeia.images[0] === 'assets/products/blusa_teia.jpg', 'catalog.js preserveFactoryMedia preserva a foto estatica existente no indice 0');
 assert(curedAdminTeia.images[1] === 'assets/products/blusa_teia_loop.mp4', 'catalog.js preserveFactoryMedia preserva video no indice 1');
 
 // 3. Integracao e re-exportacoes em admin.js
@@ -2990,7 +2990,7 @@ assert(curedBlusaRealGallery47.image === REAL_PHOTO_47, 'preserveFactoryMedia pr
 assert(!curedBlusaRealGallery47.images.includes('assets/products/blusa_teia_loop.mp4') && !curedBlusaRealGallery47.images.includes('assets/products/blusa_teia.jpg'), 'blusa-teia com foto real na galeria nao recebe midias de fabrica');
 
 const curedBlusaFactory47 = productsService47.preserveFactoryMedia({ id: 'blusa-teia' });
-assert(curedBlusaFactory47.image === 'assets/products/blusa_teia.jpg' && curedBlusaFactory47.images.length === 2, 'blusa-teia sem foto real mantem a auto-cura de fabrica (foto + video)');
+assert(curedBlusaFactory47.image === 'assets/products/blusa_teia.webp' && curedBlusaFactory47.images.length === 2, 'blusa-teia sem foto real mantem a auto-cura de fabrica em WebP (foto + video)');
 
 const curedGenericReal47 = productsService47.preserveFactoryMedia({ id: 'bolsa-punk', image: REAL_PHOTO_47, images: [] });
 assert(curedGenericReal47.image === REAL_PHOTO_47 && curedGenericReal47.images.length === 1 && curedGenericReal47.images[0] === REAL_PHOTO_47, 'peca editorial com capa real e galeria vazia recebe a capa real na galeria (sem inventar midia de fabrica)');
@@ -3030,6 +3030,73 @@ const appCuredBlusa47 = appCureFn47({ id: 'blusa-teia', image: REAL_PHOTO_47, im
 assert(appCuredBlusa47.image === REAL_PHOTO_47 && appCuredBlusa47.images.length === 1 && appCuredBlusa47.images[0] === REAL_PHOTO_47, 'cureProductMedia de app.js preserva a capa real da blusa-teia sem injetar midia de fabrica');
 const appCuredFactory47 = appCureFn47({ id: 'blusa-teia' });
 assert(appCuredFactory47.image === 'assets/products/blusa_teia.jpg' && appCuredFactory47.images.length === 2 && appCuredFactory47.images[1] === 'assets/products/blusa_teia_loop.mp4', 'cureProductMedia de app.js mantem a auto-cura de fabrica quando nao existe foto real');
+
+// [47.1] JEZ-042: catalogo padrao migrado para WebP Retina nao pode duplicar a capa de fabrica
+console.log('\n[47.1] Validando Catalogo Padrao WebP Retina e Idempotencia da Cura de Midia (JEZ-042):');
+
+const defaultProductsStart47b = appJsContent47.indexOf('const defaultProducts = [');
+const defaultProductsEnd47b = appJsContent47.indexOf('\n  ];', defaultProductsStart47b);
+assert(defaultProductsStart47b !== -1 && defaultProductsEnd47b !== -1, 'app.js declara defaultProducts como literal auditavel');
+const appDefaultProducts47b = new Function(
+  appJsContent47.slice(defaultProductsStart47b, defaultProductsEnd47b + 5) + '\nreturn defaultProducts;'
+)();
+assert(Array.isArray(appDefaultProducts47b) && appDefaultProducts47b.length === 9, 'catalogo padrao mantem as 9 pecas editoriais');
+
+// Cada midia do catalogo padrao precisa ser WebP/MP4 local e existir de verdade em assets/products/.
+const defaultAssetIssues47b = [];
+appDefaultProducts47b.forEach(piece => {
+  const entries = [piece.image, ...(Array.isArray(piece.images) ? piece.images : [])];
+  entries.forEach(entry => {
+    const url = typeof entry === 'string' ? entry : (entry && entry.url);
+    if (typeof url !== 'string' || !url.startsWith('assets/products/')) {
+      defaultAssetIssues47b.push(`${piece.id}:midia-nao-local:${String(url)}`);
+      return;
+    }
+    if (!/\.(webp|mp4)$/i.test(url)) defaultAssetIssues47b.push(`${piece.id}:formato-legado:${url}`);
+    if (!fs.existsSync(path.join(ROOT_DIR, url))) defaultAssetIssues47b.push(`${piece.id}:arquivo-ausente:${url}`);
+    if (entry && typeof entry === 'object' && typeof entry.poster === 'string') {
+      if (!/\.webp$/i.test(entry.poster)) defaultAssetIssues47b.push(`${piece.id}:poster-legado:${entry.poster}`);
+      if (!fs.existsSync(path.join(ROOT_DIR, entry.poster))) defaultAssetIssues47b.push(`${piece.id}:poster-ausente:${entry.poster}`);
+    }
+  });
+});
+assert(defaultAssetIssues47b.length === 0, `catalogo padrao referencia apenas ativos WebP/MP4 reais no disco (${defaultAssetIssues47b.join(' | ')})`);
+
+const mediaUrls47b = (piece) => (Array.isArray(piece && piece.images) ? piece.images : [])
+  .map(entry => (typeof entry === 'string' ? entry : (entry && entry.url) || ''))
+  .filter(Boolean);
+
+const appCureWebpFn47b = new Function('defaultProducts', 'window', appCureSource47 + '\nreturn cureProductMedia;')(appDefaultProducts47b, {});
+const defaultTeia47b = appDefaultProducts47b.find(piece => piece.id === 'blusa-teia');
+assert(defaultTeia47b.image === 'assets/products/blusa_teia.webp', 'capa padrao da blusa-teia e o ativo WebP publicado');
+const curedDefaultTeia47b = appCureWebpFn47b(defaultTeia47b);
+const curedDefaultUrls47b = mediaUrls47b(curedDefaultTeia47b);
+assert(curedDefaultUrls47b.length === 2, `catalogo padrao migrado nao pode duplicar a capa na galeria (obtido ${curedDefaultUrls47b.length}: ${curedDefaultUrls47b.join(' | ')})`);
+assert(new Set(curedDefaultUrls47b).size === curedDefaultUrls47b.length, 'galeria curada do catalogo padrao nao contem midia repetida');
+assert(curedDefaultUrls47b.filter(url => /\.mp4$/i.test(url)).length === 1, 'galeria curada do catalogo padrao preserva o video de fabrica uma unica vez');
+const curedTwiceUrls47b = mediaUrls47b(appCureWebpFn47b(curedDefaultTeia47b));
+assert(JSON.stringify(curedTwiceUrls47b) === JSON.stringify(curedDefaultUrls47b), 'cura de midia do catalogo padrao e idempotente');
+
+// A mesma invariante vale para as duas copias compartilhadas da cura de midia.
+[
+  ['js/services/products.js', productsService47.preserveFactoryMedia],
+  ['js/admin/catalog.js', adminCatalogModule.preserveFactoryMedia]
+].forEach(([label, cureImpl]) => {
+  const cured = cureImpl(JSON.parse(JSON.stringify(defaultTeia47b)));
+  const urls = mediaUrls47b(cured);
+  assert(urls.length === 2, `${label}: catalogo padrao WebP nao duplica a capa da blusa-teia (obtido ${urls.length}: ${urls.join(' | ')})`);
+  assert(new Set(urls).size === urls.length, `${label}: galeria curada nao contem midia repetida`);
+});
+
+// [47.2] Remapeamento de ativos legados so aponta para arquivos reais e nunca reescreve URL remota
+console.log('\n[47.2] Validando Remapeamento Seguro de Ativos Legados (JEZ-042):');
+const mediaMigration47b = require(path.join(ROOT_DIR, 'js', 'admin', 'media-migration.js'));
+const factoryMap47b = mediaMigration47b.buildFactoryWebpLegacyMap();
+const deadTargets47b = [...factoryMap47b.values()].filter(url => !fs.existsSync(path.join(ROOT_DIR, url)));
+assert(factoryMap47b.size > 0 && deadTargets47b.length === 0, `mapa .jpg -> .webp so aponta para ativos publicados (${deadTargets47b.join(' | ')})`);
+const remoteAsset47b = 'https://cdn.jez.com/assets/products/bolsa_punk.jpg';
+assert(mediaMigration47b.remapFactoryAssetUrl(remoteAsset47b) === remoteAsset47b, 'remapeamento preserva URL absoluta remota (nunca troca por caminho local)');
+assert(mediaMigration47b.remapFactoryAssetUrl('assets/products/bolsa_punk.jpg') === 'assets/products/bolsa_punk.webp', 'remapeamento converte ativo local de fabrica para WebP');
 
 // 3. Merge seguro nuvem x fabrica (funcao real de app.js executada em isolamento)
 const mergeSource47 = extractBracedBlock47(appJsContent47, 'const mergeCloudCatalogWithFactory =');
@@ -3144,9 +3211,9 @@ assert(adminCatalogModule.isRealUploadMedia('assets/products/blusa_teia.jpg') ==
 
 // 8.2 Regressao: a auto-cura de fabrica continua intacta quando NAO existe foto real
 const curedAdminFactory47 = adminCatalogModule.preserveFactoryMedia({ id: 'blusa-teia' });
-assert(curedAdminFactory47.image === 'assets/products/blusa_teia.jpg' && curedAdminFactory47.images.length === 2, 'catalog.js do Atelie mantem a auto-cura de fabrica (foto + video) para blusa-teia sem foto real');
+assert(curedAdminFactory47.image === 'assets/products/blusa_teia.webp' && curedAdminFactory47.images.length === 2, 'catalog.js do Atelie mantem a auto-cura de fabrica em WebP (foto + video) para blusa-teia sem foto real');
 const curedAdminVideoFirst47 = adminCatalogModule.preserveFactoryMedia({ id: 'blusa-teia', image: 'assets/products/blusa_teia_loop.mp4', images: ['assets/products/blusa_teia_loop.mp4', 'assets/products/blusa_teia.jpg'] });
-assert(curedAdminVideoFirst47.images[0] === 'assets/products/blusa_teia.jpg' && curedAdminVideoFirst47.image === 'assets/products/blusa_teia.jpg', 'catalog.js do Atelie preserva a invariante de foto estatica no indice 0 (video nunca e capa)');
+assert(curedAdminVideoFirst47.images[0] === 'assets/products/blusa_teia.jpg' && curedAdminVideoFirst47.image === 'assets/products/blusa_teia.webp', 'catalog.js do Atelie preserva a invariante de foto estatica no indice 0 (video nunca e capa) e capa canonica em WebP');
 
 // 9. Higiene: nenhum arquivo da entrega pode reintroduzir console.log nem emojis
 const deliverySources47 = {

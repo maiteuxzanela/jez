@@ -25,8 +25,8 @@ export const defaultProducts = [
     category: 'bolsas',
     categoryLabel: 'Bolsas & Bags',
     price: 169.90,
-    image: 'assets/products/bolsa_punk.jpg',
-    images: ['assets/products/bolsa_punk.jpg', 'assets/products/bolsa_punk_detail.jpg'],
+    image: 'assets/products/bolsa_punk.webp',
+    images: ['assets/products/bolsa_punk.webp', 'assets/products/bolsa_punk_detail.webp'],
     isReady: false,
     leadTimeDays: 7,
     dimensions: '28cm (L) × 22cm (A) × 8cm (P)',
@@ -39,8 +39,8 @@ export const defaultProducts = [
     category: 'bolsas',
     categoryLabel: 'Bolsas & Bags',
     price: 149.90,
-    image: 'assets/products/tote_cherry.jpg',
-    images: ['assets/products/tote_cherry.jpg', 'assets/products/tote_cherry_detail.jpg'],
+    image: 'assets/products/tote_cherry.webp',
+    images: ['assets/products/tote_cherry.webp', 'assets/products/tote_cherry_detail.webp'],
     isReady: true,
     stockQty: 2,
     dimensions: '34cm (L) × 30cm (A) × 10cm (P)',
@@ -53,7 +53,7 @@ export const defaultProducts = [
     category: 'bolsas',
     categoryLabel: 'Bolsas & Bags',
     price: 139.90,
-    image: 'assets/products/shoulder_coracao.jpg',
+    image: 'assets/products/shoulder_coracao.webp',
     isReady: true,
     stockQty: 1,
     dimensions: '24cm (L) × 20cm (A) × 6cm (P)',
@@ -66,7 +66,7 @@ export const defaultProducts = [
     category: 'bolsas',
     categoryLabel: 'Bolsas & Bags',
     price: 159.90,
-    image: 'assets/products/bolsa_xadrez.jpg',
+    image: 'assets/products/bolsa_xadrez.webp',
     isReady: false,
     leadTimeDays: 5,
     dimensions: '36cm (L) × 32cm (A) × 8cm (P)',
@@ -79,8 +79,8 @@ export const defaultProducts = [
     category: 'vestuario',
     categoryLabel: 'Vestuário Autoral',
     price: 189.90,
-    image: 'assets/products/blusa_teia.jpg',
-    images: ['assets/products/blusa_teia.jpg', { url: 'assets/products/blusa_teia_loop.mp4', poster: 'assets/products/blusa_teia_loop_poster.jpg', type: 'video', isVideo: true }],
+    image: 'assets/products/blusa_teia.webp',
+    images: ['assets/products/blusa_teia.webp', { url: 'assets/products/blusa_teia_loop.mp4', poster: 'assets/products/blusa_teia_loop_poster.webp', type: 'video', isVideo: true }],
     isReady: false,
     leadTimeDays: 8,
     dimensions: 'Modelagem cropped com manga longa ampla (veste do 36 ao 42)',
@@ -93,7 +93,7 @@ export const defaultProducts = [
     category: 'vestuario',
     categoryLabel: 'Vestuário Autoral',
     price: 145.00,
-    image: 'assets/products/top_bandana.jpg',
+    image: 'assets/products/top_bandana.webp',
     isReady: true,
     stockQty: 2,
     dimensions: 'Top regulável por cordão frontal + Bandana triangular de cabelo',
@@ -106,7 +106,7 @@ export const defaultProducts = [
     category: 'vestuario',
     categoryLabel: 'Vestuário Autoral',
     price: 179.90,
-    image: 'assets/products/cardiga_manteiga.jpg',
+    image: 'assets/products/cardiga_manteiga.webp',
     isReady: false,
     leadTimeDays: 7,
     dimensions: 'Comprimento 38cm, mangas 58cm (veste do 36 ao 40)',
@@ -119,8 +119,8 @@ export const defaultProducts = [
     category: 'acessorios',
     categoryLabel: 'Acessórios & Arte',
     price: 49.90,
-    image: 'assets/products/chaveiro_baphomet.jpg',
-    images: ['assets/products/chaveiro_baphomet.jpg', 'assets/products/chaveiro_baphomet_detail.jpg'],
+    image: 'assets/products/chaveiro_baphomet.webp',
+    images: ['assets/products/chaveiro_baphomet.webp', 'assets/products/chaveiro_baphomet_detail.webp'],
     isReady: true,
     stockQty: 3,
     dimensions: '12cm (A) × 8cm (L)',
@@ -133,7 +133,7 @@ export const defaultProducts = [
     category: 'acessorios',
     categoryLabel: 'Acessórios & Arte',
     price: 39.90,
-    image: 'assets/products/porta_airpods.jpg',
+    image: 'assets/products/porta_airpods.webp',
     isReady: true,
     stockQty: 1,
     dimensions: '7cm × 7cm (compatível com estojos AirPods 1, 2, 3 e Pro)',
@@ -220,7 +220,7 @@ export function isVideoMedia(media) {
   return /\.(mp4|webm|mov|ogg|m4v)(\?.*)?$/i.test(clean);
 }
 
-export function withFactoryVideoPoster(media, poster = 'assets/products/blusa_teia_loop_poster.jpg') {
+export function withFactoryVideoPoster(media, poster = 'assets/products/blusa_teia_loop_poster.webp') {
   if (!media || typeof media !== 'object') return media;
   if (typeof media.url !== 'string' || !media.url.includes('blusa_teia_loop.mp4')) return media;
   if (typeof media.poster === 'string' && media.poster.trim()) return media;
@@ -233,7 +233,7 @@ export function preserveFactoryMedia(product, defaultList = defaultProducts) {
   const factoryItem = Array.isArray(defaultList) ? defaultList.find(d => d.id === cured.id) : null;
 
   if (cured.id === 'blusa-teia') {
-    const factoryPhoto = (factoryItem && factoryItem.image) ? factoryItem.image : 'assets/products/blusa_teia.jpg';
+    const factoryPhoto = (factoryItem && factoryItem.image) ? factoryItem.image : 'assets/products/blusa_teia.webp';
     const factoryVideo = 'assets/products/blusa_teia_loop.mp4';
     let images = Array.isArray(cured.images) ? [...cured.images] : [];
     // Fotos reais enviadas pela artesa tem prioridade absoluta sobre os ativos de fabrica
@@ -248,7 +248,10 @@ export function preserveFactoryMedia(product, defaultList = defaultProducts) {
         if (!hasLoop) {
           images.push(factoryVideo);
         }
-        const hasPhoto = images.some(img => (typeof img === 'string' && img.includes('blusa_teia.jpg')) || (typeof img === 'object' && img && img.url && img.url.includes('blusa_teia.jpg')));
+        const hasPhoto = images.some(img => {
+          const url = typeof img === 'string' ? img : (img && typeof img.url === 'string' ? img.url : '');
+          return /blusa_teia\.(?:jpe?g|webp)$/i.test(url.trim());
+        });
         if (!hasPhoto) {
           images.unshift(factoryPhoto);
         }
@@ -303,7 +306,7 @@ export function preserveFactoryMedia(product, defaultList = defaultProducts) {
       } else if (factoryItem && factoryItem.image) {
         cured.images.unshift(factoryItem.image);
       } else {
-        cured.images.unshift('assets/products/tote_cherry.jpg');
+        cured.images.unshift('assets/products/tote_cherry.webp');
       }
     }
     cured.images = cured.images.map(media => withFactoryVideoPoster(media));

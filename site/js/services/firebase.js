@@ -88,6 +88,7 @@ export class JezFirebaseService {
         return typeof url === 'string' && url.trim().toLowerCase().startsWith('data:image/');
       });
     if (hasRealUpload) return;
+    const isFactoryPhoto = (value) => typeof value === 'string' && /blusa_teia\.(?:jpe?g|png|webp)(?:\?.*)?$/i.test(value.trim());
     const hasVideo = images.some(img => {
       const url = typeof img === 'string' ? img : (img && img.url ? img.url : '');
       return url.includes('blusa_teia_loop.mp4');
@@ -95,15 +96,15 @@ export class JezFirebaseService {
     const hasPhotoFirst = images.length > 0 && (() => {
       const first = images[0];
       const url = typeof first === 'string' ? first : (first && first.url ? first.url : '');
-      return url.includes('blusa_teia.jpg');
+      return isFactoryPhoto(url);
     })();
-    const hasCorrectMainImage = typeof rawProduct.image === 'string' && rawProduct.image.includes('blusa_teia.jpg');
+    const hasCorrectMainImage = isFactoryPhoto(rawProduct.image);
 
     if (!hasVideo || !hasPhotoFirst || !hasCorrectMainImage || images.length < 2) {
       const blusaDocRef = doc(this.db, 'products', 'blusa-teia');
       setDoc(blusaDocRef, {
-        image: 'assets/products/blusa_teia.jpg',
-        images: ['assets/products/blusa_teia.jpg', 'assets/products/blusa_teia_loop.mp4'],
+        image: 'assets/products/blusa_teia.webp',
+        images: ['assets/products/blusa_teia.webp', 'assets/products/blusa_teia_loop.mp4'],
         updatedAt: serverTimestamp()
       }, { merge: true }).then(() => {
         console.debug('[JËZ Cloud] Patch suave de mídia da blusa-teia aplicado com sucesso no Firestore');
