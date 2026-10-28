@@ -299,17 +299,157 @@ class JezFirebaseService {
     return true;
   }
 
+  // --------------------------------------------------------------------------
+  // Fila de Producao do Atelie (JEZ-044) - singleton meta/production_queue
+  // totalBacklogDays: dias uteis enfileirados | activeOrdersCount: pedidos sob
+  // encomenda em producao. O checkout incrementa na mesma transacao atomica.
+  // --------------------------------------------------------------------------
+  normalizeQueueDays(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0) return 0;
+    return Math.floor(numeric);
+  }
+
+  // Dias de confeccao de uma sacola: (leadTimeDays || 7) * quantity, apenas
+  // para pecas sob encomenda. Pronta entrega nunca consome a fila do atelie.
+  computeOrderProductionDays(items) {
+    const list = Array.isArray(items) ? items : [];
+    return list.reduce((total, item) => {
+      if (!item || this.isReadyStockItem(item)) return total;
+      const perPiece = Number(item.leadTimeDays) > 0 ? Math.floor(Number(item.leadTimeDays)) : 7;
+      const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
+      return total + (perPiece * quantity);
+    }, 0);
+  }
+
+  async getProductionQueue() {
+    const fallback = { totalBacklogDays: 0, activeOrdersCount: 0 };
+    if (!this.db) return fallback;
+    try {
+      const snap = await getDoc(doc(this.db, 'meta', 'production_queue'));
+      if (!snap.exists()) return fallback;
+      const data = snap.data() || {};
+      return {
+        totalBacklogDays: this.normalizeQueueDays(data.totalBacklogDays),
+        activeOrdersCount: this.normalizeQueueDays(data.activeOrdersCount)
+      };
+    } catch (err) {
+      console.warn('[JËZ Cloud] Falha ao ler a fila de producao:', err && err.message);
+      return fallback;
+    }
+  }
+
+  onProductionQueueChange(callback) {
+    if (!this.db || typeof callback !== 'function') return () => {};
+    try {
+      const docRef = doc(this.db, 'meta', 'production_queue');
+      return onSnapshot(docRef, (snap) => {
+        const data = snap.exists() ? (snap.data() || {}) : {};
+        callback({
+          totalBacklogDays: this.normalizeQueueDays(data.totalBacklogDays),
+          activeOrdersCount: this.normalizeQueueDays(data.activeOrdersCount)
+        });
+      }, (err) => {
+        console.warn('[JËZ Cloud] Erro no listener da fila de producao:', err && err.message);
+      });
+    } catch (err) {
+      console.warn('[JËZ Cloud] Excecao ao assinar a fila de producao:', err);
+      return () => {};
+    }
+  }
+
+  async setProductionQueue(queue) {
+    const payload = queue || {};
+    const totalBacklogDays = this.normalizeQueueDays(payload.totalBacklogDays);
+    const activeOrdersCount = this.normalizeQueueDays(payload.activeOrdersCount);
+    if (!this.db) {
+      return { success: false, totalBacklogDays, activeOrdersCount };
+    }
+    await setDoc(doc(this.db, 'meta', 'production_queue'), {
+      totalBacklogDays,
+      activeOrdersCount,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { success: true, totalBacklogDays, activeOrdersCount };
+  }
+
+  // Baixa idempotente da fila quando um pedido sob encomenda e despachado.
+  async releaseProductionBacklog(release) {
+    const data = release || {};
+    const toDays = (value) => {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric < 0) return 0;
+      return Math.floor(numeric);
+    };
+    const productionDays = toDays(data.productionDays);
+    const orderId = String(data.orderId || '');
+    if (!this.db) {
+      return { success: false, alreadyReleased: false, totalBacklogDays: 0, activeOrdersCount: 0 };
+    }
+    const docRef = doc(this.db, 'meta', 'production_queue');
+    return await runTransaction(this.db, async (transaction) => {
+      const snap = await transaction.get(docRef);
+      const queueData = snap.exists() ? (snap.data() || {}) : {};
+      const currentBacklog = toDays(queueData.totalBacklogDays);
+      const currentActive = toDays(queueData.activeOrdersCount);
+      const releasedIds = Array.isArray(queueData.releasedOrderIds) ? queueData.releasedOrderIds.slice() : [];
+      if (orderId && releasedIds.indexOf(orderId) !== -1) {
+        return { success: true, alreadyReleased: true, totalBacklogDays: currentBacklog, activeOrdersCount: currentActive };
+      }
+      const nextBacklog = Math.max(0, currentBacklog - productionDays);
+      const nextActive = Math.max(0, currentActive - 1);
+      if (orderId) releasedIds.push(orderId);
+      transaction.set(docRef, {
+        totalBacklogDays: nextBacklog,
+        activeOrdersCount: nextActive,
+        releasedOrderIds: releasedIds.slice(-100),
+        lastReleasedOrderId: orderId,
+        lastReleaseReason: String(data.reason || ''),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      return { success: true, alreadyReleased: false, totalBacklogDays: nextBacklog, activeOrdersCount: nextActive };
+    });
+  }
+
   // Finalizacao transacional com validacao atomica de estoque contra concorrencia (JEZ-028 & JEZ-043)
   async checkoutWithStockCheck(orderData, cartItems) {
-    if (!this.db) {
-      const safeId = await this.createOrder(orderData);
-      return { success: true, orderId: safeId, deductedItems: [], readyItems: [], orderItems: [] };
-    }
+    const toQueueDays = (value) => {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric < 0) return 0;
+      return Math.floor(numeric);
+    };
+    const daysForItems = (list) => (Array.isArray(list) ? list : []).reduce((total, item) => {
+      if (!item) return total;
+      const perPiece = Number(item.leadTimeDays) > 0 ? Math.floor(Number(item.leadTimeDays)) : 7;
+      const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
+      return total + (perPiece * quantity);
+    }, 0);
 
     const items = Array.isArray(cartItems) ? cartItems : [];
     // Bifurcacao de fluxo: pronta entrega disputa estoque; encomenda segue direto.
     const readyItems = items.filter(item => this.isReadyStockItem(item));
     const orderItems = items.filter(item => !this.isReadyStockItem(item));
+
+    if (!this.db) {
+      const offlineProductionDays = daysForItems(orderItems);
+      const safeId = await this.createOrder({
+        ...orderData,
+        hasCustomProduction: Boolean(orderData.hasCustomProduction) || orderItems.length > 0,
+        orderProductionDays: offlineProductionDays,
+        queueDaysAtOrder: 0,
+        totalEstimatedLeadTimeDays: offlineProductionDays
+      });
+      return {
+        success: true,
+        orderId: safeId,
+        deductedItems: [],
+        readyItems: readyItems.map(item => item.id),
+        orderItems: orderItems.map(item => item.id),
+        orderProductionDays: offlineProductionDays,
+        queueDaysAtOrder: 0,
+        totalEstimatedLeadTimeDays: offlineProductionDays
+      };
+    }
 
     return await runTransaction(this.db, async (transaction) => {
       const itemsToDeduct = [];
@@ -343,6 +483,23 @@ class JezFirebaseService {
         });
       }
 
+      // Fila do atelie (JEZ-044): leitura do singleton meta/production_queue
+      // ANTES de qualquer escrita para preservar a atomicidade do runTransaction.
+      const hasCustomProduction = Boolean(orderData.hasCustomProduction) || orderItems.length > 0;
+      const productionItemList = orderItems.length > 0
+        ? orderItems
+        : (hasCustomProduction && Array.isArray(orderData.items) ? orderData.items : []);
+      const orderProductionDays = hasCustomProduction ? daysForItems(productionItemList) : 0;
+      const queueRef = doc(this.db, 'meta', 'production_queue');
+      let queueDaysAtOrder = 0;
+      let queueActiveOrders = 0;
+      if (orderProductionDays > 0) {
+        const queueSnap = await transaction.get(queueRef);
+        const queueData = queueSnap.exists() ? (queueSnap.data() || {}) : {};
+        queueDaysAtOrder = toQueueDays(queueData.totalBacklogDays);
+        queueActiveOrders = toQueueDays(queueData.activeOrdersCount);
+      }
+
       // Grupo 2 - sob encomenda: nenhuma trava de estoque, nenhuma validacao de
       // saldo zero e nenhuma deducao fisica no Firestore (RN-JEZ-001).
       for (const update of itemsToDeduct) {
@@ -352,12 +509,13 @@ class JezFirebaseService {
         });
       }
 
-      const hasCustomProduction = Boolean(orderData.hasCustomProduction) || orderItems.length > 0;
       const computedLeadTimeDays = [...orderItems, ...(Array.isArray(orderData.items) ? orderData.items : [])]
         .reduce((maxDays, item) => Math.max(maxDays, Number(item.leadTimeDays) || 0), 0);
       const leadTimeDays = hasCustomProduction
         ? (Number(orderData.leadTimeDays !== undefined && orderData.leadTimeDays !== null ? orderData.leadTimeDays : computedLeadTimeDays) || 0)
         : 0;
+      // Prazo total = fila acumulada no momento da compra + confeccao desta sacola.
+      const totalEstimatedLeadTimeDays = queueDaysAtOrder + orderProductionDays;
 
       // Gravacao unificada do pedido com sinalizacao de producao sob demanda.
       const safeId = orderData.id || ('JEZ-' + Math.floor(1000 + Math.random() * 9000));
@@ -368,16 +526,31 @@ class JezFirebaseService {
         date: orderData.date || new Date().toISOString(),
         hasCustomProduction,
         leadTimeDays,
+        orderProductionDays,
+        queueDaysAtOrder,
+        totalEstimatedLeadTimeDays,
         serverCreatedAt: serverTimestamp()
       };
       transaction.set(orderRef, payload);
+
+      // Incremento atomico da fila do atelie, somente quando ha confeccao real.
+      if (orderProductionDays > 0) {
+        transaction.set(queueRef, {
+          totalBacklogDays: queueDaysAtOrder + orderProductionDays,
+          activeOrdersCount: queueActiveOrders + 1,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
 
       return {
         success: true,
         orderId: safeId,
         deductedItems: itemsToDeduct.map(i => ({ id: i.id, newStock: i.newStock })),
         readyItems: readyItems.map(i => i.id),
-        orderItems: orderItems.map(i => i.id)
+        orderItems: orderItems.map(i => i.id),
+        orderProductionDays,
+        queueDaysAtOrder,
+        totalEstimatedLeadTimeDays
       };
     });
   }

@@ -224,6 +224,92 @@ const initApp = () => {
     return isReady === true;
   };
 
+  // --------------------------------------------------------------------------
+  // 1.3 Fila Dinamica de Producao do Atelie (Sam - JEZ-044)
+  // totalBacklogDays vem do singleton meta/production_queue com fallback 0 dias.
+  // Prazo de peca sob encomenda = confeccao da peca + fila acumulada do atelie.
+  // --------------------------------------------------------------------------
+  const DEFAULT_LEAD_TIME_DAYS = 7;
+  const productionQueue = { totalBacklogDays: 0, activeOrdersCount: 0 };
+
+  const isCustomOrderPiece = (piece) => {
+    if (!piece) return false;
+    if (piece.status === 'order') return true;
+    if (piece.status === 'ready' || piece.isReady === true) return false;
+    if (piece.isReady === false) return true;
+    // Legado sem sinalizacao explicita: prazo de confeccao positivo denuncia encomenda.
+    return (parseInt(piece.leadTimeDays, 10) || 0) > 0;
+  };
+
+  const perPieceLeadTimeDays = (piece) => {
+    const parsed = parseInt(piece && piece.leadTimeDays, 10);
+    return parsed > 0 ? parsed : DEFAULT_LEAD_TIME_DAYS;
+  };
+
+  const getQueueBacklogDays = () => Math.max(0, parseInt(productionQueue.totalBacklogDays, 10) || 0);
+
+  const formatBusinessDays = (days) => {
+    const safeDays = Math.max(0, parseInt(days, 10) || 0);
+    return `${safeDays} ${safeDays === 1 ? 'dia útil' : 'dias úteis'}`;
+  };
+
+  // Penalidade de fila aplicada na vitrine e no quick view.
+  const pieceEstimatedLeadTimeDays = (piece) => perPieceLeadTimeDays(piece) + getQueueBacklogDays();
+
+  // Tempo de confeccao da sacola: SUM(leadTimeDays * quantity) dos itens sob encomenda.
+  const getCartProductionDays = (cartItems) => (Array.isArray(cartItems) ? cartItems : []).reduce((total, item) => {
+    if (!isCustomOrderPiece(item)) return total;
+    const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+    return total + (perPieceLeadTimeDays(item) * quantity);
+  }, 0);
+
+  const getCartLeadTimeSummary = (cartItems) => {
+    const list = Array.isArray(cartItems) ? cartItems : [];
+    const queueDays = getQueueBacklogDays();
+    const productionDays = getCartProductionDays(list);
+    const hasCustom = list.some(item => isCustomOrderPiece(item));
+    return {
+      hasCustom,
+      queueDays,
+      productionDays,
+      totalDays: hasCustom ? queueDays + productionDays : 0
+    };
+  };
+
+  const applyProductionQueue = (queue) => {
+    const backlog = Math.max(0, parseInt(queue && queue.totalBacklogDays, 10) || 0);
+    const active = Math.max(0, parseInt(queue && queue.activeOrdersCount, 10) || 0);
+    const changed = backlog !== productionQueue.totalBacklogDays || active !== productionQueue.activeOrdersCount;
+    productionQueue.totalBacklogDays = backlog;
+    productionQueue.activeOrdersCount = active;
+    if (!changed) return;
+    if (isCatalogLoaded) renderCatalog();
+    updateCartUI();
+  };
+
+  // Snapshot em tempo real da fila; qualquer falha degrada para 0 dias.
+  const bindProductionQueue = () => {
+    if (!window.jezFirebase || typeof window.jezFirebase.onProductionQueueChange !== 'function') return;
+    try {
+      if (typeof window.jezFirebase.getProductionQueue === 'function') {
+        window.jezFirebase.getProductionQueue().then(applyProductionQueue).catch(() => {});
+      }
+      window.jezFirebase.onProductionQueueChange(applyProductionQueue);
+    } catch (err) {
+      console.warn('[JËZ Fila] Falha ao assinar a fila de producao:', err);
+    }
+  };
+
+  // Publicacao opcional para modulos externos e harness de teste lerem a fila.
+  if (typeof window !== 'undefined') {
+    window.jezProductionQueue = productionQueue;
+    window.jezProductionLeadTime = {
+      piece: pieceEstimatedLeadTimeDays,
+      cart: getCartLeadTimeSummary,
+      formatDays: formatBusinessDays
+    };
+  }
+
   // Etiqueta textile costurada (woven label) usada como poster têxtil quando um
   // video nao possui banner do primeiro frame derivavel. Formato 1:1 (42x42),
   // paleta oficial (aubergine + pesponto pêssego), ZERO emojis e ZERO pills.
@@ -752,7 +838,9 @@ const initApp = () => {
         }
       }
       const safeImage = sanitizeImageUrl(primaryCandidate);
-      const safeLeadTime = parseInt(p.leadTimeDays, 10) || 7;
+      const safeLeadTime = (typeof pieceEstimatedLeadTimeDays === 'function')
+        ? pieceEstimatedLeadTimeDays(p)
+        : (parseInt(p.leadTimeDays, 10) || 7);
 
       const productImages = (Array.isArray(p.images) && p.images.length > 0) ? p.images : [p.image];
       const hasVideo = hasVideoMedia(productImages) || isVideoUrl(p.image) || Boolean(p.hasVideo) || Boolean(p.videoUrl);
@@ -775,7 +863,7 @@ const initApp = () => {
       } else if (p.isReady) {
         badgeHtml = `<span class="product-badge badge-ready">Pronta Entrega</span>`;
       } else {
-        badgeHtml = `<span class="product-badge badge-order">Sob Encomenda (${safeLeadTime}d)</span>`;
+        badgeHtml = `<span class="product-badge badge-order">Sob Encomenda (${safeLeadTime} dias úteis)</span>`;
       }
 
       const videoBadgeHtml = hasVideo
@@ -981,7 +1069,29 @@ const initApp = () => {
     localStorage.setItem('jez_cart', JSON.stringify(cart));
   };
 
+  // Resumo transparente de prazo na gaveta da sacola (JEZ-044).
+  // Fila do atelie + confeccao da sacola = prazo total estimado de producao.
+  const renderCartLeadTimeSummary = () => {
+    const summaryEl = document.getElementById('cart-leadtime-summary');
+    if (!summaryEl) return;
+    const leadSummary = getCartLeadTimeSummary(cart);
+    if (!leadSummary.hasCustom || leadSummary.totalDays <= 0) {
+      summaryEl.hidden = true;
+      return;
+    }
+    summaryEl.hidden = false;
+    const queueEl = document.getElementById('cart-leadtime-queue');
+    const productionEl = document.getElementById('cart-leadtime-production');
+    const totalEl = document.getElementById('cart-leadtime-total');
+    if (queueEl) queueEl.textContent = formatBusinessDays(leadSummary.queueDays);
+    if (productionEl) productionEl.textContent = formatBusinessDays(leadSummary.productionDays);
+    if (totalEl) totalEl.textContent = formatBusinessDays(leadSummary.totalDays);
+  };
+
   const updateCartUI = () => {
+    // Fila do atelie e prazo total (independe de a sacola estar vazia)
+    renderCartLeadTimeSummary();
+
     // Total de itens
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     cartBadge.textContent = totalItems;
@@ -1021,9 +1131,11 @@ const initApp = () => {
       const safeId = escapeHtml(item.id);
       const safeName = escapeHtml(item.name);
       const safeImage = sanitizeImageUrl(item.image);
-      const safeLeadTime = parseInt(item.leadTimeDays, 10) || 7;
-      const safeBadge = item.isReady ? 'Pronta Entrega' : `Produção: ${safeLeadTime}d úteis`;
+      const safeLeadTime = perPieceLeadTimeDays(item);
       const safeQty = Math.max(1, parseInt(item.quantity, 10) || 1);
+      const safeBadge = isCustomOrderPiece(item)
+        ? `Confecção: ${formatBusinessDays(safeLeadTime * safeQty)}`
+        : 'Pronta Entrega';
 
       const itemContent = `
         <img src="${escapeHtml(safeImage)}" alt="${safeName}" class="cart-item-img">
@@ -1435,7 +1547,7 @@ const initApp = () => {
       }
     } else {
       modalBadge.className = 'product-badge badge-order';
-      modalBadge.textContent = `Feito sob Encomenda (${product.leadTimeDays} dias úteis)`;
+      modalBadge.textContent = `Feito sob Encomenda (${pieceEstimatedLeadTimeDays(product)} dias úteis)`;
       if (modalBtnAddCart) {
         modalBtnAddCart.disabled = false;
         modalBtnAddCart.classList.remove('is-disabled');
@@ -1446,7 +1558,11 @@ const initApp = () => {
 
     // Botão de WhatsApp direcionado para a peça
     const phone = '553892322411'; // WhatsApp da Jéssica (+55 38 9232-2411)
-    const msg = encodeURIComponent(`Olá Jéssica! Tenho uma dúvida sobre a peça "${product.name}" que vi no site da JËZ collection.`);
+    let modalMessage = `Olá Jéssica! Tenho uma dúvida sobre a peça "${product.name}" que vi no site da JËZ collection.`;
+    if (isCustomOrderPiece(product)) {
+      modalMessage += ` Prazo estimado desta peça: fila do ateliê ${formatBusinessDays(getQueueBacklogDays())} + confecção ${formatBusinessDays(perPieceLeadTimeDays(product))} = ${formatBusinessDays(pieceEstimatedLeadTimeDays(product))} (1 unidade), sem contar o prazo de transporte.`;
+    }
+    const msg = encodeURIComponent(modalMessage);
     modalBtnWhatsapp.href = `https://wa.me/${phone}?text=${msg}`;
 
     productModalBackdrop.classList.add('active');
@@ -1512,21 +1628,30 @@ const initApp = () => {
     
     // Resumo dos itens e mensagem personalizada
     const itemsText = cart.map(i => `• ${i.quantity}x ${i.name} (${formatCurrency(i.price * i.quantity)})`).join('\n');
-    let message = `Olá Jéssica! Me chamo ${safeCustomerName} e gostaria de finalizar meu pedido na JËZ Collection:\n\n${itemsText}\n\n`;
-    if (shippingCost > 0) {
-      message += `Frete estimado: ${formatCurrency(shippingCost)}\n`;
-    }
-    message += `*Total: ${formatCurrency(total)}*\n\n`;
-    if (safeContact) {
-      message += `Contato: ${safeContact}\n`;
-    }
     const pinIcon = String.fromCodePoint(0x1F4CD);
-    message += `${pinIcon} Endereço de envio: ${fullAddress} — CEP ${formattedCep}\n\n`;
-    message += `Como posso efetuar o pagamento via Pix?`;
+    // Prazo dinamico da fila do atelie (JEZ-044): fila + confeccao da sacola.
+    const cartLeadTime = getCartLeadTimeSummary(cart);
+    const buildOrderMessage = (leadInfo) => {
+      let text = `Olá Jéssica! Me chamo ${safeCustomerName} e gostaria de finalizar meu pedido na JËZ Collection:\n\n${itemsText}\n\n`;
+      if (leadInfo && leadInfo.hasCustom) {
+        text += `Prazo estimado de produção: fila do ateliê ${formatBusinessDays(leadInfo.queueDays)} + confecção ${formatBusinessDays(leadInfo.productionDays)} = ${formatBusinessDays(leadInfo.totalDays)} (sem contar o prazo de transporte)\n`;
+      }
+      if (shippingCost > 0) {
+        text += `Frete estimado: ${formatCurrency(shippingCost)}\n`;
+      }
+      text += `*Total: ${formatCurrency(total)}*\n\n`;
+      if (safeContact) {
+        text += `Contato: ${safeContact}\n`;
+      }
+      text += `${pinIcon} Endereço de envio: ${fullAddress} — CEP ${formattedCep}\n\n`;
+      text += `Como posso efetuar o pagamento via Pix?`;
+      return text;
+    };
+    let message = buildOrderMessage(cartLeadTime);
 
     // Registra pedido
     const newOrderId = 'JEZ-' + Math.floor(1000 + Math.random() * 9000);
-    const hasCustomItems = cart.some(i => i.isReady === false || (i.leadTimeDays && Number(i.leadTimeDays) > 0));
+    const hasCustomItems = cartLeadTime.hasCustom;
     const customLeadTimeDays = cart.reduce((maxDays, i) => {
       const isCustom = i.isReady === false || (i.leadTimeDays && Number(i.leadTimeDays) > 0);
       return isCustom ? Math.max(maxDays, Number(i.leadTimeDays) || 0) : maxDays;
@@ -1548,6 +1673,9 @@ const initApp = () => {
       })),
       hasCustomProduction: hasCustomItems,
       leadTimeDays: customLeadTimeDays,
+      orderProductionDays: cartLeadTime.productionDays,
+      queueDaysAtOrder: cartLeadTime.queueDays,
+      totalEstimatedLeadTimeDays: cartLeadTime.totalDays,
       subtotal: subtotal,
       shipping: shippingCost,
       total: total,
@@ -1562,10 +1690,21 @@ const initApp = () => {
 
     try {
       // 1. Verificação de concorrência atômica no Cloud Firestore (runTransaction)
+      let checkoutResult = null;
       if (window.jezFirebase && typeof window.jezFirebase.checkoutWithStockCheck === 'function') {
-        await window.jezFirebase.checkoutWithStockCheck(newOrder, cart);
+        checkoutResult = await window.jezFirebase.checkoutWithStockCheck(newOrder, cart);
       } else if (window.jezFirebase && typeof window.jezFirebase.createOrder === 'function') {
         await window.jezFirebase.createOrder(newOrder);
+      }
+
+      // 1.1 Fila autoritativa do atelie no instante do pedido (queueDaysAtOrder).
+      if (checkoutResult && cartLeadTime.hasCustom && checkoutResult.totalEstimatedLeadTimeDays !== undefined) {
+        message = buildOrderMessage({
+          hasCustom: true,
+          queueDays: parseInt(checkoutResult.queueDaysAtOrder, 10) || 0,
+          productionDays: parseInt(checkoutResult.orderProductionDays, 10) || 0,
+          totalDays: parseInt(checkoutResult.totalEstimatedLeadTimeDays, 10) || 0
+        });
       }
 
       // 2. Subtrai estoque no armazenamento local (localStorage).
@@ -1595,6 +1734,12 @@ const initApp = () => {
         localStorage.setItem('jez_orders', JSON.stringify(currentOrders));
       } catch (e) {
         console.error(e);
+      }
+
+      // 3.1 Fila do atelie: incremento otimista local (o snapshot confirma depois).
+      if (cartLeadTime.productionDays > 0) {
+        productionQueue.totalBacklogDays = getQueueBacklogDays() + cartLeadTime.productionDays;
+        productionQueue.activeOrdersCount = (parseInt(productionQueue.activeOrdersCount, 10) || 0) + 1;
       }
 
       // 4. Limpa sacola e atualiza vitrine
@@ -2089,6 +2234,9 @@ const initApp = () => {
           renderHeroFeaturedCard(products);
         }
       });
+
+      // Fila dinamica de producao (JEZ-044): snapshot reativo + hidratacao inicial.
+      bindProductionQueue();
       return true;
     };
 

@@ -16,6 +16,16 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Fila de Produção do Ateliê (JEZ-044)
+    // Singleton meta/production_queue: backlog em dias úteis e pedidos sob
+    // encomenda ativos. O checkout incrementa dentro de runTransaction e a
+    // vitrine assina o documento em tempo real. Sem delete: a fila nunca
+    // pode ser apagada acidentalmente pelo cliente.
+    match /meta/production_queue {
+      allow read: if true;
+      allow create, update: if true;
+    }
+
     // Pedidos de Clientes
     // Qualquer cliente na internet pode registrar um novo pedido ao concluir a compra
     // Leitura, atualização de status e despacho para o painel do ateliê
