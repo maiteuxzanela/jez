@@ -3726,8 +3726,8 @@ function createTransactionalFirestore49(seed) {
         update(ref, patch) {
           writes.push({ ref, kind: 'update', patch: clone(patch) });
         },
-        set(ref, data) {
-          writes.push({ ref, kind: 'set', data: clone(data) });
+        set(ref, data, options) {
+          writes.push({ ref, kind: 'set', data: clone(data), merge: Boolean(options && options.merge) });
         }
       };
 
@@ -3744,7 +3744,9 @@ function createTransactionalFirestore49(seed) {
         const entry = store.get(write.ref.path);
         if (write.kind === 'set') {
           calls.push({ op: 'set', path: write.ref.path });
-          store.set(write.ref.path, { data: clone(write.data), version: (entry ? entry.version : 0) + 1 });
+          // merge:true preserva os campos nao reescritos, como no Firestore real.
+          const nextData = write.merge && entry ? { ...clone(entry.data), ...clone(write.data) } : clone(write.data);
+          store.set(write.ref.path, { data: nextData, version: (entry ? entry.version : 0) + 1 });
         } else {
           if (!entry) throw new Error(`NOT_FOUND:${write.ref.path}`);
           calls.push({ op: 'update', path: write.ref.path });
@@ -3756,10 +3758,30 @@ function createTransactionalFirestore49(seed) {
     throw new Error('ABORTED:transaction-retries-exhausted');
   };
 
+  // APIs nao transacionais usadas por getProductionQueue/setProductionQueue.
+  const getDoc = async (ref) => {
+    calls.push({ op: 'getDoc', path: ref.path });
+    const entry = store.get(ref.path);
+    return {
+      exists: () => Boolean(entry),
+      data: () => (entry ? clone(entry.data) : undefined)
+    };
+  };
+
+  const setDoc = async (ref, data, options) => {
+    const entry = store.get(ref.path);
+    const merge = Boolean(options && options.merge);
+    const nextData = merge && entry ? { ...clone(entry.data), ...clone(data) } : clone(data);
+    calls.push({ op: 'setDoc', path: ref.path });
+    store.set(ref.path, { data: nextData, version: (entry ? entry.version : 0) + 1 });
+  };
+
   return {
     doc,
     serverTimestamp,
     runTransaction,
+    getDoc,
+    setDoc,
     calls,
     read: (pathKey) => {
       const entry = store.get(pathKey);
@@ -3917,6 +3939,323 @@ const checkoutSources49 = [
     assert(service.isReadyStockPiece({ status: 'order', isReady: false, stockQty: 0 }) === false, `${label}: isReadyStockPiece nunca classifica encomenda da nuvem como pronta entrega`);
     assert(service.isReadyStockPiece({ status: 'ready', isReady: true }) === true, `${label}: isReadyStockPiece classifica pronta entrega da nuvem corretamente`);
     assert(service.isReadyStockPiece({ status: 'suspended', isReady: false }) === false, `${label}: isReadyStockPiece trata peca suspensa como nao pronta entrega`);
+  }
+
+  // ==========================================================================
+  // 50. Fila dinamica de producao (JEZ-044): proporcionalidade por quantidade,
+  //     prazo total (fila global + confeccao), incremento transacional no
+  //     checkout e baixa idempotente ao marcar enviado/concluido.
+  // ==========================================================================
+  console.log('\n[50] Validando Fila Dinamica de Producao e Lead Time Proporcional (JEZ-044):');
+
+  const appJsRaw50 = appJsContent48;
+  const PRODUCTION_QUEUE_DOC_50 = 'meta/production_queue';
+  const queueSources50 = [
+    ['site/firebase-service.js', fbServiceRaw49],
+    ['site/js/services/firebase.js', fbModularRaw49]
+  ];
+  const productionQueueMarkers50 = [
+    'normalizeQueueDays(value)',
+    'computeOrderProductionDays(items)',
+    'async getProductionQueue()',
+    'async setProductionQueue(queue)',
+    'async releaseProductionBacklog(release)',
+    'async checkoutWithStockCheck(orderData, cartItems)'
+  ];
+  const ORDER_ITEM_50 = (id, quantity, leadTimeDays) => ({
+    id, name: id, quantity, price: 100, status: 'order', isReady: false, leadTimeDays
+  });
+  const READY_ITEM_50 = (id, quantity) => ({
+    id, name: id, quantity, price: 100, status: 'ready', isReady: true, leadTimeDays: 0
+  });
+
+  // (50.1) Paridade estrita dos dois bundles de servico (classico x modular).
+  productionQueueMarkers50.forEach((marker) => {
+    const classic50 = extractBracedBlock47(fbServiceRaw49, marker);
+    const modular50 = extractBracedBlock47(fbModularRaw49, marker);
+    assert(Boolean(classic50) && Boolean(modular50), `fila: metodo ${marker} presente nos dois bundles de servico`);
+    assert(classic50 === modular50, `fila: ${marker} byte-identico entre firebase-service.js e js/services/firebase.js`);
+  });
+
+  const buildProductionQueueHarness50 = (source, seed) => {
+    const classifiers50 = [
+      extractBracedBlock47(source, 'isReadyStockItem(item)'),
+      extractBracedBlock47(source, 'isReadyStockPiece(piece)')
+    ];
+    const methods50 = productionQueueMarkers50.map((marker) => extractBracedBlock47(source, marker));
+    if (classifiers50.some((block) => !block) || methods50.some((block) => !block)) {
+      throw new Error('Metodos canonicos da fila de producao ausentes no bundle');
+    }
+    const transport = createTransactionalFirestore49(seed);
+    const ProductionQueue50 = new Function(
+      'doc',
+      'getDoc',
+      'setDoc',
+      'runTransaction',
+      'serverTimestamp',
+      `class ProductionQueue50 {\n${classifiers50.join('\n')}\n${methods50.join('\n')}\n}\nreturn ProductionQueue50;`
+    )(transport.doc, transport.getDoc, transport.setDoc, transport.runTransaction, transport.serverTimestamp);
+    const service = new ProductionQueue50();
+    service.db = { __firestore: true };
+    return { service, transport };
+  };
+
+  for (const [label, source] of queueSources50) {
+    const queueOps50 = (transport, pathKey, op) =>
+      transport.calls.filter((call) => call.path === pathKey && (!op || call.op === op));
+
+    // (50.2) Proporcionalidade do tempo de producao por quantidade.
+    {
+      const { service } = buildProductionQueueHarness50(source, {});
+      assert(service.computeOrderProductionDays([]) === 0, `${label}: sacola vazia nao consome dias de producao`);
+      assert(service.computeOrderProductionDays(null) === 0, `${label}: lista nula degrada para zero dias`);
+      assert(service.computeOrderProductionDays([ORDER_ITEM_50('bolsa-punk', 3, 7)]) === 21, `${label}: 3 un x 7 dias = 21 dias (multiplicador proporcional)`);
+      assert(service.computeOrderProductionDays([ORDER_ITEM_50('a', 2, 10), ORDER_ITEM_50('b', 1, 5)]) === 25, `${label}: soma proporcional de duas encomendas (2x10 + 1x5 = 25)`);
+      assert(service.computeOrderProductionDays([ORDER_ITEM_50('sem-prazo', 2, undefined)]) === 14, `${label}: encomenda sem leadTimeDays usa default 7 x 2 un = 14`);
+      assert(service.computeOrderProductionDays([ORDER_ITEM_50('frac', 2.9, 7)]) === 14, `${label}: quantidade fracionaria e truncada (2.9 -> 2 un = 14 dias)`);
+      assert(service.computeOrderProductionDays([ORDER_ITEM_50('zero', 0, 7)]) === 7, `${label}: quantidade zero e tratada como 1 unidade`);
+      assert(service.computeOrderProductionDays([ORDER_ITEM_50('neg', 1, -3)]) === 7, `${label}: leadTimeDays negativo degrada para o default de 7 dias`);
+      assert(service.computeOrderProductionDays([READY_ITEM_50('tote', 5)]) === 0, `${label}: pronta entrega nunca consome a fila (mesmo com 5 un)`);
+      assert(service.computeOrderProductionDays([READY_ITEM_50('tote', 5), ORDER_ITEM_50('bolsa', 1, 10)]) === 10, `${label}: sacola mista conta apenas a encomenda (10 dias)`);
+      assert(service.computeOrderProductionDays([null, ORDER_ITEM_50('bolsa', 1, 7)]) === 7, `${label}: item nulo na sacola e ignorado sem quebrar`);
+    }
+
+    // (50.3) Checkout: prazo total = fila global + producao, com incremento atomico.
+    {
+      const { service, transport } = buildProductionQueueHarness50(source, {
+        [PRODUCTION_QUEUE_DOC_50]: { totalBacklogDays: 12, activeOrdersCount: 1, releasedOrderIds: ['OLD-1'] }
+      });
+      const orderA50 = await service.checkoutWithStockCheck(
+        { id: 'JEZ-9101', items: [{ id: 'bolsa-punk', quantity: 3, leadTimeDays: 7 }], total: 960, hasCustomProduction: true },
+        [ORDER_ITEM_50('bolsa-punk', 3, 7)]
+      );
+      assert(orderA50.success === true, `${label}: checkout sob encomenda conclui com sucesso`);
+      assert(orderA50.orderProductionDays === 21, `${label}: resultado expoe producao proporcional (3 x 7 = 21)`);
+      assert(orderA50.queueDaysAtOrder === 12, `${label}: resultado expoe a fila global no instante do pedido (12)`);
+      assert(orderA50.totalEstimatedLeadTimeDays === 33, `${label}: prazo total = fila 12 + producao 21 = 33`);
+      const orderDocA50 = transport.read('orders/JEZ-9101');
+      assert(orderDocA50 && orderDocA50.orderProductionDays === 21 && orderDocA50.queueDaysAtOrder === 12 && orderDocA50.totalEstimatedLeadTimeDays === 33, `${label}: pedido grava os tres campos de prazo de forma coerente`);
+      assert(orderDocA50 && orderDocA50.hasCustomProduction === true && orderDocA50.leadTimeDays === 7, `${label}: pedido sob encomenda grava hasCustomProduction e leadTimeDays`);
+      const queueA50 = transport.read(PRODUCTION_QUEUE_DOC_50);
+      assert(queueA50 && queueA50.totalBacklogDays === 33, `${label}: fila global incrementada atomicamente para 33 no checkout`);
+      assert(queueA50 && queueA50.activeOrdersCount === 2, `${label}: activeOrdersCount incrementado de 1 para 2`);
+      assert(queueA50 && Array.isArray(queueA50.releasedOrderIds) && queueA50.releasedOrderIds.length === 1 && queueA50.releasedOrderIds[0] === 'OLD-1', `${label}: merge transacional preserva releasedOrderIds existentes`);
+      assert(queueA50 && queueA50.updatedAt && queueA50.updatedAt.__serverTimestamp === true, `${label}: escrita da fila usa serverTimestamp`);
+      assert(queueOps50(transport, PRODUCTION_QUEUE_DOC_50, 'get').length === 1 && queueOps50(transport, PRODUCTION_QUEUE_DOC_50, 'set').length === 1, `${label}: checkout le e grava a fila exatamente 1 vez cada`);
+      const queueReadIdx50 = transport.calls.findIndex((call) => call.op === 'get' && call.path === PRODUCTION_QUEUE_DOC_50);
+      const queueWriteIdx50 = transport.calls.findIndex((call) => call.op === 'set' && call.path === PRODUCTION_QUEUE_DOC_50);
+      assert(queueReadIdx50 !== -1 && queueWriteIdx50 !== -1 && queueReadIdx50 < queueWriteIdx50, `${label}: fila e lida DENTRO da transacao antes da escrita de incremento`);
+
+      const orderB50 = await service.checkoutWithStockCheck(
+        { id: 'JEZ-9102', items: [{ id: 'bolsa-punk', quantity: 2, leadTimeDays: 7 }], total: 640, hasCustomProduction: true },
+        [ORDER_ITEM_50('bolsa-punk', 2, 7)]
+      );
+      assert(orderB50.queueDaysAtOrder === 33 && orderB50.orderProductionDays === 14 && orderB50.totalEstimatedLeadTimeDays === 47, `${label}: segundo pedido empilha na fila acumulada (33 + 14 = 47)`);
+      const queueB50 = transport.read(PRODUCTION_QUEUE_DOC_50);
+      assert(queueB50 && queueB50.totalBacklogDays === 47 && queueB50.activeOrdersCount === 3, `${label}: fila acumula 47 dias e 3 pedidos apos o segundo checkout`);
+    }
+
+    // (50.4) Pronta entrega nao le nem escreve a fila (isolamento de fluxo).
+    {
+      const { service, transport } = buildProductionQueueHarness50(source, {
+        [PRODUCTION_QUEUE_DOC_50]: { totalBacklogDays: 12, activeOrdersCount: 1 },
+        'products/tote-cherry': { id: 'tote-cherry', name: 'Tote', status: 'ready', isReady: true, stockQty: 5 }
+      });
+      const ready50 = await service.checkoutWithStockCheck(
+        { id: 'JEZ-9103', items: [{ id: 'tote-cherry', quantity: 2, leadTimeDays: 0 }], total: 200 },
+        [READY_ITEM_50('tote-cherry', 2)]
+      );
+      assert(ready50.success === true && ready50.orderProductionDays === 0 && ready50.queueDaysAtOrder === 0 && ready50.totalEstimatedLeadTimeDays === 0, `${label}: pronta entrega retorna prazo de producao zerado`);
+      const queueDoc50 = transport.read(PRODUCTION_QUEUE_DOC_50);
+      assert(queueDoc50 && queueDoc50.totalBacklogDays === 12 && queueDoc50.activeOrdersCount === 1, `${label}: fila intocada em compra de pronta entrega`);
+      assert(queueOps50(transport, PRODUCTION_QUEUE_DOC_50).length === 0, `${label}: pronta entrega nao faz get nem set na fila de producao`);
+      const readyProd50 = transport.read('products/tote-cherry');
+      assert(readyProd50 && readyProd50.stockQty === 3, `${label}: pronta entrega continua deduzindo estoque (5 -> 3)`);
+      const readyOrderDoc50 = transport.read('orders/JEZ-9103');
+      assert(readyOrderDoc50 && readyOrderDoc50.orderProductionDays === 0 && readyOrderDoc50.queueDaysAtOrder === 0 && readyOrderDoc50.totalEstimatedLeadTimeDays === 0, `${label}: pedido de pronta entrega grava prazos zerados`);
+    }
+
+    // (50.5) Sacola mista incrementa a fila apenas pela confeccao.
+    {
+      const { service, transport } = buildProductionQueueHarness50(source, {
+        [PRODUCTION_QUEUE_DOC_50]: { totalBacklogDays: 12, activeOrdersCount: 1 },
+        'products/tote-cherry': { id: 'tote-cherry', name: 'Tote', status: 'ready', isReady: true, stockQty: 5 }
+      });
+      const mixed50 = await service.checkoutWithStockCheck(
+        { id: 'JEZ-9104', items: [{ id: 'bolsa-punk', quantity: 1, leadTimeDays: 10 }], total: 520, hasCustomProduction: true },
+        [READY_ITEM_50('tote-cherry', 2), ORDER_ITEM_50('bolsa-punk', 1, 10)]
+      );
+      assert(mixed50.orderProductionDays === 10 && mixed50.queueDaysAtOrder === 12 && mixed50.totalEstimatedLeadTimeDays === 22, `${label}: sacola mista calcula prazo 12 + 10 = 22`);
+      const mixedQueue50 = transport.read(PRODUCTION_QUEUE_DOC_50);
+      assert(mixedQueue50 && mixedQueue50.totalBacklogDays === 22 && mixedQueue50.activeOrdersCount === 2, `${label}: sacola mista incrementa a fila apenas pela confeccao (22 dias)`);
+      const mixedProd50 = transport.read('products/tote-cherry');
+      assert(mixedProd50 && mixedProd50.stockQty === 3, `${label}: sacola mista deduz somente a pronta entrega`);
+    }
+
+    // (50.6) Concorrencia: duas compras simultaneas nao perdem incremento (retry).
+    {
+      const { service, transport } = buildProductionQueueHarness50(source, {
+        [PRODUCTION_QUEUE_DOC_50]: { totalBacklogDays: 10, activeOrdersCount: 1 }
+      });
+      const buy50 = (orderId, quantity) => service.checkoutWithStockCheck(
+        { id: orderId, items: [{ id: 'bolsa-punk', quantity, leadTimeDays: 7 }], total: 100, hasCustomProduction: true },
+        [ORDER_ITEM_50('bolsa-punk', quantity, 7)]
+      );
+      const settled50 = await Promise.allSettled([buy50('JEZ-C1', 1), buy50('JEZ-C2', 2)]);
+      assert(settled50.every((entry) => entry.status === 'fulfilled'), `${label}: duas compras concorrentes finalizam apos retry transacional`);
+      const concurrentQueue50 = transport.read(PRODUCTION_QUEUE_DOC_50);
+      assert(concurrentQueue50 && concurrentQueue50.totalBacklogDays === 31 && concurrentQueue50.activeOrdersCount === 3, `${label}: concorrencia nao perde incremento (10 + 7 + 14 = 31 dias / 3 pedidos)`);
+      assert(transport.calls.some((call) => call.op === 'retry') === true, `${label}: conflito de versao da fila dispara retry do runTransaction`);
+      const c1Doc50 = transport.read('orders/JEZ-C1');
+      const c2Doc50 = transport.read('orders/JEZ-C2');
+      assert(c1Doc50 && c1Doc50.totalEstimatedLeadTimeDays === 17, `${label}: primeira compra concorrente calcula 10 + 7 = 17`);
+      assert(c2Doc50 && c2Doc50.queueDaysAtOrder === 17 && c2Doc50.totalEstimatedLeadTimeDays === 31, `${label}: compra retentada recalcula sobre a fila atualizada (17 + 14 = 31)`);
+    }
+
+    // (50.7) Baixa idempotente ao marcar enviado/concluido.
+    {
+      const { service, transport } = buildProductionQueueHarness50(source, {
+        [PRODUCTION_QUEUE_DOC_50]: { totalBacklogDays: 47, activeOrdersCount: 3, releasedOrderIds: [] }
+      });
+      const release1_50 = await service.releaseProductionBacklog({ orderId: 'JEZ-9101', productionDays: 21, reason: 'status:enviado' });
+      assert(release1_50.success === true && release1_50.alreadyReleased === false, `${label}: primeira baixa processa a liberacao`);
+      assert(release1_50.totalBacklogDays === 26 && release1_50.activeOrdersCount === 2, `${label}: baixa de 21 dias reduz fila 47 -> 26 e ativos 3 -> 2`);
+      const queueAfter1_50 = transport.read(PRODUCTION_QUEUE_DOC_50);
+      assert(queueAfter1_50 && queueAfter1_50.lastReleasedOrderId === 'JEZ-9101' && queueAfter1_50.lastReleaseReason === 'status:enviado', `${label}: baixa registra pedido e motivo`);
+      assert(queueAfter1_50 && Array.isArray(queueAfter1_50.releasedOrderIds) && queueAfter1_50.releasedOrderIds.includes('JEZ-9101'), `${label}: id do pedido entra no ledger de liberados`);
+
+      const release2_50 = await service.releaseProductionBacklog({ orderId: 'JEZ-9101', productionDays: 21, reason: 'status:concluido' });
+      assert(release2_50.success === true && release2_50.alreadyReleased === true, `${label}: segunda baixa do MESMO pedido e reconhecida como ja liberada`);
+      assert(release2_50.totalBacklogDays === 26 && release2_50.activeOrdersCount === 2, `${label}: idempotencia nao desconta 2x (fila permanece 26/2)`);
+      const queueAfter2_50 = transport.read(PRODUCTION_QUEUE_DOC_50);
+      assert(queueAfter2_50 && queueAfter2_50.totalBacklogDays === 26 && queueAfter2_50.activeOrdersCount === 2, `${label}: documento da fila permanece intacto na repeticao`);
+      assert(queueOps50(transport, PRODUCTION_QUEUE_DOC_50, 'set').length === 1, `${label}: repeticao nao grava novamente na fila`);
+
+      const release3_50 = await service.releaseProductionBacklog({ orderId: 'JEZ-9102', productionDays: 14, reason: 'status:concluido' });
+      assert(release3_50.totalBacklogDays === 12 && release3_50.activeOrdersCount === 1, `${label}: segunda liberacao distinta reduz 26 -> 12 e 2 -> 1`);
+      const queueAfter3_50 = transport.read(PRODUCTION_QUEUE_DOC_50);
+      assert(queueAfter3_50 && queueAfter3_50.lastReleaseReason === 'status:concluido' && queueAfter3_50.releasedOrderIds.length === 2, `${label}: ledger acumula os dois pedidos liberados`);
+    }
+
+    // (50.8) Fila nunca negativa e ledger limitado a 100 ids.
+    {
+      const floorHarness50 = buildProductionQueueHarness50(source, {
+        [PRODUCTION_QUEUE_DOC_50]: { totalBacklogDays: 5, activeOrdersCount: 1 }
+      });
+      const floored50 = await floorHarness50.service.releaseProductionBacklog({ orderId: 'JEZ-FLOOR', productionDays: 99, reason: 'status:cancelado' });
+      assert(floored50.totalBacklogDays === 0 && floored50.activeOrdersCount === 0, `${label}: baixa maior que o saldo trava em zero (nunca negativo)`);
+
+      const capIds50 = Array.from({ length: 100 }, (_, i) => `R-${i}`);
+      const capHarness50 = buildProductionQueueHarness50(source, {
+        [PRODUCTION_QUEUE_DOC_50]: { totalBacklogDays: 100, activeOrdersCount: 100, releasedOrderIds: capIds50 }
+      });
+      const capped50 = await capHarness50.service.releaseProductionBacklog({ orderId: 'R-NEW', productionDays: 10, reason: 'status:enviado' });
+      const capQueue50 = capHarness50.transport.read(PRODUCTION_QUEUE_DOC_50);
+      assert(capped50.success === true && capQueue50 && Array.isArray(capQueue50.releasedOrderIds) && capQueue50.releasedOrderIds.length === 100, `${label}: ledger de liberados e limitado a 100 ids`);
+      assert(capQueue50 && capQueue50.releasedOrderIds.includes('R-NEW') && !capQueue50.releasedOrderIds.includes('R-0'), `${label}: ledger descarta o id mais antigo e preserva o novo`);
+      assert(capQueue50 && capQueue50.totalBacklogDays === 90 && capQueue50.activeOrdersCount === 99, `${label}: baixa com fila cheia permanece consistente (100 -> 90 / 100 -> 99)`);
+    }
+
+    // (50.9) Leitura e escrita do singleton (fallback e normalizacao).
+    {
+      const emptyHarness50 = buildProductionQueueHarness50(source, {});
+      const emptyQueue50 = await emptyHarness50.service.getProductionQueue();
+      assert(emptyQueue50.totalBacklogDays === 0 && emptyQueue50.activeOrdersCount === 0, `${label}: getProductionQueue sem documento degrada para 0/0`);
+      const written50 = await emptyHarness50.service.setProductionQueue({ totalBacklogDays: 9.9, activeOrdersCount: -2 });
+      assert(written50.success === true && written50.totalBacklogDays === 9 && written50.activeOrdersCount === 0, `${label}: setProductionQueue normaliza e persiste valores`);
+      const readBack50 = await emptyHarness50.service.getProductionQueue();
+      assert(readBack50.totalBacklogDays === 9 && readBack50.activeOrdersCount === 0, `${label}: getProductionQueue devolve o valor persistido`);
+      const seededHarness50 = buildProductionQueueHarness50(source, {
+        [PRODUCTION_QUEUE_DOC_50]: { totalBacklogDays: 12.7, activeOrdersCount: 2 }
+      });
+      const seededQueue50 = await seededHarness50.service.getProductionQueue();
+      assert(seededQueue50.totalBacklogDays === 12 && seededQueue50.activeOrdersCount === 2, `${label}: leitura normaliza backlog fracionario (12.7 -> 12)`);
+    }
+  }
+
+  // (50.10) app.js: prazo total da sacola = fila global + confeccao proporcional.
+  {
+    // Recorta a regiao real do bundle (constantes + helpers), preservando o
+    // codigo verbatim e substituindo apenas a fila default por um parametro.
+    const appLeadStart50 = appJsRaw50.indexOf('const DEFAULT_LEAD_TIME_DAYS = 7;');
+    const appLeadEnd50 = appJsRaw50.indexOf('const applyProductionQueue = (queue)');
+    const appLeadRegion50 = (appLeadStart50 !== -1 && appLeadEnd50 > appLeadStart50)
+      ? appJsRaw50.slice(appLeadStart50, appLeadEnd50)
+      : '';
+    assert(appLeadRegion50.length > 0, 'app.js expoe a regiao real da fila dinamica (constantes + helpers)');
+    const appLeadBody50 = appLeadRegion50
+      .replace(/const productionQueue = \{[^}]*\};/, '')
+      .concat('\nreturn { getCartLeadTimeSummary, getCartProductionDays, pieceEstimatedLeadTimeDays, formatBusinessDays, isCustomOrderPiece };');
+    const buildAppLead50 = (queue) => new Function('productionQueue', appLeadBody50)(queue);
+    const appLead50 = buildAppLead50({ totalBacklogDays: 12, activeOrdersCount: 1 });
+    const summary50 = appLead50.getCartLeadTimeSummary([{ id: 'bolsa-punk', status: 'order', isReady: false, leadTimeDays: 7, quantity: 3 }]);
+    assert(summary50.hasCustom === true && summary50.queueDays === 12 && summary50.productionDays === 21 && summary50.totalDays === 33, 'app.js: sacola 3 un sob encomenda = fila 12 + confeccao 21 = 33 dias');
+    const mixedSummary50 = appLead50.getCartLeadTimeSummary([
+      { id: 'tote', status: 'ready', isReady: true, leadTimeDays: 0, quantity: 2 },
+      { id: 'bolsa', status: 'order', isReady: false, leadTimeDays: 10, quantity: 2 }
+    ]);
+    assert(mixedSummary50.productionDays === 20 && mixedSummary50.totalDays === 32, 'app.js: sacola mista soma apenas a encomenda (12 + 20 = 32)');
+    const readySummary50 = appLead50.getCartLeadTimeSummary([{ id: 'tote', status: 'ready', isReady: true, leadTimeDays: 0, quantity: 5 }]);
+    assert(readySummary50.hasCustom === false && readySummary50.productionDays === 0 && readySummary50.totalDays === 0, 'app.js: sacola so de pronta entrega tem prazo zero');
+    const defaultSummary50 = appLead50.getCartLeadTimeSummary([{ id: 'sem-prazo', status: 'order', isReady: false, quantity: 2 }]);
+    assert(defaultSummary50.productionDays === 14, 'app.js: encomenda sem prazo usa default 7 x 2 un = 14');
+    assert(appLead50.pieceEstimatedLeadTimeDays({ status: 'order', isReady: false, leadTimeDays: 10 }) === 22, 'app.js: prazo da peca soma fila 12 + 10 = 22');
+    const appLeadZero50 = buildAppLead50({ totalBacklogDays: -9, activeOrdersCount: NaN });
+    const zeroSummary50 = appLeadZero50.getCartLeadTimeSummary([{ status: 'order', isReady: false, leadTimeDays: 7, quantity: 1 }]);
+    assert(zeroSummary50.queueDays === 0 && zeroSummary50.totalDays === 7, 'app.js: fila invalida/negativa degrada para 0 dias');
+    assert(appLead50.formatBusinessDays(1) === '1 dia útil' && appLead50.formatBusinessDays(33) === '33 dias úteis', 'app.js: formatBusinessDays usa singular e plural corretos');
+    assert(appLead50.formatBusinessDays(-4) === '0 dias úteis', 'app.js: formatBusinessDays nunca exibe dias negativos');
+  }
+
+  // (50.11) admin.js: baixa da fila ao marcar enviado/concluido/cancelado.
+  {
+    const adminQueue50 = adminPwaModule;
+    const customOrder50 = { id: 'JEZ-9101', status: 'em-producao', orderProductionDays: 21, leadTimeDays: 7, items: [{ id: 'bolsa-punk', status: 'order', isReady: false, leadTimeDays: 7 }] };
+    const readyOrder50 = { id: 'JEZ-READY', status: 'em-producao', hasCustomProduction: false, items: [{ id: 'tote', status: 'ready', isReady: true, leadTimeDays: 0 }] };
+    assert(adminQueue50.getOrderProductionDays({ orderProductionDays: 21, leadTimeDays: 7 }) === 21, 'admin.js: orderProductionDays tem prioridade sobre leadTimeDays legado');
+    assert(adminQueue50.getOrderProductionDays({ leadTimeDays: 8 }) === 8, 'admin.js: pedido legado usa leadTimeDays quando nao ha orderProductionDays');
+    assert(adminQueue50.getOrderProductionDays({ orderProductionDays: 0, leadTimeDays: 7 }) === 7, 'admin.js: orderProductionDays zero cai para o prazo legado');
+    assert(adminQueue50.getOrderProductionDays(null) === 0 && adminQueue50.getOrderProductionDays({}) === 0, 'admin.js: pedido vazio/nulo tem producao zero');
+    assert(adminQueue50.isProductionQueueOrder(customOrder50) === true && adminQueue50.isProductionQueueOrder(readyOrder50) === false, 'admin.js: distingue encomenda de pronta entrega');
+    assert(adminQueue50.shouldReleaseProductionQueue('em-producao', 'enviado', customOrder50) === true, 'admin.js: em-producao -> enviado dispara baixa');
+    assert(adminQueue50.shouldReleaseProductionQueue('em-producao', 'concluido', customOrder50) === true, 'admin.js: em-producao -> concluido dispara baixa');
+    assert(adminQueue50.shouldReleaseProductionQueue('aguardando-pagamento', 'cancelado', customOrder50) === true, 'admin.js: cancelamento de pedido ativo dispara baixa');
+    assert(adminQueue50.shouldReleaseProductionQueue('enviado', 'concluido', customOrder50) === false, 'admin.js: enviado -> concluido NAO desconta duas vezes');
+    assert(adminQueue50.shouldReleaseProductionQueue('em-producao', 'preparar-envio', customOrder50) === false, 'admin.js: transicao intermediaria nao dispara baixa');
+    assert(adminQueue50.shouldReleaseProductionQueue('em-producao', 'enviado', readyOrder50) === false, 'admin.js: pedido de pronta entrega nunca dispara baixa');
+    const releaseCalc50 = adminQueue50.computeProductionQueueRelease({ totalBacklogDays: 47, activeOrdersCount: 3, releasedOrderIds: [] }, customOrder50, 'JEZ-9101');
+    assert(releaseCalc50.changed === true && releaseCalc50.alreadyReleased === false && releaseCalc50.productionDays === 21, 'admin.js: calculo de baixa marca mudanca e prazo do pedido');
+    assert(releaseCalc50.queue.totalBacklogDays === 26 && releaseCalc50.queue.activeOrdersCount === 2, 'admin.js: baixa reduz 47 -> 26 dias e 3 -> 2 pedidos');
+    assert(releaseCalc50.queue.releasedOrderIds.includes('JEZ-9101'), 'admin.js: id do pedido entra no ledger local');
+    const releaseAgain50 = adminQueue50.computeProductionQueueRelease(releaseCalc50.queue, customOrder50, 'JEZ-9101');
+    assert(releaseAgain50.changed === false && releaseAgain50.alreadyReleased === true && releaseAgain50.queue.totalBacklogDays === 26, 'admin.js: reaplicacao da baixa e idempotente');
+    const releaseFloor50 = adminQueue50.computeProductionQueueRelease({ totalBacklogDays: 5, activeOrdersCount: 1, releasedOrderIds: [] }, { orderProductionDays: 99 }, 'JEZ-BIG');
+    assert(releaseFloor50.queue.totalBacklogDays === 0 && releaseFloor50.queue.activeOrdersCount === 0, 'admin.js: baixa nunca deixa a fila negativa');
+    const derived50 = adminQueue50.deriveProductionQueueFromOrders([
+      { status: 'em-producao', orderProductionDays: 21 },
+      { status: 'aguardando-pagamento', leadTimeDays: 14, items: [{ leadTimeDays: 7 }] },
+      { status: 'enviado', orderProductionDays: 10 },
+      { status: 'em-producao', items: [{ isReady: true }] }
+    ]);
+    assert(derived50.totalBacklogDays === 35 && derived50.activeOrdersCount === 2, 'admin.js: reconstrucao soma apenas pedidos ativos sob encomenda (35 dias / 2)');
+    const normalized50 = adminQueue50.normalizeProductionQueue({ totalBacklogDays: -5, activeOrdersCount: 'x', releasedOrderIds: ['a', '', null, 'b'] });
+    assert(normalized50.totalBacklogDays === 0 && normalized50.activeOrdersCount === 0 && JSON.stringify(normalized50.releasedOrderIds) === '["a","b"]', 'admin.js: normalizacao clampa valores e filtra ids invalidos');
+  }
+
+  // (50.12) Sentinela estrutural: read-before-write e regra do singleton.
+  {
+    const checkoutBlock50 = extractBracedBlock47(fbServiceRaw49, 'async checkoutWithStockCheck(orderData, cartItems)');
+    assert(Boolean(checkoutBlock50), 'checkout transacional presente no bundle classico');
+    const queueReadIdx50 = checkoutBlock50 ? checkoutBlock50.indexOf('transaction.get(queueRef)') : -1;
+    const stockWriteIdx50 = checkoutBlock50 ? checkoutBlock50.indexOf('transaction.update(update.ref') : -1;
+    const queueWriteIdx50 = checkoutBlock50 ? checkoutBlock50.indexOf('transaction.set(queueRef') : -1;
+    assert(queueReadIdx50 !== -1 && stockWriteIdx50 !== -1 && queueReadIdx50 < stockWriteIdx50, 'checkout le a fila antes de qualquer update de estoque na transacao');
+    assert(queueReadIdx50 !== -1 && queueWriteIdx50 !== -1 && queueReadIdx50 < queueWriteIdx50, 'checkout le a fila antes do proprio set de incremento (read-before-write)');
+    const metaRuleStart50 = firestoreRulesContent.indexOf('match /meta/production_queue');
+    assert(metaRuleStart50 !== -1, 'firestore.rules declara a regra do singleton meta/production_queue');
+    const metaRuleBlock50 = metaRuleStart50 === -1 ? '' : firestoreRulesContent.slice(metaRuleStart50, firestoreRulesContent.indexOf('}', metaRuleStart50) + 1);
+    assert(metaRuleBlock50.includes('allow read: if true') && metaRuleBlock50.includes('allow create, update: if true'), 'firestore.rules permite leitura/criacao/atualizacao da fila');
+    assert(!metaRuleBlock50.includes('delete'), 'firestore.rules proibe delete da fila de producao');
   }
 
   // app.js: helpers canonicos e decremento local executados a partir do fonte real.
